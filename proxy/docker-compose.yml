@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  socks:
+    image: kizzx2/openvpn-client-socks:latest
+    ports:
+      - 127.0.0.1:12038:1080
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./certs:/etc/openvpn/:ro
+    restart: unless-stopped
