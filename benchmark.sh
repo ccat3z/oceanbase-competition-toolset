@@ -11,7 +11,7 @@ benchmark() {
     THREADS=128
     TABLE_SIZE=100000
     TABLES=3
-    TIME=300
+    # TIME=300
     REPORT_INTERVAL=10
 
     ssh -t "$TEST_CLIENT" sysbench \
@@ -20,16 +20,21 @@ benchmark() {
         --mysql-user=$USER --mysql-db=$DB \
         --threads=$THREADS \
         --tables=$TABLES --table_size=$TABLE_SIZE \
+        --warmup-time=30 \
         --time=$TIME --report-interval=$REPORT_INTERVAL \
         subplan "$@"
 }
 
 # Parse args
 NEED_SETUP=y
+NEED_RESTART=n
+TIME=300
 while [ -n "$1" ]; do
     case "$1" in
         --no-setup) NEED_SETUP=n ;;
-        --help) log_i "$0 [--no-setup] [--help]"; exit 0 ;;
+        --time) TIME=$2; shift;;
+        --restart) NEED_RESTART=y;;
+        --help) log_i "$0 [--no-setup] [--time second] [--restart] [--help]"; exit 0 ;;
         *) log_e "Unknown arg: $1"; exit 1;
     esac
     shift
@@ -39,6 +44,11 @@ if [ "$NEED_SETUP" = "y" ]; then
     "$TOOL_DIR"/build.sh
     ssh "$TEST_SERVER" \
         obd cluster tenant create ob-benchmark --tenant-name test || true
+    sleep 5s
+elif [ "$NEED_RESTART" = "y" ]; then
+    # shellcheck disable=SC2029
+    ssh "$TEST_SERVER" \
+        obd cluster restart "$OB_CLUSTER_NAME"
     sleep 5s
 fi
 
