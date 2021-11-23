@@ -29,7 +29,7 @@ ssh -t "$TEST_SERVER" << EOF
 
     if [ "$NEED_SETUP" = "y" ]; then
         echo "Setup..."
-        ln -sf \$PWD/build_release/src/observer/observer "$OB_CLUSTER_SERVER_BINARY_PATH"
+        cp \$PWD/build_release/src/observer/observer "$OB_CLUSTER_SERVER_BINARY_PATH"
         obd cluster restart "$OB_CLUSTER_NAME"
     fi
 EOF
