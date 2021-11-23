@@ -37,7 +37,9 @@ done
 
 if [ "$NEED_SETUP" = "y" ]; then
     "$TOOL_DIR"/build.sh
-    obd cluster tenant create ob-benchmark --tenant-name test || true
+    ssh "$TEST_SERVER" \
+        obd cluster tenant create ob-benchmark --tenant-name test || true
+    sleep 5s
 fi
 
 benchmark cleanup
