@@ -1,0 +1,15 @@
+oceanbase-ce:
+  version: 3.1.0
+  tag: ob-benchmark
+  servers:
+  - 127.0.0.1
+  global:
+    home_path: /var/lib/ob-benchmark
+    devname: eth0
+    mysql_port: 2188
+    rpc_port: 2189
+    zone: zone1
+    cluster_id: 1
+    memory_limit: 8G
+    datafile_size: 20G
+    # datafile_disk_percentage: 20
