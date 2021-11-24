@@ -3,7 +3,9 @@
 * `proxy/`: 比赛用服务器Socks代理
 * `sync.sh`: 构建
 * `build.sh`: 构建
+* `flame.sh`: 生成火焰图, 输出到标准输出
 * `benchmark.sh`: 基准测试
+* `submit.sh`: 提交测试
 * `generate-patch.sh`: 生成当前分支的patch
 
 ## 准备
