@@ -1,6 +1,9 @@
 #! /bin/bash
 
 set -e
+. "$(dirname "$0")/.env"
+
+ensure_git_repo
 
 if [ -z "$CHORE_BRANCH" ]; then
     CHORE_BRANCH=chore
