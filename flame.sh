@@ -19,7 +19,8 @@ cd "$CACHE_DIR"
 RECORD_DURATION=${1:-5}
 
 set -x
-perf record -F 99 --call-graph fp -p "$PID" -o perf.data -- sleep "$RECORD_DURATION"
+perf record -F 99 --call-graph fp -p "$PID" --proc-map-timeout 5000 \
+    -o perf.data -- sleep "$RECORD_DURATION"
 perf script -i perf.data > perf.unfold
 "$TOOL_DIR/stackcollapse-perf.pl" perf.unfold > perf.folded
 "$TOOL_DIR/flamegraph.pl" perf.folded
