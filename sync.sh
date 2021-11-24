@@ -4,6 +4,11 @@ set -e
 . "$(dirname "$0")/.env"
 cd "$REPO_DIR" || exit 1
 
+if [ ! -d ".git" ]; then
+    log_e "$REPO_DIR should not be a sync source because it is not a git repo. Maybe you should skip the sync step on the server."
+    exit 1
+fi
+
 # Parse args
 WATCH=n
 while [ -n "$1" ]; do
