@@ -42,8 +42,6 @@ done
 
 if [ "$NEED_SETUP" = "y" ]; then
     "$TOOL_DIR"/build.sh
-    ssh "$TEST_SERVER" \
-        obd cluster tenant create ob-benchmark --tenant-name test || true
     sleep 5s
 elif [ "$NEED_RESTART" = "y" ]; then
     # shellcheck disable=SC2029

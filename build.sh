@@ -32,5 +32,6 @@ ssh -t "$TEST_SERVER" << EOF
         obd cluster stop "$OB_CLUSTER_NAME"
         cp \$PWD/build_release/src/observer/observer "$OB_CLUSTER_SERVER_BINARY_PATH"
         obd cluster restart "$OB_CLUSTER_NAME"
+        obd cluster tenant create ob-benchmark --tenant-name test || true
     fi
 EOF
