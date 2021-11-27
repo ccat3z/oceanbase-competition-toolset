@@ -21,7 +21,7 @@ done
 [ "$NEED_SYNC" = "y" ] && "$TOOL_DIR"/sync.sh
 
 # shellcheck disable=SC2087
-ssh -t "$TEST_SERVER" << EOF
+ssh -t "$TEST_SERVER" sh -e << EOF
     cd "$REPO_IN_TEST_SERVER" || exit 1
 
     [ "$NEED_INIT" = "y" ] && ./build.sh release --init
