@@ -7,7 +7,7 @@ cd "${REPO_DIR}"
 "${TOOL_DIR}/build.sh" --no-setup
 
 # shellcheck disable=2087
-ssh -t "$TEST_SERVER" <<EOF
+ssh -t "$TEST_SERVER" sh -e <<EOF
 cd "${REPO_IN_TEST_SERVER}" || exit 1
 rm -rf submit
 mkdir submit
