@@ -1,0 +1,222 @@
+drop table if exists tbl1,tbl2;
+create table tbl1 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1));
+create table tbl2 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1));
+insert into tbl1 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl1 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl1 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl2 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl2 values(2,'now1','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl2 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl2 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',1.677);
+explain select count(*) from tbl1;
+explain select count(*) from tbl1 where i1<=3;
+explain select count(*) from tbl1 where i1=3;
+explain select count(*) from tbl1 group by v2;
+explain select count(*) from tbl1 order by v2;
+explain select sum(i1) from tbl1;
+explain select sum(i1) from tbl1 where i1<=3;
+explain select sum(i1) from tbl1 group by v2;
+explain select avg(i1) from tbl1;
+explain select avg(i1) from tbl1 group by v2;
+explain select avg(i1) from tbl1 where i1<=3;
+select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1>2;
+select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i4>1.25;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00.000000	-10.235	1	now	haha	1.6256	2014-05-04 12:00:00.000000	3.450
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i4>1.25;
+select * from tbl2,tbl1 where tbl2.v2=tbl1.v2 and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00.000000	3.450	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+explain  select * from tbl2,tbl1 where tbl2.v2=tbl1.v2 and tbl1.i1>2;
+test alias 
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 ,tbl2 b where tbl1.i1=b.i1 and tbl1.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 ,tbl2 b where tbl1.i1=b.i1 and tbl1.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 ,tbl2 b where tbl1.i1=b.i1 and tbl1.i1>2;
+test join with self 
+select * from tbl1 as i00,tbl1  where tbl1.i1=i00.i1 and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+explain select * from tbl1 as i00,tbl1  where tbl1.i1=i00.i1 and tbl1.i1>2;
+select * from tbl1 as i00,tbl1  where tbl1.v2=i00.v2 and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00.000000	-10.235	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+2	now	haha	-1.6256	2014-05-04 12:00:00.000000	1.243	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+explain select * from tbl1 as i00,tbl1  where tbl1.v2=i00.v2 and tbl1.i1>2;
+test null in  join condition 
+insert into tbl1 values(1111,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl2 values(111,'now','haha',1.6256,'2014-05-04 12:00:00',3.45) ;
+select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1>2;
+select * from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1 is null and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl1,tbl2 where (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+test index condition in where order 
+explain select * from tbl1,tbl2 where tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain select count(*) from tbl1,tbl2 where tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain select * from tbl1,tbl2 where (tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now') and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain select * from tbl1,tbl2 where tbl1.v2=tbl2.v2 and (tbl1.i1=2 and tbl1.v2='now' and  tbl1.i1=tbl2.i1) and tbl1.i1>2;
+use column alias 
+select tbl1.i1 as col1 from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1>2;
+col1
+3
+explain select tbl1.i1 as col1 from tbl1,tbl2 where tbl1.i1=tbl2.i1 and tbl1.i1>2;
+test join in ps'
+set @a=1 ;
+test union,except,... 
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2 union select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2 union select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and  a.i1>2 except select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+i1	v2	i1	v2
+explain select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and   a.i1>2 except select a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+test hint,condition use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2 ;
+test hint,condition not use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+i1	v2	i1	v2
+1111	now	1	now
+3	now	1	now
+1111	now	111	now
+3	now	111	now
+explain select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+test muti columns primary 
+drop table if exists tbl3,tbl4;
+create table tbl3 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1,v2,i3,d4));
+create table tbl4 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1,v2,i3,d4));
+insert into tbl3 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl3 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl3 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl4 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl4 values(2,'now','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl4 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl4 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',-1.45);
+where condition hava first column of primay,not have all primary columns 
+select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and tbl3.i1>2;
+select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2;
+select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+have frist column of pk,but where condition is disorder 
+select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1  and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and tbl3.i1>2;
+select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1)  and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and tbl3.i1>2;
+where condition not hava first column of primay,but have other column of  primary key 
+select * from tbl3,tbl4 where tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+test hint,condition use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+test hint,condition not use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+i1	v2	i1	v2
+1111	now	1	now
+3	now	1	now
+1111	now	111	now
+3	now	111	now
+explain select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+test muti columns primary 
+drop table if exists tbl3,tbl4;
+create table tbl3 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1,v2,i3,d4));
+create table tbl4 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1,v2,i3,d4));
+insert into tbl3 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl3 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl3 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl4 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl4 values(2,'now','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl4 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl4 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',-1.45);
+where condition hava first column of primay,not have all primary columns 
+select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and tbl3.i1>2;
+select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i1>2 ;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i1>2;
+select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and  tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and   tbl3.i1>2;
+have frist column of pk,but where condition is disorder 
+select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and  tbl3.i1>2 ;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and  tbl3.i1>2;
+select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and  tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where  tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and  tbl3.i1>2;
+where condition not hava first column of primay,but have other column of  primary key 
+select * from tbl3,tbl4 where tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and  tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain select * from tbl3,tbl4 where tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i4>1.25;
+drop table if exists t1,t2;
+create table t1 (id int primary key, i2 int);
+create table t2 (id int primary key, i2 int);
+insert into t1(id) values (75);
+insert into t1(id) values (79);
+insert into t1(id) values (78);
+insert into t1(id) values (77);
+insert into t1(id) values (104);
+insert into t1(id) values (103);
+insert into t1(id) values (102);
+insert into t1(id) values (101);
+insert into t1(id) values (105);
+insert into t1(id) values (106);
+insert into t1(id) values (107);
+insert into t2(id) values (107),(75),(1000);
+select t1.id, t2.id from t1, t2 where t2.id = t1.id and t1.id>100;
+id	id
+107	107
+explain  select t1.id, t2.id from t1, t2 where t2.id = t1.id and t1.id>100;
+explain  select t1.id, t2.id from t1, t2 where t2.i2 = t1.i2 and t1.id>100;
+explain  select t1.id, count(t2.id) from t1,t2 where t2.id = t1.id  and t1.id>100 group by t1.id order by t1.id;
+use with limit 
+select * from t1, t2 where t2.id = t1.id and t1.id>100 limit 3;
+id	i2	id	i2
+107	NULL	107	NULL
+select * from t1, t2 where t2.id = t1.id and  t1.id>100 limit 1,5;
+id	i2	id	i2
+explain select * from t1, t2 where t2.id = t1.id and t1.id>100 limit 3;
+explain select * from t1, t2 where t2.id = t1.id and t1.id>100 limit 1,5;
+2.from select join normal table 
+drop table if exists t,b;
+create table t(x int primary key, c int, c1 int);
+create table b(x int primary key, c int);
+insert into t values(1,2,1),(2,2,2),(3,3,3);
+insert into b values(1,99),(2,98),(3,97);
+select a.c1 as a_c, b.c as b_c from b, (select c, sum(c1) as c1 from t group by c) a  where a.c = b.x and b.x>2;
+a_c	b_c
+3	97
+explain select a.c1 as a_c, b.c as b_c from b, (select c, sum(c1) as c1 from t group by c) a  where a.c = b.x and b.x>2;
+select a.c1 as a_c, b.c as b_c from b, (select c, sum(c1) as c1 from t group by c) a  where a.c = b.x and b.x>2;
+a_c	b_c
+3	97
