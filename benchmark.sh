@@ -9,7 +9,6 @@ benchmark() {
     USER=root@test
     DB=test
     THREADS=128
-    TABLE_SIZE=100000
     TABLES=3
     # TIME=300
     REPORT_INTERVAL=10
@@ -29,12 +28,14 @@ benchmark() {
 NEED_SETUP=y
 NEED_RESTART=n
 TIME=300
+TABLE_SIZE=100000
 while [ -n "$1" ]; do
     case "$1" in
         --no-setup) NEED_SETUP=n ;;
         --time) TIME=$2; shift;;
         --restart) NEED_RESTART=y;;
-        --help) log_i "$0 [--no-setup] [--time second] [--restart] [--help]"; exit 0 ;;
+        --size) TABLE_SIZE=$2; shift;;
+        --help) log_i "$0 [--no-setup] [--time second] [--restart] [--size table_size] [--help]"; exit 0 ;;
         *) log_e "Unknown arg: $1"; exit 1;
     esac
     shift
