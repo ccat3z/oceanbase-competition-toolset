@@ -19,7 +19,7 @@ benchmark() {
         --mysql-user=$USER --mysql-db=$DB \
         --threads=$THREADS \
         --tables=$TABLES --table_size=$TABLE_SIZE \
-        --warmup-time=30 \
+        --warmup-time=$WARMUP_TIME \
         --time=$TIME --report-interval=$REPORT_INTERVAL \
         subplan "$@"
 }
@@ -27,6 +27,7 @@ benchmark() {
 # Parse args
 NEED_SETUP=y
 NEED_RESTART=n
+WARMUP_TIME=30
 TIME=300
 TABLE_SIZE=100000
 while [ -n "$1" ]; do
@@ -34,8 +35,9 @@ while [ -n "$1" ]; do
         --no-setup) NEED_SETUP=n ;;
         --time) TIME=$2; shift;;
         --restart) NEED_RESTART=y;;
+        --skip-warmup) WARMUP_TIME=0;;
         --size) TABLE_SIZE=$2; shift;;
-        --help) log_i "$0 [--no-setup] [--time second] [--restart] [--size table_size] [--help]"; exit 0 ;;
+        --help) log_i "$0 [--no-setup] [--time second] [--restart] [--skip-warmup] [--size table_size] [--help]"; exit 0 ;;
         *) log_e "Unknown arg: $1"; exit 1;
     esac
     shift
