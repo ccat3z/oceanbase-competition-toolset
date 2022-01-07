@@ -9,6 +9,7 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 run_in_server
+export PATH="/u01/obclient/bin:$PATH"
 cd "$TOOL_DIR/test"
 mkdir -p tmp var/log
 ./mysql_test/mysql-test.sh
