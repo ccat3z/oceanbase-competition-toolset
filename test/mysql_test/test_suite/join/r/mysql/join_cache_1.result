@@ -1,0 +1,352 @@
+set collation_connection='utf8mb4_general_ci';
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
+DROP DATABASE IF EXISTS world;
+set names utf8;
+CREATE DATABASE world;
+use world;
+SELECT COUNT(*) FROM Country;
+COUNT(*)
+239
+SELECT COUNT(*) FROM City;
+COUNT(*)
+4079
+SELECT COUNT(*) FROM CountryLanguage;
+COUNT(*)
+984
+SELECT City.Name, Country.Name FROM City,Country
+WHERE City.Country=Country.Code AND 
+Country.Name LIKE 'L%' AND City.Population > 100000
+order by City.Name, Country.Name;
+Name	Name
+Beirut	Lebanon
+Bengasi	Libyan Arab Jamahiriya
+Daugavpils	Latvia
+Kaunas	Lithuania
+Klaipeda	Lithuania
+Maseru	Lesotho
+Misrata	Libyan Arab Jamahiriya
+Monrovia	Liberia
+Panevezys	Lithuania
+Riga	Latvia
+Tripoli	Lebanon
+Tripoli	Libyan Arab Jamahiriya
+Vientiane	Laos
+Vilnius	Lithuania
+iauliai	Lithuania
+SELECT City.Name, Country.Name, CountryLanguage.Language
+FROM City,Country,CountryLanguage
+WHERE City.Country=Country.Code AND
+CountryLanguage.Country=Country.Code AND
+City.Name LIKE 'L%' AND Country.Population > 3000000 AND
+CountryLanguage.Percentage > 50
+order by City.Name, Country.Name, CountryLanguage.Language;
+Name	Name	Language
+La Ceiba	Honduras	Spanish
+La Habana	Cuba	Spanish
+La Matanza	Argentina	Spanish
+La Paz	Bolivia	Spanish
+La Paz	Mexico	Spanish
+La Paz	Mexico	Spanish
+La Plata	Argentina	Spanish
+La Rioja	Argentina	Spanish
+La Romana	Dominican Republic	Spanish
+La Serena	Chile	Spanish
+La Spezia	Italy	Italian
+Lafayette	United States	English
+Lages	Brazil	Portuguese
+Lagos de Moreno	Mexico	Spanish
+Lahti	Finland	Finnish
+Laiwu	China	Chinese
+Laiyang	China	Chinese
+Laizhou	China	Chinese
+Lakewood	United States	English
+Lalitapur	Nepal	Nepali
+Lambaré	Paraguay	Spanish
+Lancaster	United States	English
+Langfang	China	Chinese
+Lansing	United States	English
+Lanús	Argentina	Spanish
+Lanzhou	China	Chinese
+Laohekou	China	Chinese
+Laredo	United States	English
+Larisa	Greece	Greek
+Las Heras	Argentina	Spanish
+Las Margaritas	Mexico	Spanish
+Las Palmas de Gran Canaria	Spain	Spanish
+Las Vegas	United States	English
+Lashio (Lasho)	Myanmar	Burmese
+Latakia	Syria	Arabic
+Latina	Italy	Italian
+Lauro de Freitas	Brazil	Portuguese
+Lausanne	Switzerland	German
+Laval	Canada	English
+Lázaro Cárdenas	Mexico	Spanish
+Le Havre	France	French
+Le Mans	France	French
+Le-Cap-Haïtien	Haiti	Haiti Creole
+Lecce	Italy	Italian
+Leeds	United Kingdom	English
+Leganés	Spain	Spanish
+Legnica	Poland	Polish
+Leicester	United Kingdom	English
+Leiden	Netherlands	Dutch
+Leipzig	Germany	German
+Leiyang	China	Chinese
+Lengshuijiang	China	Chinese
+Leninsk-Kuznetski	Russian Federation	Russian
+León	Mexico	Spanish
+León	Nicaragua	Spanish
+León	Spain	Spanish
+Lerdo	Mexico	Spanish
+Lerma	Mexico	Spanish
+Leshan	China	Chinese
+Leverkusen	Germany	German
+Lexington-Fayette	United States	English
+Lhasa	China	Chinese
+Liangcheng	China	Chinese
+Lianyuan	China	Chinese
+Lianyungang	China	Chinese
+Liaocheng	China	Chinese
+Liaoyang	China	Chinese
+Liaoyuan	China	Chinese
+Liberec	Czech Republic	Czech
+Lida	Belarus	Belorussian
+Liège	Belgium	Dutch
+Liling	China	Chinese
+Lille	France	French
+Lilongwe	Malawi	Chichewa
+Lima	Peru	Spanish
+Limeira	Brazil	Portuguese
+Limoges	France	French
+Linchuan	China	Chinese
+Lincoln	United States	English
+Linfen	China	Chinese
+Linhai	China	Chinese
+Linhares	Brazil	Portuguese
+Linhe	China	Chinese
+Linköping	Sweden	Swedish
+Linqing	China	Chinese
+Linyi	China	Chinese
+Linz	Austria	German
+Lipetsk	Russian Federation	Russian
+Lisboa	Portugal	Portuguese
+Little Rock	United States	English
+Liupanshui	China	Chinese
+Liuzhou	China	Chinese
+Liu´an	China	Chinese
+Liverpool	United Kingdom	English
+Livonia	United States	English
+Livorno	Italy	Italian
+Liyang	China	Chinese
+Ljubertsy	Russian Federation	Russian
+Lleida (Lérida)	Spain	Spanish
+Lódz	Poland	Polish
+Logroño	Spain	Spanish
+Loja	Ecuador	Spanish
+Lomas de Zamora	Argentina	Spanish
+London	Canada	English
+London	United Kingdom	English
+Londrina	Brazil	Portuguese
+Long Beach	United States	English
+Long Xuyen	Vietnam	Vietnamese
+Longjing	China	Chinese
+Longkou	China	Chinese
+Longueuil	Canada	English
+Longyan	China	Chinese
+Los Angeles	Chile	Spanish
+Los Angeles	United States	English
+Los Cabos	Mexico	Spanish
+Los Teques	Venezuela	Spanish
+Loudi	China	Chinese
+Louisville	United States	English
+Lowell	United States	English
+Lower Hutt	New Zealand	English
+Lubbock	United States	English
+Lübeck	Germany	German
+Lublin	Poland	Polish
+Luchou	Taiwan	Min
+Ludwigshafen am Rhein	Germany	German
+Lugansk	Ukraine	Ukrainian
+Lund	Sweden	Swedish
+Lünen	Germany	German
+Lungtan	Taiwan	Min
+Luohe	China	Chinese
+Luoyang	China	Chinese
+Luton	United Kingdom	English
+Lutsk	Ukraine	Ukrainian
+Luxor	Egypt	Arabic
+Luzhou	China	Chinese
+Luziânia	Brazil	Portuguese
+Lviv	Ukraine	Ukrainian
+Lyon	France	French
+Lysytansk	Ukraine	Ukrainian
+L´Hospitalet de Llobregat	Spain	Spanish
+SELECT City.Name, Country.Name FROM City,Country
+WHERE City.Country=Country.Code AND 
+Country.Name LIKE 'L%' AND City.Population > 100000
+order by City.Name, Country.Name;
+Name	Name
+Beirut	Lebanon
+Bengasi	Libyan Arab Jamahiriya
+Daugavpils	Latvia
+Kaunas	Lithuania
+Klaipeda	Lithuania
+Maseru	Lesotho
+Misrata	Libyan Arab Jamahiriya
+Monrovia	Liberia
+Panevezys	Lithuania
+Riga	Latvia
+Tripoli	Lebanon
+Tripoli	Libyan Arab Jamahiriya
+Vientiane	Laos
+Vilnius	Lithuania
+iauliai	Lithuania
+SELECT City.Name, Country.Name, CountryLanguage.Language
+FROM City,Country,CountryLanguage
+WHERE City.Country=Country.Code AND
+CountryLanguage.Country=Country.Code AND
+City.Name LIKE 'L%' AND Country.Population > 3000000 AND
+CountryLanguage.Percentage > 50
+order by City.Name, Country.Name, CountryLanguage.Language;
+Name	Name	Language
+La Ceiba	Honduras	Spanish
+La Habana	Cuba	Spanish
+La Matanza	Argentina	Spanish
+La Paz	Bolivia	Spanish
+La Paz	Mexico	Spanish
+La Paz	Mexico	Spanish
+La Plata	Argentina	Spanish
+La Rioja	Argentina	Spanish
+La Romana	Dominican Republic	Spanish
+La Serena	Chile	Spanish
+La Spezia	Italy	Italian
+Lafayette	United States	English
+Lages	Brazil	Portuguese
+Lagos de Moreno	Mexico	Spanish
+Lahti	Finland	Finnish
+Laiwu	China	Chinese
+Laiyang	China	Chinese
+Laizhou	China	Chinese
+Lakewood	United States	English
+Lalitapur	Nepal	Nepali
+Lambaré	Paraguay	Spanish
+Lancaster	United States	English
+Langfang	China	Chinese
+Lansing	United States	English
+Lanús	Argentina	Spanish
+Lanzhou	China	Chinese
+Laohekou	China	Chinese
+Laredo	United States	English
+Larisa	Greece	Greek
+Las Heras	Argentina	Spanish
+Las Margaritas	Mexico	Spanish
+Las Palmas de Gran Canaria	Spain	Spanish
+Las Vegas	United States	English
+Lashio (Lasho)	Myanmar	Burmese
+Latakia	Syria	Arabic
+Latina	Italy	Italian
+Lauro de Freitas	Brazil	Portuguese
+Lausanne	Switzerland	German
+Laval	Canada	English
+Lázaro Cárdenas	Mexico	Spanish
+Le Havre	France	French
+Le Mans	France	French
+Le-Cap-Haïtien	Haiti	Haiti Creole
+Lecce	Italy	Italian
+Leeds	United Kingdom	English
+Leganés	Spain	Spanish
+Legnica	Poland	Polish
+Leicester	United Kingdom	English
+Leiden	Netherlands	Dutch
+Leipzig	Germany	German
+Leiyang	China	Chinese
+Lengshuijiang	China	Chinese
+Leninsk-Kuznetski	Russian Federation	Russian
+León	Mexico	Spanish
+León	Nicaragua	Spanish
+León	Spain	Spanish
+Lerdo	Mexico	Spanish
+Lerma	Mexico	Spanish
+Leshan	China	Chinese
+Leverkusen	Germany	German
+Lexington-Fayette	United States	English
+Lhasa	China	Chinese
+Liangcheng	China	Chinese
+Lianyuan	China	Chinese
+Lianyungang	China	Chinese
+Liaocheng	China	Chinese
+Liaoyang	China	Chinese
+Liaoyuan	China	Chinese
+Liberec	Czech Republic	Czech
+Lida	Belarus	Belorussian
+Liège	Belgium	Dutch
+Liling	China	Chinese
+Lille	France	French
+Lilongwe	Malawi	Chichewa
+Lima	Peru	Spanish
+Limeira	Brazil	Portuguese
+Limoges	France	French
+Linchuan	China	Chinese
+Lincoln	United States	English
+Linfen	China	Chinese
+Linhai	China	Chinese
+Linhares	Brazil	Portuguese
+Linhe	China	Chinese
+Linköping	Sweden	Swedish
+Linqing	China	Chinese
+Linyi	China	Chinese
+Linz	Austria	German
+Lipetsk	Russian Federation	Russian
+Lisboa	Portugal	Portuguese
+Little Rock	United States	English
+Liupanshui	China	Chinese
+Liuzhou	China	Chinese
+Liu´an	China	Chinese
+Liverpool	United Kingdom	English
+Livonia	United States	English
+Livorno	Italy	Italian
+Liyang	China	Chinese
+Ljubertsy	Russian Federation	Russian
+Lleida (Lérida)	Spain	Spanish
+Lódz	Poland	Polish
+Logroño	Spain	Spanish
+Loja	Ecuador	Spanish
+Lomas de Zamora	Argentina	Spanish
+London	Canada	English
+London	United Kingdom	English
+Londrina	Brazil	Portuguese
+Long Beach	United States	English
+Long Xuyen	Vietnam	Vietnamese
+Longjing	China	Chinese
+Longkou	China	Chinese
+Longueuil	Canada	English
+Longyan	China	Chinese
+Los Angeles	Chile	Spanish
+Los Angeles	United States	English
+Los Cabos	Mexico	Spanish
+Los Teques	Venezuela	Spanish
+Loudi	China	Chinese
+Louisville	United States	English
+Lowell	United States	English
+Lower Hutt	New Zealand	English
+Lubbock	United States	English
+Lübeck	Germany	German
+Lublin	Poland	Polish
+Luchou	Taiwan	Min
+Ludwigshafen am Rhein	Germany	German
+Lugansk	Ukraine	Ukrainian
+Lund	Sweden	Swedish
+Lünen	Germany	German
+Lungtan	Taiwan	Min
+Luohe	China	Chinese
+Luoyang	China	Chinese
+Luton	United Kingdom	English
+Lutsk	Ukraine	Ukrainian
+Luxor	Egypt	Arabic
+Luzhou	China	Chinese
+Luziânia	Brazil	Portuguese
+Lviv	Ukraine	Ukrainian
+Lyon	France	French
+Lysytansk	Ukraine	Ukrainian
+L´Hospitalet de Llobregat	Spain	Spanish
+DROP DATABASE world;

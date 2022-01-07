@@ -1,0 +1,200 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description: test agg function with unique key word
+
+--disable_warnings
+drop database if exists temptest;
+--enable_warnings
+
+create database temptest;
+use temptest;
+
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+
+create table t1(c1 int primary key, c2 int) partition by hash (c1) partitions 5;
+create table t2(c1 int primary key, c2 int, c3 varchar(32)) partition by hash (c1) partitions 3;
+create table t3(c1 int, c2 int, c3 varchar(32)) partition by hash (c2) partitions 3;
+
+###
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t1 values (2, 3);
+INSERT INTO t1 values (3, 3);
+INSERT INTO t1 values  (4, 3);
+INSERT INTO t1 values (5, 2);
+INSERT INTO t1 values (6, 1);
+INSERT INTO t1 values (7, 1);
+INSERT INTO t1 VALUES  (10, 2);
+INSERT INTO t1 VALUES  (20, 3);
+INSERT INTO t1 VALUES  (30, 4);
+INSERT INTO t1 VALUES  (77, 5);
+INSERT INTO t1 VALUES  (99, 99);
+INSERT INTO t1 VALUES  (21, 17);
+INSERT INTO t2 VALUES (1, 2, 'a');
+INSERT INTO t2 VALUES (2, 3, 'a');
+INSERT INTO t2 VALUES (3, 3, 'a');
+INSERT INTO t2 VALUES (4, 3, 'b');
+INSERT INTO t2 VALUES (5, 2, 'b');
+INSERT INTO t2 VALUES (6, 1, 'dd');
+INSERT INTO t2 VALUES (7, 1, '76www');
+INSERT INTO t2 VALUES (10, 2, 'bb21');
+INSERT INTO t2 VALUES (20, 3, 'dsa122');
+INSERT INTO t2 VALUES (30, 4, 'c');
+INSERT INTO t2 VALUES (77, 5, 'c');
+INSERT INTO t2 VALUES (99, 99, 'c');
+INSERT INTO t2 VALUES (21, 17, 'c');
+INSERT INTO t2 VALUES (231, 20, 'c');
+INSERT INTO t2 VALUES (11, 2, 'b');
+#
+INSERT INTO t3 VALUES (1, 2, 'a');
+INSERT INTO t3 VALUES (2, 3, 'a');
+INSERT INTO t3 VALUES (3, 3, 'a');
+INSERT INTO t3 VALUES (4, 3, 'b');
+INSERT INTO t3 VALUES (5, 2, 'b');
+INSERT INTO t3 VALUES (6, 1, 'dd');
+INSERT INTO t3 VALUES (7, 1, '76www');
+INSERT INTO t3 VALUES (10, 2, 'bb21');
+INSERT INTO t3 VALUES (20, 3, 'dsa122');
+INSERT INTO t3 VALUES (30, 4, 'c');
+INSERT INTO t3 VALUES (77, 5, 'c');
+INSERT INTO t3 VALUES (99, 99, 'c');
+INSERT INTO t3 VALUES (21, 17, 'c');
+INSERT INTO t3 VALUES (231, 20, 'c');
+INSERT INTO t3 VALUES (11, 2, 'b');
+INSERT INTO t3 VALUES (1, 2, 'a');
+INSERT INTO t3 VALUES (2, 3, 'a');
+INSERT INTO t3 VALUES (3, 3, 'a');
+INSERT INTO t3 VALUES (4, 3, 'b');
+INSERT INTO t3 VALUES (5, 2, 'b');
+INSERT INTO t3 VALUES (6, 1, 'dd');
+INSERT INTO t3 VALUES (7, 1, '76www');
+INSERT INTO t3 VALUES (10, 2, 'bb21');
+INSERT INTO t3 VALUES (20, 3, 'dsa122');
+INSERT INTO t3 VALUES (30, 4, 'c');
+INSERT INTO t3 VALUES (77, 5, 'c');
+INSERT INTO t3 VALUES (99, 99, 'c');
+INSERT INTO t3 VALUES (21, 17, 'c');
+INSERT INTO t3 VALUES (231, 20, 'c');
+INSERT INTO t3 VALUES (11, 2, 'b');
+
+select avg(c2), count(c2) from t2;
+select count(c2) from t2;
+--sorted_result
+select count(c2) from t2 group by c2;
+--sorted_result
+select count(c2) from t2 group by c3;
+--sorted_result
+select * from t2 group by c2;
+--sorted_result
+select * from t2 group by c2, c3;
+--sorted_result
+select count(c1) from t2 group by c2;
+--sorted_result
+select count(c2) from t2 group by c3;
+--sorted_result
+select count(c2), avg(c1) from t2 group by c3;
+
+select count(unique c2) from t2;
+select avg(unique c2), count(unique c2) from t2;
+--sorted_result
+select avg(unique c2), count(unique c2) from t2 group by c3;
+--sorted_result
+select avg(unique c2), count(unique c2) from t2 group by c2, c3;
+
+##group by push down with modification
+--sorted_result
+select avg(unique c1) from t2 group by c2, c3;
+--sorted_result
+select sum(unique c1) from t2 group by c2, c3;
+--sorted_result
+select count(unique c1) from t2 group by c2, c3;
+--sorted_result
+select count(unique c1) from t2 group by c1, c2;
+--sorted_result
+select count(unique c1) from t2 group by c1, c2, c3;
+--sorted_result
+select count(unique c1), sum(unique c2) from t2 group by c2, c3;
+--sorted_result
+select group_concat(unique c1 order by c1) from t2 group by c2, c3;
+
+##mixed agg and unique agg
+--sorted_result
+select count(unique c1), sum(c2) from t2 group by c2, c3;
+--sorted_result
+select count(unique c1), sum(c2) from t2 group by c3;
+--sorted_result
+select avg(unique c2), count(c3) from t3 group by c1;
+
+##unique key equals partition key
+--sorted_result
+select count(unique(c1)) from t3;
+--sorted_result
+select count(unique(c1)) from t3 group by c1;
+--sorted_result
+select count(unique(c2)) from t3 group by c1, c2;
+--sorted_result
+select sum(unique(c2)) from t3;
+--sorted_result
+select sum(unique(c1)) from t3 group by c1;
+--sorted_result
+select sum(unique(c1)) from t3 group by c1, c2;
+--sorted_result
+select avg(unique(c1)) from t3;
+--sorted_result
+select avg(unique(c2)) from t3 group by c1;
+--sorted_result
+select avg(unique(c1)) from t3 group by c1, c2;
+
+--sorted_result
+select count(unique c3, c2) from t3;
+--sorted_result
+select count(unique c2 ) from t3 group by c1;
+--sorted_result
+select count(unique c2) from t3 group by c1, c2;
+--sorted_result
+select count(unique c1, c2) from t3;
+--sorted_result
+select count(unique c1, c3) from t3 group by c1;
+--sorted_result
+select avg(unique c2) from t3 group by c1, c2;
+--sorted_result
+select avg(unique c2) from t3 group by c1, c2;
+--sorted_result
+select avg(unique c2) from t3;
+--sorted_result
+select avg(unique c2) from t3 group by c3;
+--sorted_result
+select avg(unique c2) from t3 group by c3;
+--sorted_result
+select avg(unique c2) from t3;
+--sorted_result
+select avg(unique c2) from t3 group by c1;
+--sorted_result
+select sum(unique(c2)) from t3;
+--sorted_result
+select sum(unique(c2)) from t3 group by c1;
+--sorted_result
+select sum(unique(c2)) from t3 group by c1, c2;
+--sorted_result
+select sum(unique(c2)) from t3 group by c2;
+
+--sorted_result
+select avg(unique c1) from t2;
+--sorted_result
+select avg(unique c1) from t2 group by c2;
+--sorted_result
+select count(unique c1) from t2 group by c2;
+--sorted_result
+select sum(unique c1) from t2;
+--sorted_result
+select sum(unique c1) from t2 group by c1;
+--sorted_result
+select sum(unique c1) from t2 group by c2;
+##
+--disable_warnings
+drop table if exists t1,t2;
+drop database if exists temptest;
+--enable_warnings

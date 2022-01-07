@@ -1,0 +1,14 @@
+#tags: px
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 int);
+insert into t1 values (1,1),(2,2),(3,3),(4,4);
+select * from t1 limit 0,1;
+set _force_parallel_query_dop = 3;
+--sorted_result
+select * from t1 limit 0, 1;
+--sorted_result
+select * from t1 limit 1, 2;

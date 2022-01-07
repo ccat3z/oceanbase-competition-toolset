@@ -1,0 +1,1798 @@
+drop table if exists t0, t1, t2, t3, t4, t10, t11, t12i, ts, b, d;
+drop table if exists t, v, it, it1, it2, it3, ot, ot1, ot2, ot3;
+drop view if exists v1, v2, v3, v_t2, view_b, view_c;
+# End of the test for bug#12640083.
+#
+# Bug#12603200 - Assert in QUICK_INDEX_MERGE_SELECT::need_sorted_output
+#
+CREATE TABLE t1 (
+pk int NOT NULL,
+col_int_key int NOT NULL,
+col_varchar_nokey varchar(1) NOT NULL,
+col_varchar_key varchar(1) NOT NULL,
+PRIMARY KEY(pk),
+KEY col_int_key(col_int_key),
+KEY col_varchar_key(col_varchar_key, col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(1,7,'a','a'),
+(2,0,'v','v'),
+(3,9,'c','c'),
+(4,3,'m','m'),
+(5,2,'a','a'),
+(6,1,'d','d'),
+(7,8,'y','y'),
+(8,6,'t','t'),
+(11,7,'a','x'),
+(12,0,'v','v'),
+(13,9,'c','c'),
+(14,3,'m','m'),
+(15,2,'a','x'),
+(16,1,'d','d'),
+(17,8,'y','y'),
+(18,6,'t','u');
+CREATE TABLE t2 (
+pk int NOT NULL,
+col_int_key int NOT NULL,
+col_varchar_key varchar(1) NOT NULL,
+PRIMARY KEY(pk),
+KEY col_varchar_key(col_varchar_key, col_int_key)
+) ;
+INSERT INTO t2(pk,col_int_key,col_varchar_key) VALUES
+(8,7,'c'),
+(11,4,'l'),
+(12,7,'b'),
+(13,0,'c'),
+(14,2,'i'),
+(15,9,'h'),
+(16,4,'q'),
+(17,1,'m'),
+(18,9,'b'),
+(19,2,'e'),
+(20,1,'c'),
+(21,7,'z'),
+(22,4,'l'),
+(23,7,'z'),
+(24,0,'c'),
+(25,2,'i'),
+(26,9,'h'),
+(27,4,'q'),
+(28,0,'a'),
+(29,1,'d');
+SELECT outr.col_varchar_key AS x, outr.pk AS y
+FROM t1 AS outr
+WHERE outr.col_varchar_key IN (SELECT innr.col_varchar_key
+FROM t2 AS innr
+WHERE innr.col_varchar_key = 'a' OR innr.pk = 8)
+AND outr.col_varchar_nokey < 't'
+ORDER BY outr.col_varchar_key, outr.pk;
+x	y
+a	1
+a	5
+c	3
+c	13
+DROP TABLE if exists t1, t2;
+# End of bug#12603200
+#
+# Bug#12603183: Segfault in hp_movelink
+#
+CREATE TABLE t1 (
+col_varchar_key varchar(1) ,
+col_varchar_nokey varchar(1) ,
+KEY col_varchar_key(col_varchar_key)
+);
+INSERT INTO t1 VALUES
+('i','i'),
+('h','h'),
+('q','q'),
+('a','a'),
+('v','v'),
+('u','u'),
+('s','s'),
+('y','y'),
+('z','z'),
+('h','h'),
+('p','p'),
+('e','e'),
+('i','i'),
+('y','y'),
+('w','w');
+CREATE TABLE t2 (
+col_varchar_nokey varchar(1)
+);
+INSERT INTO t2 VALUES
+('b');
+SELECT grandparent1.col_varchar_nokey
+FROM t1 AS grandparent1 LEFT JOIN t2 AS grandparent2 USING (col_varchar_nokey)
+WHERE (grandparent1.col_varchar_key) IN
+(SELECT parent1.col_varchar_nokey
+FROM t1 AS parent1
+WHERE parent1.col_varchar_key IN
+(SELECT child1.col_varchar_nokey AS c1
+FROM t1 AS child1 LEFT JOIN t2 AS child2
+ON (child1.col_varchar_key > child2.col_varchar_nokey)));
+col_varchar_nokey
+a
+e
+h
+h
+i
+i
+p
+q
+s
+u
+v
+w
+y
+y
+z
+DROP TABLE if exists t1, t2;
+# End of test for bug#12603183.
+#
+# Bug#12818569: Diff nr of rows returned when using IN/ALL+subquery
+#
+CREATE TABLE t1 (
+col_int_key INT NOT NULL,
+col_datetime_key DATETIME NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+KEY col_int_key (col_int_key),
+KEY col_datetime_key(col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(7,'2004-06-06 04:22:12','v'), (0,'2005-11-13 01:12:31','s'),
+(9,'2002-05-04 01:50:00','l'), (3,'2004-10-27 10:28:45','y'),
+(4,'2006-07-22 05:24:23','c'), (2,'2002-05-16 21:34:03','i'),
+(5,'2008-04-17 10:45:30','h'), (3,'2009-04-21 02:58:02','q'),
+(1,'2008-01-11 11:01:51','a'), (3,'1900-01-01 00:00:00','v'),
+(6,'2007-05-17 18:24:57','u'), (7,'2007-08-07 00:00:00','s'),
+(5,'2001-08-28 00:00:00','y'), (1,'2004-04-16 00:27:28','z'),
+(204,'2005-05-03 07:06:22','h'), (224,'2009-03-11 17:09:50','p'),
+(9,'2007-12-08 01:54:28','e'), (5,'2009-07-28 18:19:54','i'),
+(0,'2008-06-08 00:00:00','y'), (3,'2005-02-09 09:20:26','w');
+CREATE TABLE t2 (
+col_varchar_nokey VARCHAR(1) NOT NULL
+) ;
+INSERT INTO t2 VALUES ('v'), ('y'), ('j'), ('c'), ('d'), ('r');
+SELECT col_varchar_key
+FROM t1
+WHERE col_varchar_key IN (SELECT col_varchar_nokey
+FROM t2)
+ORDER BY col_datetime_key LIMIT 4;
+col_varchar_key
+v
+y
+v
+y
+DROP TABLE if exists t1, t2;
+# End of test for bug#12818569.
+#
+# Bug#12803439: Assert in replace_subcondition() on update query
+#
+CREATE TABLE t1(a INTEGER);
+INSERT INTO t1 values(1), (2);
+CREATE TABLE t2(a INTEGER);
+INSERT INTO t2 VALUES(1), (3);
+SELECT *
+FROM t1
+WHERE a IN (SELECT a
+FROM t2
+HAVING a IN (SELECT a
+FROM t2)
+)
+HAVING a IN (SELECT a
+FROM t2);
+a
+1
+DROP TABLE t1, t2;
+# End of test for bug#12803439.
+#
+# Bug#12797534: Segfault in hp_movelink still exists
+#
+CREATE TABLE t1 (
+g1 VARCHAR(1) NOT NULL
+) ;
+INSERT INTO t1 VALUES ('d'), ('s');
+CREATE TABLE t2 (
+pk INT NOT NULL,
+col_int_key INT NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+PRIMARY KEY (pk),
+KEY col_varchar_key(col_varchar_key, col_int_key)
+) ;
+INSERT INTO t2 VALUES
+(1,4,'j','j'), (2,6,'v','v'), (3,3,'c','c'), (4,5,'m','m'),
+(5,3,'d','d'), (6,246,'d','d'), (7,2,'y','y'), (8,9,'t','t'),
+(9,3,'d','d'), (10,8,'s','s'), (11,1,'r','r'), (12,8,'m','m'),
+(13,8,'b','b'), (14,5,'x','x'), (15,7,'g','g'), (16,5,'p','p'),
+(17,1,'q','q'), (18,6,'w','w'), (19,2,'d','d'), (20,9,'e','e');
+CREATE TABLE t3 (
+pk INTEGER NOT NULL,
+PRIMARY KEY (pk)
+) ;
+INSERT INTO t3 VALUES (10);
+SELECT *
+FROM t1
+WHERE g1 NOT IN
+(SELECT  grandparent1.col_varchar_nokey AS g1
+FROM t2 AS grandparent1
+WHERE grandparent1.col_varchar_key IN
+(SELECT parent1.col_varchar_nokey AS p1
+FROM t2 AS parent1 LEFT JOIN t3 AS parent2 USING (pk)
+)
+AND grandparent1.col_varchar_key IS NOT NULL
+);
+g1
+DROP TABLE if exists t1, t2, t3;
+CREATE TABLE t1 (
+pk INTEGER AUTO_INCREMENT,
+col_int_key INTEGER ,
+col_varchar_key VARCHAR(1) ,
+col_varchar_nokey VARCHAR(1) ,
+PRIMARY KEY (pk),
+KEY (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t1 (col_int_key,col_varchar_key,col_varchar_nokey) VALUES
+(0,'x','x'), (1,'j','j'), (1,'r','r'), (9,'v','v'), (5,'r','r');
+CREATE TABLE t2 (
+pk INTEGER AUTO_INCREMENT,
+col_int_key INTEGER ,
+col_varchar_key VARCHAR(1) ,
+col_varchar_nokey VARCHAR(1) ,
+PRIMARY KEY (pk),
+KEY (col_int_key),
+KEY (col_varchar_key,col_int_key)
+) AUTO_INCREMENT=10 ;
+INSERT INTO t2 (col_int_key, col_varchar_key, col_varchar_nokey) VALUES
+(NULL,'x','x'), (NULL,'j','j'), (8,'c','c');
+CREATE TABLE t3(x VARCHAR(1));
+INSERT INTO t3 SELECT outr.col_varchar_nokey AS x
+FROM t1 AS outr
+WHERE outr.col_varchar_nokey IN
+(SELECT innr.col_varchar_nokey AS y
+FROM t2 AS innr
+WHERE innr.col_int_key IS NULL)
+AND outr.col_varchar_nokey IS NOT NULL
+AND NOT col_varchar_key IS NULL;
+SELECT *
+FROM t3
+WHERE x NOT IN
+(SELECT outr.col_varchar_nokey AS x
+FROM t1 AS outr
+WHERE outr.col_varchar_nokey IN
+(SELECT innr.col_varchar_nokey AS y
+FROM t2 AS innr
+WHERE innr.col_int_key IS NULL)
+AND outr.col_varchar_nokey IS NOT NULL
+AND NOT col_varchar_key IS NULL);
+x
+DROP TABLE if exists t1, t2, t3;
+# End of test for bug#12797534.
+#
+# Bug#12714094: Assert in optimize_semijoin_nests()
+#
+CREATE TABLE it (
+pk int NOT NULL,
+col_varchar VARCHAR(10) DEFAULT NULL,
+PRIMARY KEY (pk)
+) ;
+INSERT INTO it VALUES (1, 'g');
+CREATE TABLE ot(field1 int not null);
+INSERT INTO ot
+SELECT alias1.pk AS field1
+FROM it AS alias1
+LEFT JOIN it AS alias2
+ON alias1.col_varchar = alias2.col_varchar
+;
+SELECT *
+FROM ot
+WHERE field1 IN (
+SELECT alias1.pk
+FROM it AS alias1
+LEFT JOIN it AS alias2
+ON alias1.col_varchar = alias2.col_varchar
+);
+field1
+1
+DROP TABLE it, ot;
+# End of test for bug#12714094
+#
+# Bug#12867557: Valgrind: conditional jump/move at key_cmp
+#
+CREATE TABLE t1 (
+pk INTEGER AUTO_INCREMENT,
+col_int_key INTEGER,
+PRIMARY KEY (pk),
+KEY (col_int_key)
+) AUTO_INCREMENT=10;
+INSERT INTO t1 (col_int_key) VALUES (8);
+CREATE TABLE t2 (
+pk INTEGER AUTO_INCREMENT,
+col_int_key INTEGER,
+col_time_key TIME,
+PRIMARY KEY (pk),
+KEY (col_int_key),
+KEY (col_time_key)
+)  AUTO_INCREMENT=10;
+INSERT INTO t2 (col_int_key, col_time_key)
+VALUES
+(8, '22:55:23.019225'), (7, '10:19:31.050677'), (1, '14:40:36.038608'),
+(7, '04:37:47.062416'), (9, '19:34:06.054514'), (NULL,'20:35:33.022996'),
+(1, NULL), (9, '14:43:37.057393'), (2, '02:23:09.043438'),
+(9, '01:22:45.041064'), (2, '00:00:00'), (4, '00:13:25.038482'),
+(0, '03:47:16.042671'), (4, '01:41:48.007423'), (8, '00:00:00'),
+(NULL, '22:32:04.047407'), (NULL, '16:44:14.028443'), (0, '17:38:37.059754'),
+(NULL, '08:46:48.042388'), (8, '14:11:27.044095');
+CREATE TABLE t0(g1 TIME);
+INSERT INTO t0
+SELECT DISTINCT grandparent1.col_time_key AS g1
+FROM t2 AS grandparent1
+WHERE grandparent1.col_int_key IN
+(SELECT parent1.col_int_key AS p1
+FROM t1 AS parent1)
+AND grandparent1.pk > 9;
+UPDATE t0
+SET g1 = g1
+WHERE g1 IN
+(SELECT grandparent1.col_time_key AS g1
+FROM t2 AS grandparent1
+WHERE grandparent1.col_int_key IN
+(SELECT parent1.col_int_key AS p1
+FROM t1 AS parent1)
+AND grandparent1.pk > 9);
+DROP TABLE if exists t0, t1, t2;
+# End of test for bug#12867557
+#
+# Bug#12711441: crash in fix_after_pullout
+#
+CREATE TABLE t1 (
+pk int NOT NULL,
+col_int_nokey int DEFAULT NULL,
+col_int_key int DEFAULT NULL,
+col_time_key time DEFAULT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+PRIMARY KEY (pk)
+);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (
+col_int_key int DEFAULT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+col_varchar_nokey varchar(1) DEFAULT NULL,
+KEY col_varchar_key(col_varchar_key, col_int_key)
+);
+CREATE TABLE t3 (
+pk int NOT NULL,
+col_int_key INT DEFAULT NULL,
+PRIMARY KEY (pk)
+);
+CREATE TABLE t4 (
+col_int_nokey INT DEFAULT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+col_varchar_nokey varchar(1) DEFAULT NULL,
+KEY col_varchar_key(col_varchar_key)
+);
+CREATE TABLE ts(field1 TIME);
+INSERT INTO ts
+SELECT alias1.col_time_key AS field1
+FROM v1 AS alias1
+RIGHT JOIN t3 AS alias2
+ON alias2.col_int_key = alias1.col_int_nokey
+WHERE alias1.pk >= SOME(
+SELECT SQ1_alias1.pk AS SQ1_field1
+FROM t3 AS SQ1_alias1
+INNER JOIN (t2 AS SQ1_alias2
+INNER JOIN t4 AS SQ1_alias3
+ON SQ1_alias3.col_varchar_key = SQ1_alias2.col_varchar_nokey)
+ON SQ1_alias3.col_int_nokey = SQ1_alias2.col_int_key
+WHERE SQ1_alias2.col_varchar_key <= alias1.col_varchar_key
+AND SQ1_alias3.col_varchar_nokey <> alias1.col_varchar_key)
+;
+SELECT * FROM ts WHERE field1 IN (
+SELECT alias1.col_time_key AS field1
+FROM v1 AS alias1
+RIGHT JOIN t3 AS alias2
+ON alias2.col_int_key = alias1.col_int_nokey
+WHERE alias1.pk >= SOME(
+SELECT SQ1_alias1.pk AS SQ1_field1
+FROM t3 AS SQ1_alias1
+INNER JOIN (t2 AS SQ1_alias2
+INNER JOIN t4 AS SQ1_alias3
+ON SQ1_alias3.col_varchar_key = SQ1_alias2.col_varchar_nokey)
+ON SQ1_alias3.col_int_nokey = SQ1_alias2.col_int_key
+WHERE SQ1_alias2.col_varchar_key <= alias1.col_varchar_key
+AND SQ1_alias3.col_varchar_nokey <> alias1.col_varchar_key)
+);
+field1
+DROP TABLE if exists t1, t2, t3, t4, ts;
+DROP VIEW v1;
+# End of test for bug#12711441.
+#
+# Bug#12664936: Same query executed as where subquery ...
+#
+CREATE TABLE t1 (
+col_varchar_key VARCHAR(1),
+KEY col_varchar_key (col_varchar_key)
+);
+INSERT INTO t1 VALUES
+('o'), ('w'), ('m'), ('q'),
+('f'), ('p'), ('j'), ('c');
+CREATE TABLE t2 (
+col_int_nokey INTEGER,
+col_int_key INTEGER,
+col_varchar_key varchar(1),
+KEY col_int_key (col_int_key)
+);
+INSERT INTO t2 VALUES
+(8,5,'u'),(4,5,'p'),(8,1,'o'),(NULL,7,'v'),
+(1,2,'g'),(2,1,'q'),(NULL,7,'l'),(3,1,'n');
+CREATE TABLE t4(col_int_nokey int, col_varchar_key varchar(1));
+SELECT t2.col_int_nokey, t2.col_varchar_key
+FROM t1 JOIN t2 ON t2.col_varchar_key = t1.col_varchar_key
+WHERE t2.col_int_key = 1;
+col_int_nokey	col_varchar_key
+8	o
+2	q
+SELECT *
+FROM t4
+WHERE (col_int_nokey, col_varchar_key) IN
+(SELECT t2.col_int_nokey, t2.col_varchar_key
+FROM t1 JOIN t2 ON t2.col_varchar_key = t1.col_varchar_key
+WHERE t2.col_int_key = 1
+);
+col_int_nokey	col_varchar_key
+DROP TABLE if exists t1, t2, t4;
+# End of test for bug#13340270.
+#
+# Bug#13335319: Seg fault when analyzing FirstMatch semi-join strategy
+#
+CREATE TABLE ot1(a INTEGER);
+INSERT INTO ot1 VALUES(1), (2), (3);
+CREATE TABLE ot2(a INTEGER);
+INSERT INTO ot2 VALUES(1), (2), (4), (6), (8), (10);
+CREATE TABLE it1(a INTEGER);
+INSERT INTO it1 VALUES(1), (3), (5), (7);
+CREATE TABLE it2(a INTEGER);
+INSERT INTO it2 VALUES(1), (3), (5), (7), (9);
+SELECT ot1.a, ot2.a
+FROM ot1, ot2
+WHERE ot1.a IN (SELECT a FROM it1) AND
+ot2.a IN (SELECT a FROM it2);
+a	a
+1	1
+3	1
+DROP TABLE ot1, ot2, it1, it2;
+# End of test for bug#13335319.
+#
+# Bug#13334882: Assertion keypart_map failed in MyIsam function
+#
+CREATE TABLE t1 (
+pk int NOT NULL,
+col_int_nokey INT NOT NULL,
+col_int_key INT NOT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(1,4,0),
+(2,6,8),
+(3,3,1),
+(7,2,6),
+(8,9,1),
+(9,3,6),
+(10,8,2),
+(11,1,4),
+(12,8,8),
+(13,8,4),
+(14,5,4);
+CREATE TABLE t2 (
+pk int NOT NULL,
+col_int_nokey int NOT NULL,
+col_int_key int NOT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key)
+) ;
+INSERT INTO t2 VALUES
+(10,8,7);
+CREATE TABLE t3(g1 int not null);
+INSERT INTO t3
+SELECT grandparent1.col_int_nokey AS g1
+FROM t1 AS grandparent1
+WHERE (grandparent1.col_int_nokey, grandparent1.col_int_key) IN
+(SELECT parent1.col_int_key AS p1,
+parent1.col_int_key AS p2
+FROM t1 AS parent1
+LEFT JOIN t2 AS parent2
+ON parent1.col_int_nokey = parent2.col_int_key
+)
+AND grandparent1.col_int_key <> 3
+;
+SELECT * FROM t3
+WHERE g1 NOT IN
+(SELECT grandparent1.col_int_nokey AS g1
+FROM t1 AS grandparent1
+WHERE (grandparent1.col_int_nokey, grandparent1.col_int_key) IN
+(SELECT parent1.col_int_key AS p1,
+parent1.col_int_key AS p2
+FROM t1 AS parent1
+LEFT JOIN t2 AS parent2
+ON parent1.col_int_nokey = parent2.col_int_key
+)
+AND grandparent1.col_int_key <> 3
+);
+g1
+DROP TABLE t1, t2, t3;
+# End of test for bug#13334882.
+#
+# Bug#13339643: Assertion on JOIN::flatten_subqueries on second execution
+#
+CREATE TABLE t1 (
+col_int_nokey INT,
+col_varchar_nokey VARCHAR(1)
+);
+INSERT INTO t1 VALUES
+(1,'o'),
+(2,'t');
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t2 VALUES
+(1,'o'),
+(4,'f');
+CREATE VIEW v_t2 AS SELECT * FROM t2;
+CREATE TABLE t3 LIKE t1;
+INSERT INTO t3 VALUES
+(1,'o'),
+(4,'f');
+SELECT alias1.col_varchar_nokey
+FROM t1 AS alias1
+INNER JOIN v_t2 AS alias2
+ON alias2.col_int_nokey = alias1.col_int_nokey AND
+'o' IN (SELECT col_varchar_nokey
+FROM t3);
+col_varchar_nokey
+o
+DROP VIEW v_t2;
+DROP TABLE t1, t2, t3;
+# End of test for bug#13339643.
+#
+# Bug#13424134: Wrong result on JOIN + nested WHERE ... IN clauses
+#
+CREATE TABLE t1 (
+pk int NOT NULL,
+col_int_nokey int NOT NULL,
+col_int_key int NOT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(10,1,7), (13,7,3), (18,0,1), (23,8,1);
+CREATE TABLE t2 (
+pk int NOT NULL,
+col_int_key int NOT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key)
+) ;
+INSERT INTO t2 VALUES (1,7);
+SELECT t1a.*
+FROM t1 AS t1a
+JOIN t1 AS t1b USING ( col_int_nokey )
+WHERE t1a.col_int_key IN (
+SELECT pk
+FROM t2
+WHERE col_int_key IN (
+SELECT col_int_nokey
+FROM t1
+)
+);
+pk	col_int_nokey	col_int_key
+18	0	1
+23	8	1
+ALTER TABLE t1 ;
+ALTER TABLE t2 ;
+SELECT t1a.*
+FROM t1 AS t1a
+JOIN t1 AS t1b USING ( col_int_nokey )
+WHERE t1a.col_int_key IN (
+SELECT pk
+FROM t2
+WHERE col_int_key IN (
+SELECT col_int_nokey
+FROM t1
+)
+);
+pk	col_int_nokey	col_int_key
+18	0	1
+23	8	1
+DROP TABLE if exists t1, t2;
+# End of test for bug#13424134.
+#
+# Bug#13414014: Extra rows in result on semijoin query with where ...
+#
+CREATE TABLE t1 (
+c INT,
+d INT,
+a VARCHAR(1),
+b VARCHAR(1),
+KEY a (a)
+);
+INSERT INTO t1 VALUES
+(NULL,8,'x','x'), (7,4,'q','q'), (6,8,'c','c');
+CREATE TABLE t2 (
+a VARCHAR(1),
+KEY a (a)
+);
+INSERT INTO t2 VALUES
+('c'), (NULL), ('x'), ('q');
+SELECT *
+FROM t2 AS ot
+WHERE (a, a) IN
+(SELECT a, b
+FROM t1 AS it
+WHERE it.a = 'x' OR it.c > it.d
+)
+;
+a
+q
+x
+DROP TABLE if exists t1, t2;
+# End of test for bug#13414014.
+#
+# Bug#13545215: Missing rows on nested in-subquery with materialization
+#
+CREATE TABLE t1 (
+col_int_key int,
+col_varchar_key varchar(1),
+col_varchar_nokey varchar(1),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(8,'x','x'), (0,'p','p'), (8,'c','c');
+CREATE TABLE t2 (
+pk int NOT NULL,
+col_varchar_key varchar(1),
+col_varchar_nokey varchar(1),
+PRIMARY KEY (pk),
+KEY col_varchar_key (col_varchar_key)
+);
+INSERT INTO t2 VALUES
+(1,'v','v'), (2,'v','v'), (3,'c','c'), (4,NULL,NULL),
+(5,'x','x'), (6,'i','i'), (7,'e','e'), (8,'p','p');
+CREATE TABLE t3 (
+col_int_nokey int
+);
+INSERT INTO t3 VALUES (7);
+SELECT grandparent1.col_varchar_nokey
+FROM t1 AS grandparent1 JOIN t1 AS grandparent2 USING (col_int_key)
+WHERE grandparent1.col_varchar_key IN (
+SELECT col_varchar_nokey
+FROM t2 AS parent1
+WHERE col_varchar_key IN (
+SELECT child1.col_varchar_nokey
+FROM t2 AS child1 LEFT JOIN t3 AS child2
+ON child1.pk < child2.col_int_nokey
+)
+);
+col_varchar_nokey
+c
+c
+p
+x
+x
+DROP TABLE if exists t1, t2, t3;
+# End of test for bug#13545215.
+#
+# BUG#13553211 - MISSING ROWS ON SELECT WITH IN-SUBQUERY AND
+# MATERIALIZATION + SEMIJOIN ON
+#
+CREATE TABLE t1 (
+col_int_key int(11) DEFAULT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+col_varchar_nokey varchar(1) DEFAULT NULL,
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t1 VALUES (4,'v','v');
+INSERT INTO t1 VALUES (62,'v','v');
+INSERT INTO t1 VALUES (7,'c','c');
+INSERT INTO t1 VALUES (1,NULL,NULL);
+SELECT
+alias1.col_varchar_nokey AS a1_nokey,
+alias1.col_varchar_key AS a1_key,
+alias2.col_varchar_nokey AS a2_nokey
+FROM
+t1 AS alias1, t1 AS alias2
+WHERE
+(alias1.col_varchar_nokey,alias2.col_varchar_nokey)
+IN
+(
+SELECT
+SQ2_alias2.col_varchar_nokey, SQ2_alias1.col_varchar_key
+FROM
+t1 AS SQ2_alias1, t1 AS SQ2_alias2
+)
+;
+a1_nokey	a1_key	a2_nokey
+c	c	c
+c	c	v
+c	c	v
+v	v	c
+v	v	c
+v	v	v
+v	v	v
+v	v	v
+v	v	v
+DROP TABLE if exists t1;
+#
+# Bug#13541406: Wrong result with loosescan on select .. where .. in
+#
+CREATE TABLE t1 (
+col_int_key INT NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+KEY col_int_key (col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(7,'v'), (0,'s'), (9,'l'), (3,'y'), (4,'c'), (2,'i'), (5,'h'), (3,'q'),
+(1,'a'), (3,'v'), (6,'u'), (7,'s'), (5,'y'), (1,'z'), (204,'h'), (224,'p'),
+(9,'e'), (5,'i'), (0,'y'), (3,'w');
+CREATE TABLE t2 (
+pk INT NOT NULL,
+col_int_key INT NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t2 VALUES
+(1,0,'j','j'), (2,8,'v','v'), (3,1,'c','c'), (4,8,'m','m'),
+(5,9,'d','d'), (6,24,'d','d'), (7,6,'y','y'), (8,1,'t','t'),
+(9,6,'d','d'), (10,2,'s','s'), (11,4,'r','r'), (12,8,'m','m'),
+(13,4,'b','b'), (14,4,'x','x'), (15,7,'g','g'), (16,4,'p','p'),
+(17,1,'q','q'), (18,9,'w','w'), (19,4,'d','d'), (20,8,'e','e');
+# This query should never use a LooseScan strategy
+SELECT ot1.col_int_key AS field1
+FROM t2 AS ot1, t2 AS ot2
+WHERE (ot1.col_varchar_key, ot2.col_varchar_nokey) IN (
+SELECT it2.col_varchar_nokey, it1.col_varchar_key
+FROM t2 AS it1 JOIN t1 AS it2 ON it2.col_int_key = it1.pk);
+field1
+1
+1
+1
+2
+6
+6
+6
+6
+6
+8
+8
+8
+8
+8
+8
+9
+DROP TABLE if exists t1, t2;
+# End of test for bug#13541406.
+#
+# Bug#13576391: Missing rows on select with in-subquery and
+# batched-key-access=on and semijoin
+#
+CREATE TABLE t1 (
+col_int_nokey int NOT NULL,
+col_varchar_key varchar(1) NOT NULL,
+KEY col_varchar_key (col_varchar_key)
+) ;
+INSERT INTO t1 VALUES
+(1,'v'), (7,'s'), (4,'l'), (7,'y'), (0,'c'), (2,'i'), (9,'h'), (4,'q'),
+(0,'a'), (9,'v'), (1,'u'), (3,'s'), (8,'y'), (8,'z'), (18,'h'), (84,'p'),
+(6,'e'), (3,'i'), (6,'y'), (6,'w');
+CREATE TABLE t2 (
+col_int_nokey int NOT NULL,
+col_varchar_nokey varchar(1) NOT NULL
+) ;
+INSERT INTO t2 VALUES
+(4,'j'), (6,'v'), (3,'c'), (5,'m'), (3,'d'), (246,'d'), (2,'y'), (9,'t'),
+(3,'d'), (8,'s'), (1,'r'), (8,'m'), (8,'b'), (5,'x'), (7,'g'), (5,'p'),
+(1,'q'), (6,'w'), (2,'d'), (9,'e');
+SELECT col_varchar_nokey
+FROM t2 AS ot
+WHERE col_varchar_nokey IN (
+SELECT col_varchar_key
+FROM t1 AS it
+WHERE it.col_int_nokey <= it.col_int_nokey
+AND NOT ot.col_int_nokey < 2
+)
+ORDER BY col_varchar_nokey;
+col_varchar_nokey
+c
+e
+p
+s
+v
+w
+y
+ALTER TABLE t1 ;
+ALTER TABLE t2 ;
+SELECT col_varchar_nokey
+FROM t2 AS ot
+WHERE col_varchar_nokey IN (
+SELECT col_varchar_key
+FROM t1 AS it
+WHERE it.col_int_nokey <= it.col_int_nokey
+AND NOT ot.col_int_nokey < 2
+)
+ORDER BY col_varchar_nokey;
+col_varchar_nokey
+c
+e
+p
+s
+v
+w
+y
+ALTER TABLE t1 ;
+ALTER TABLE t2 ;
+SELECT col_varchar_nokey
+FROM t2 AS ot
+WHERE col_varchar_nokey IN (
+SELECT col_varchar_key
+FROM t1 AS it
+WHERE it.col_int_nokey <= it.col_int_nokey
+AND NOT ot.col_int_nokey < 2
+)
+ORDER BY col_varchar_nokey;
+col_varchar_nokey
+c
+e
+p
+s
+v
+w
+y
+DROP TABLE if exists t1, t2;
+# End of test for bug#13576391.
+#
+# Bug #13589848 "MISSING ROW ON SELECT WITH NESTED IN CLAUSES WHEN LOOSESCAN=ON"
+#
+CREATE TABLE t1 (
+id INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+KEY (col_varchar_key)
+);
+INSERT INTO t1 VALUES (100,'m','m'),
+(200,'b','b'), (300,'x','x');
+CREATE TABLE t2 (
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+KEY (col_varchar_key)
+);
+INSERT INTO t2 VALUES ('b','b');
+CREATE TABLE t3 (
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+KEY (col_varchar_key)
+);
+INSERT INTO t3 VALUES ('k','k');
+SELECT GP1.id
+FROM t1 AS GP1 JOIN t3 AS GP2
+ON GP2.col_varchar_key <> GP1.col_varchar_nokey
+WHERE (GP1.col_varchar_nokey, GP1.col_varchar_nokey)
+IN (
+SELECT col_varchar_nokey, col_varchar_nokey
+FROM t1
+WHERE col_varchar_nokey
+IN ( SELECT col_varchar_key
+FROM t2 LEFT JOIN t3 USING (col_varchar_key) )
+)
+;
+id
+200
+DROP TABLE if exists t1,t2,t3;
+#
+# Bug #13596176: Missing row on select with nested in clause when
+#                matr=on and bnl=off + MyISAM
+#
+CREATE TABLE t1 (
+int_key int DEFAULT NULL,
+vc_key varchar(1) DEFAULT NULL,
+vc_nokey varchar(1) DEFAULT NULL,
+KEY int_key (int_key),
+KEY vc_key (vc_key, int_key)
+) ;
+INSERT INTO t1 VALUES
+(8,'x','x'), (7,'d','d'), (1,'r','r'), (7,'f','f'),
+(9,'y','y'), (NULL,'u','u'), (1,'m','m'), (9,NULL,NULL),
+(2,'o','o'), (9,'w','w'), (2,'m','m'), (4,'q','q'),
+(0,NULL,NULL), (4,'d','d'), (8,'g','g'), (NULL,'x','x'),
+(NULL,'f','f'), (0,'p','p'), (NULL,'j','j'), (8,'c','c');
+CREATE TABLE t2 (
+int_key int DEFAULT NULL,
+vc_key varchar(1) DEFAULT NULL,
+KEY int_key (int_key),
+KEY vc_key (vc_key, int_key)
+) ;
+INSERT INTO t2 VALUES (8,'g');
+SELECT vc_key
+FROM t1 as outr
+WHERE (vc_nokey, vc_key ) IN
+(SELECT vc_nokey, vc_nokey
+FROM t1 middle
+WHERE vc_nokey IN
+(SELECT child1.vc_key
+FROM t2 AS child1 JOIN t1 AS child2 USING (int_key)
+)
+);
+vc_key
+g
+DROP TABLE if exists t1, t2;
+# End of test for bug#13596176.
+#
+# BUG#11754478: MAX/MIN + SUBQUERY + AND FAILS TO RETURN ANY ROWS
+# BUG#13599013: MAX/MIN + SUBQUERY IN WHERE CLAUSE MATCHING NO
+#               ROWS + INDEX DOES NOT RETURN NULL
+#
+CREATE TABLE t1 (
+pk int(11) PRIMARY KEY,
+int_key int(11),
+KEY int_key (int_key)
+);
+INSERT INTO t1 VALUES (1,0),(2,0),(3,2),(4,0),(5,3),(6,0);
+SELECT MIN(int_key) FROM t1 WHERE (4, 4) IN (SELECT 1, 2);
+MIN(int_key)
+NULL
+SELECT MIN(int_key) FROM t1 WHERE (4, 4) IN (SELECT 4, 4);
+MIN(int_key)
+0
+SELECT MIN(pk) FROM t1 WHERE pk IN (SELECT int_key FROM t1) AND pk = 6;
+MIN(pk)
+NULL
+DROP TABLE t1;
+# BUG#13726217: Crash in Item_ident::fix_after_pullout()
+CREATE TABLE t1(a INTEGER) ;
+INSERT INTO t1 VALUES (0);
+DROP TABLE if exists t1;
+# End of test for bug#13726217.
+# BUG#13773979: Missing rows on second execution of prepared statement
+CREATE TABLE t1 (
+col_int_nokey INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1)
+);
+INSERT INTO t1 VALUES
+(1,7,'v'), (7,0,'s'), (4,9,'l'), (7,3,'y'),
+(2,2,'i'), (9,5,'h'), (0,1,'a'), (9,3,'v');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT *
+FROM t1
+WHERE col_int_key IN (
+SELECT alias1.col_int_nokey AS field1
+FROM v1 AS alias1
+WHERE alias1.col_varchar_key < 'v'
+);
+col_int_nokey	col_int_key	col_varchar_key
+1	7	v
+7	0	s
+4	9	l
+2	2	i
+DROP VIEW v1;
+DROP TABLE t1;
+# End of test for bug#13773979.
+#
+# BUG#13685026 ASSERTION CUR_SJ_INNER_TABLES == 0 IN
+# --OPTIMIZE_TABLE_ORDER::CHOOSE_TABLE_ORDER
+#
+CREATE TABLE t1 (
+col_int_key INT(11) NOT NULL,
+col_datetime_key DATETIME NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+KEY col_int_key (col_int_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t1 VALUES (0,'2002-02-13 17:30:06','j','j');
+INSERT INTO t1 VALUES (8,'2008-09-27 00:34:58','v','v');
+CREATE TABLE t2 (
+col_int_key INT(11) NOT NULL,
+col_datetime_key DATETIME NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+KEY col_int_key (col_int_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t2 VALUES (7,'2003-08-21 00:00:00','b','b');
+SELECT col_datetime_key
+FROM t1 as outr
+WHERE col_datetime_key IN (
+SELECT alias1.col_datetime_key
+FROM t1 AS alias1
+LEFT JOIN (t1 as alias3
+JOIN ( t2 AS alias4
+JOIN t1 AS alias5
+ON alias5.col_varchar_key <= alias4.col_varchar_nokey )
+ON alias5.col_int_key < alias4.col_int_key)
+ON alias5.col_varchar_key = alias4.col_varchar_key
+);
+col_datetime_key
+2002-02-13 17:30:06
+2008-09-27 00:34:58
+DROP TABLE if exists t1,t2;
+#
+# BUG#13848789: SEGFAULT IN JOIN_READ_NEXT_SAME AT
+#               SQL/SQL_EXECUTOR.CC ON HAVING...IN...JOIN
+#
+CREATE TABLE t1 (
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key)
+);
+INSERT INTO t1 VALUES (8,'x');
+CREATE TABLE t2 (
+col_varchar_key VARCHAR(1),
+KEY col_varchar_key (col_varchar_key)
+);
+INSERT INTO t2 VALUES ('x'), ('y');
+SELECT MIN(col_int_key)
+FROM t1 as t1_outer
+HAVING (1, 2) IN (
+SELECT t1_inner.col_int_key, MAX(t1_inner.col_int_key)
+FROM t1 as t1_inner JOIN t2
+ON t2.col_varchar_key = t1_inner.col_varchar_key
+);
+MIN(col_int_key)
+DROP TABLE if exists t1,t2;
+# Bug#13838810: Segfault in evaluate_null_complemented_join_record
+CREATE TABLE t1 (
+pk int NOT NULL,
+col_int_nokey int DEFAULT NULL,
+col_int_key int DEFAULT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t1 VALUES (10,NULL,8,'x');
+CREATE TABLE t2 (
+pk int NOT NULL,
+col_varchar_nokey varchar(1) DEFAULT NULL,
+PRIMARY KEY (pk)
+) ;
+INSERT INTO t2 VALUES (1,'x');
+CREATE TABLE t3 (
+pk int NOT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+col_varchar_nokey varchar(1) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY col_varchar_key (col_varchar_key)
+) ;
+INSERT INTO t3 VALUES
+(1,'v','v'), (2,'v','v'), (3,'c','c'), (4,NULL,NULL);
+DROP TABLE if exists t1, t2, t3;
+Extra test case for specific code coverage
+CREATE TABLE t1(pk INTEGER);
+INSERT INTO t1 VALUES(1), (2);
+DROP TABLE if exists t1;
+# End of test for bug#13838810.
+#
+# BUG#13685026 ASSERTION CUR_SJ_INNER_TABLES == 0 IN
+# --OPTIMIZE_TABLE_ORDER::CHOOSE_TABLE_ORDER
+#
+CREATE TABLE t1 (
+col_int_key INT(11) NOT NULL,
+col_datetime_key DATETIME NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+KEY col_int_key (col_int_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t1 VALUES (0,'2002-02-13 17:30:06','j','j');
+INSERT INTO t1 VALUES (8,'2008-09-27 00:34:58','v','v');
+CREATE TABLE t2 (
+col_int_key INT(11) NOT NULL,
+col_datetime_key DATETIME NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+col_varchar_nokey VARCHAR(1) NOT NULL,
+KEY col_int_key (col_int_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t2 VALUES (7,'2003-08-21 00:00:00','b','b');
+SELECT col_datetime_key
+FROM t1 as outr
+WHERE col_datetime_key IN (
+SELECT alias1.col_datetime_key
+FROM t1 AS alias1
+LEFT JOIN (t1 as alias3
+JOIN ( t2 AS alias4
+JOIN t1 AS alias5
+ON alias5.col_varchar_key <= alias4.col_varchar_nokey )
+ON alias5.col_int_key < alias4.col_int_key)
+ON alias5.col_varchar_key = alias4.col_varchar_key
+);
+col_datetime_key
+2002-02-13 17:30:06
+2008-09-27 00:34:58
+DROP TABLE if exists t1,t2;
+#
+# Bug#13845930: Segfault in st_join_table::and_with_condition
+#
+CREATE TABLE t1 (
+col_int INTEGER
+);
+CREATE TABLE t2 (
+col_varchar_1 VARCHAR(1),
+col_varchar_2 VARCHAR(1)
+);
+INSERT INTO t2 VALUES ('x','x'), ('c','c');
+DROP TABLE if exists t1, t2;
+# End of test for bug#13855925.
+#
+# Bug#13897959: Segfault in setup_semijoin_dups_elimination()
+#
+CREATE TABLE t1 (
+col_datetime_key DATETIME DEFAULT NULL,
+KEY col_datetime_key (col_datetime_key)
+) ;
+INSERT INTO t1 VALUES
+('2001-04-18 00:00:00'), ('2008-12-18 19:39:55'),
+('2000-08-01 12:19:39'), ('2004-09-25 21:29:06'),
+('2009-09-20 09:11:48'), ('2004-03-27 09:32:04');
+CREATE TABLE t2 (
+col_date_nokey date DEFAULT NULL,
+col_time_key time DEFAULT NULL,
+col_datetime_key datetime DEFAULT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+col_varchar_nokey varchar(1) DEFAULT NULL,
+KEY col_time_key (col_time_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key(col_varchar_key)
+) ;
+INSERT INTO t2 VALUES ('1900-01-01',NULL,'2001-11-04 19:07:55','x','x');
+DROP TABLE if exists t1, t2;
+# End of test for bug#13897959.
+#
+# Bug#13898625 ASSERT `(REMAINING_TABLES_AFTER != 0) ...' IN
+# BEST_EXTENSION_BY_LIMITED_SEARCH
+#
+CREATE TABLE t1 (
+pk int(11) NOT NULL,
+col_int_nokey INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t1 VALUES (26,6,NULL,'f','f');
+INSERT INTO t1 VALUES (29,6,8,'c','c');
+CREATE TABLE t2 (
+pk INT NOT NULL,
+col_int_nokey INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+INSERT INTO t2 VALUES (1,2,4,'v','v');
+INSERT INTO t2 VALUES (2,150,62,'v','v');
+INSERT INTO t2 VALUES (5,5,0,'x','x');
+INSERT INTO t2 VALUES (6,3,7,'i','i');
+INSERT INTO t2 VALUES (7,1,7,'e','e');
+CREATE VIEW view_c AS SELECT * FROM t2;
+DROP TABLE if exists t1,t2;
+DROP VIEW if exists view_c;
+#
+# Bug#13902463 SEGFAULT IN BITMAP<64U>::MERGE OR ADD_KEY_FIELD
+# ON SECOND EXEC OF PREP STMT
+#
+CREATE TABLE t1 (
+pk INT,
+col_int_nokey INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+KEY col_varchar_key (col_varchar_key)
+);
+CREATE VIEW view_b AS SELECT * FROM t1;
+ALTER TABLE t1 DROP INDEX col_varchar_key;
+DROP TABLE t1;
+DROP VIEW view_b;
+#
+# Bug#13907277: Segfault in evaluate_null_complemented_join_record
+#
+CREATE TABLE t1 (
+pk INTEGER,
+col_varchar_nokey VARCHAR(1),
+col_varchar_key VARCHAR(1),
+PRIMARY KEY (pk)
+);
+INSERT INTO t1 VALUES (1, 'x', 'x');
+CREATE TABLE t2 (
+pk INTEGER,
+PRIMARY KEY (pk)
+);
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 (
+pk INTEGER,
+col_int_nokey INTEGER,
+col_int_key INTEGER,
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk)
+);
+INSERT INTO t3 VALUES (1, 6, 5, 'r');
+DROP TABLE if exists t1, t2, t3;
+# End of test for bug#13907277.
+#
+# Bug#13955713: Assert 'JOIN->best_read < ...' on second execution
+#
+CREATE TABLE t1 (
+pk INTEGER,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1)
+);
+DROP TABLE t1;
+# End of test for bug#13955713.
+#
+# Bug#13956813: Segfault in memcpy from Join_cache::write_record_data()
+#
+CREATE TABLE t1 (
+pk INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1)
+);
+CREATE TABLE t2 (
+pk INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1)
+);
+INSERT INTO t2 VALUES
+(10,'j','j'), (11,'z','z'), (12,'c','c'), (13,'a','a'),
+(14,'q','q'), (15,'y','y'), (16,NULL,NULL), (17,'r','r'),
+(18,'v','v'), (19,NULL,NULL), (20,'r','r');
+CREATE TABLE t3 (
+pk INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+KEY col_int_key (col_int_key)
+);
+INSERT INTO t3 VALUES
+(15,NULL,'u'), (16,1,'m'), (17,9,NULL), (18,2,'o'),
+(19,9,'w'), (20,2,'m'), (21,4,'q'), (22,0,NULL),
+(23,4,'d'), (24,8,'g'), (25,NULL,'x'), (26,NULL,'f'),
+(27,0,'p'), (28,NULL,'j'), (29,8,'c');
+CREATE VIEW view_inline_0 AS
+SELECT t1.*
+FROM t1 INNER JOIN t3
+ON t1.pk = t3.pk;
+CREATE VIEW view_inline_1 AS
+SELECT sq2_alias2.col_varchar_key AS sq2_field1,
+sq2_alias1.col_varchar_key AS sq2_field2
+FROM t3 AS sq2_alias1 LEFT OUTER JOIN t3 AS sq2_alias2
+ON sq2_alias1.pk = sq2_alias2.col_int_key;
+CREATE VIEW view_inline_2 AS
+SELECT 'p', 'g' UNION SELECT 'k', 's';
+SELECT SUM(alias1.col_varchar_nokey) AS field2
+FROM t2 AS alias2
+LEFT JOIN (SELECT * FROM view_inline_0) AS alias1
+ON alias2.col_varchar_key = alias1.col_varchar_key
+WHERE (alias1.col_varchar_key, alias1.col_varchar_nokey) IN
+(SELECT * FROM view_inline_2
+) AND (alias2.col_varchar_nokey, alias2.col_varchar_key) IN
+(SELECT * FROM view_inline_1);
+field2
+NULL
+DROP VIEW view_inline_0, view_inline_1, view_inline_2;
+DROP TABLE t1, t2, t3;
+# End of test for bug#13956813.
+#
+# Bug#13974177: Assert !(tab->table->regginfo.not_exists_optimize...
+#
+CREATE TABLE t1 (
+pk INTEGER AUTO_INCREMENT,
+col_int_nokey INTEGER,
+col_int_key INTEGER,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk),
+KEY (col_int_key),
+KEY (col_varchar_key, col_int_key)
+);
+INSERT INTO t1(col_int_key, col_int_nokey, col_varchar_key, col_varchar_nokey)
+VALUES
+(0, 4, 'j', 'j'), (8, 6, 'v', 'v'), (1, 3, 'c', 'c'), (8, 5, 'm', 'm'),
+(9, 3, 'd', 'd'), (24, 246, 'd', 'd'), (6, 2, 'y', 'y'), (1, 9, 't', 't'),
+(6, 3, 'd', 'd'), (2, 8, 's', 's'), (4, 1, 'r', 'r'), (8, 8, 'm', 'm'),
+(4, 8, 'b', 'b'), (4, 5, 'x', 'x'), (7, 7, 'g', 'g'), (4, 5, 'p', 'p'),
+(1, 1, 'q', 'q'), (9, 6, 'w', 'w'), (4, 2, 'd', 'd'), (8, 9, 'e', 'e');
+CREATE TABLE t2 (
+pk INTEGER AUTO_INCREMENT,
+col_int_nokey INTEGER NOT NULL,
+col_time_key TIME NOT NULL,
+col_time_nokey TIME NOT NULL,
+PRIMARY KEY (pk),
+KEY (col_time_key)
+) ;
+INSERT INTO t2 (col_int_nokey, col_time_key, col_time_nokey) VALUES
+(7, '00:00:00', '00:00:00'), (0, '00:00:00', '00:00:00'),
+(9, '06:35:17', '06:35:17'), (3, '18:07:14', '18:07:14'),
+(4, '20:36:52', '20:36:52'), (2, '21:29:07', '21:29:07'),
+(5, '23:45:57', '23:45:57'), (3, '22:54:57', '22:54:57'),
+(1, '18:45:09', '18:45:09'), (3, '14:30:46', '14:30:46'),
+(6, '19:23:43', '19:23:43'), (7, '03:39:30', '03:39:30'),
+(5, '23:37:52', '23:37:52'), (1, '16:59:30', '16:59:30'),
+(204, '22:21:15', '22:21:15'), (224, '12:24:37', '12:24:37'),
+(9, '15:02:08', '15:02:08'), (5, '23:59:59', '23:59:59'),
+(0, '08:23:30', '08:23:30'), (3, '08:32:22', '08:32:22');
+SELECT ot1.col_int_key AS x
+FROM t1 AS ot2
+LEFT JOIN t1 AS ot1
+ON ot2.col_varchar_nokey > ot1.col_varchar_key
+WHERE (ot1.col_int_nokey, ot1.pk) IN
+(SELECT it1.pk AS x,
+it1.col_int_nokey AS y
+FROM t2 AS it2
+LEFT JOIN t2 AS it1
+ON it2.col_time_nokey = it1.col_time_key
+) AND ot1.pk IS NULL
+;
+x
+DROP TABLE if exists t1, t2;
+# End of test for bug#13974177.
+#
+# Bug#13971022: Assert 'keyparts > 0' failed in create_ref_for_key...
+#
+CREATE TABLE t1 (
+pk INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+PRIMARY KEY (pk),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+CREATE TABLE t2 (
+pk INT,
+col_int_key INT,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk)
+) ;
+CREATE TABLE t3 (
+i INT
+);
+SELECT table1.pk AS field1
+FROM ( SELECT subquery1_t1. *
+FROM t2 AS subquery1_t1
+JOIN t2 AS subquery1_t2
+ON subquery1_t2.pk = subquery1_t1.pk) AS table1
+JOIN t2 AS table2
+ON table1.col_int_key IN (SELECT 7 FROM t3)
+WHERE table1.col_varchar_nokey IN
+(SELECT subquery3_t1.col_varchar_key AS subquery3_field1
+FROM t1 AS subquery3_t1
+)
+;
+field1
+DROP TABLE if exists t1, t2, t3;
+# End of test for bug#13971022.
+#
+# Bug#13623473 "MISSING ROWS ON SELECT AND JOIN WITH
+# TIME/DATETIME COMPARE" - Subquery part of test.
+#
+SET TIMESTAMP=UNIX_TIMESTAMP('2012-01-31 10:14:35');
+CREATE TABLE t1 (
+pk INT NOT NULL,
+col_int_nokey INT,
+col_int_key INT NOT NULL,
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key)
+) ;
+INSERT INTO t1 VALUES (10,1,7), (11,7,0), (12,4,9), (13,7,3),
+(14,0,4), (15,2,2), (16,9,5), (17,4,3), (18,0,1), (19,9,3), (20,1,6),
+(21,3,7), (22,8,5), (23,8,1), (24,18,204), (25,84,224), (26,6,9),
+(27,3,5), (28,6,0), (29,6,3);
+CREATE TABLE t2 (
+col_int_nokey INT NOT NULL,
+col_datetime_key DATETIME NOT NULL,
+col_varchar_key VARCHAR(1) NOT NULL,
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key)
+) ;
+INSERT INTO t2 VALUES (1,'2001-11-04 19:07:55','k');
+CREATE TABLE t3 (
+col_time_key TIME,
+KEY col_time_key (col_time_key)
+) ;
+INSERT INTO t3 VALUES ('21:22:34'), ('10:50:38'), ('00:21:38'),
+('04:08:02'), ('16:25:11'), ('10:14:58'), ('19:47:59'), ('11:14:24'),
+('00:00:00'), ('00:00:00'), ('15:57:25'), ('07:05:51'), ('19:22:21'),
+('03:53:16'), ('09:16:38'), ('15:37:26'), ('00:00:00'), ('05:03:03'),
+('02:59:24'), ('00:01:58');
+SELECT outr.col_int_nokey
+FROM t2 as outr
+JOIN t3 AS outr2
+ON outr2.col_time_key > outr.col_datetime_key
+WHERE outr.col_int_nokey IN (
+SELECT col_int_key
+FROM t1 AS innr
+WHERE innr.pk >= innr.col_int_nokey
+) AND (
+outr.col_int_nokey <= 6
+OR
+outr.col_varchar_key IS NULL
+);
+col_int_nokey
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+DROP TABLE if exists t1,t2,t3;
+SET TIMESTAMP = DEFAULT;
+# End of test for bug#13623473.
+#
+# Bug#13980954: Missing data on left join + null value + where..in
+#
+CREATE TABLE t1 (
+ik INT,
+vc varchar(1)
+);
+INSERT INTO t1 VALUES (8, 'x'), (NULL, 'x');
+CREATE TABLE t2 (
+ik INT,
+vc varchar(1)
+);
+INSERT INTO t2 VALUES
+(0, 'x'), (7, 'i'), (7, 'e'), (1, 'p'), (7, 's'), (1, 'j');
+SELECT t2.vc, t2.ik AS t2_ik, t1.ik AS t1_ik
+FROM t2 LEFT JOIN t1 ON t2.vc=t1.vc
+WHERE t2.vc IN (SELECT vc FROM t2 AS t3) ORDER BY t2.vc, t2_ik;
+vc	t2_ik	t1_ik
+e	7	NULL
+i	7	NULL
+j	1	NULL
+p	1	NULL
+s	7	NULL
+x	0	8
+x	0	NULL
+DROP TABLE if exists t1, t2;
+# End of test for bug#13980954.
+#
+# Bug#14048292: Segfault in Item_field::result_type on 2nd execution
+#               of prep stmt with join of view
+#
+CREATE TABLE t1 (
+col_int INT
+);
+INSERT INTO t1 VALUES (0), (1);
+CREATE VIEW view_t1 AS SELECT * FROM t1;
+DROP VIEW view_t1;
+DROP TABLE t1;
+# End of test for bug#14048292.
+#
+# Bug#14064201: Missing data on join of derived table + WHERE .. IN
+#               with two operands
+#
+CREATE TABLE t1 (
+col_varchar_nokey VARCHAR(1)
+);
+INSERT INTO t1 VALUES
+('v'), ('s'), ('l'), ('y'), ('c'), ('i'), ('h'), ('q'), ('a'), ('v'),
+('u'), ('s'), ('y'), ('z'), ('h'), ('p'), ('e'), ('i'), ('y'), ('w');
+CREATE TABLE t2 (
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+KEY col_varchar_key(col_varchar_key)
+);
+INSERT INTO t2 VALUES
+('j','j'), ('v','v'), ('c','c'), ('m','m'), ('d','d'), ('d','d'), ('y','y');
+SELECT *
+FROM (SELECT * FROM t2) AS derived1
+LEFT JOIN t1
+USING (col_varchar_nokey)
+WHERE (col_varchar_nokey, col_varchar_nokey) IN
+(SELECT col_varchar_nokey, col_varchar_key
+FROM t2 AS derived2
+);
+col_varchar_nokey	col_varchar_key
+v	v
+y	y
+c	c
+v	v
+y	y
+y	y
+j	j
+d	d
+d	d
+m	m
+DROP TABLE if exists t1, t2;
+CREATE TABLE t1 (
+col_int_nokey int NOT NULL,
+col_int_key int NOT NULL,
+KEY col_int_key (col_int_key)
+);
+INSERT INTO t1 VALUES
+(1,7), (7,0), (4,9), (7,3), (0,4), (2,2), (9,5), (4,3), (0,1), (9,3),
+(1,6), (3,7), (8,5), (8,1), (18,204), (84,224), (6,9), (3,5), (6,0), (6,3);
+CREATE TABLE t2 (
+col_int_nokey int NOT NULL,
+col_int_key int NOT NULL,
+KEY col_int_key (col_int_key)
+);
+INSERT INTO t2 VALUES
+(4,0), (6,8), (3,1), (5,8), (3,9), (246,24), (2,6), (9,1), (3,6), (8,2),
+(1,4), (8,8), (8,4), (5,4), (7,7), (5,4), (1,1), (6,9), (2,4), (9,8);
+SELECT grandparent1.*
+FROM t1 AS grandparent1
+LEFT JOIN t1 USING (col_int_nokey)
+WHERE (col_int_nokey, col_int_nokey) IN
+(SELECT col_int_nokey, col_int_key
+FROM t2
+);
+col_int_nokey	col_int_key
+1	6
+1	7
+7	3
+7	0
+7	3
+7	0
+1	6
+1	7
+8	1
+8	5
+8	1
+8	5
+DROP TABLE if exists t1, t2;
+CREATE TABLE t1 (
+pk int,
+col_int_key int,
+col_datetime_key datetime,
+col_varchar_key varchar(1),
+col_varchar_nokey varchar(1),
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t1 VALUES
+(10,7,'2004-06-06 04:22:12','v','v'), (11,0,'2005-11-13 01:12:31','s','s'),
+(12,9,'2002-05-04 01:50:00','l','l'), (13,3,'2004-10-27 10:28:45','y','y'),
+(14,4,'2006-07-22 05:24:23','c','c'), (15,2,'2002-05-16 21:34:03','i','i'),
+(16,5,'2008-04-17 10:45:30','h','h'), (17,3,'2009-04-21 02:58:02','q','q'),
+(18,1,'2008-01-11 11:01:51','a','a'), (19,3,'1900-01-01 00:00:00','v','v'),
+(20,6,'2007-05-17 18:24:57','u','u'), (21,7,'2007-08-07 00:00:00','s','s'),
+(22,5,'2001-08-28 00:00:00','y','y'), (23,1,'2004-04-16 00:27:28','z','z'),
+(24,204,'2005-05-03 07:06:22','h','h'), (25,224,'2009-03-11 17:09:50','p','p'),
+(26,9,'2007-12-08 01:54:28','e','e'), (27,5,'2009-07-28 18:19:54','i','i'),
+(28,0,'2008-06-08 00:00:00','y','y'), (29,3,'2005-02-09 09:20:26','w','w');
+CREATE TABLE t2 (
+pk int,
+col_int_key int,
+col_datetime_key datetime,
+col_varchar_key varchar(1),
+col_varchar_nokey varchar(1),
+PRIMARY KEY (pk),
+KEY col_int_key (col_int_key),
+KEY col_datetime_key (col_datetime_key),
+KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT INTO t2 VALUES
+(1,0,'2002-02-13 17:30:06','j','j'), (2,8,'2008-09-27 00:34:58','v','v'),
+(3,1,'2007-05-28 00:00:00','c','c'), (4,8,'2009-07-25 09:21:20','m','m'),
+(5,9,'2002-01-16 00:00:00','d','d'), (6,24,'2006-10-12 04:32:53','d','d'),
+(7,6,'2001-02-15 03:08:38','y','y'), (8,1,'2004-10-02 20:31:15','t','t'),
+(9,6,'2002-08-20 22:48:00','d','d'), (10,2,'1900-01-01 00:00:00','s','s'),
+(11,4,'2005-08-15 00:00:00','r','r'), (12,8,'1900-01-01 00:00:00','m','m'),
+(13,4,'2008-05-16 08:09:06','b','b'), (14,4,'2001-01-20 12:47:23','x','x'),
+(15,7,'2008-07-02 00:00:00','g','g'), (16,4,'1900-01-01 00:00:00','p','p'),
+(17,1,'2002-12-08 11:34:58','q','q'), (18,9,'1900-01-01 00:00:00','w','w'),
+(19,4,'1900-01-01 00:00:00','d','d'), (20,8,'2002-08-25 20:35:06','e','e');
+SELECT alias1.col_datetime_key
+FROM t2 AS alias1
+RIGHT JOIN (t2 AS alias2
+JOIN t2 AS alias3
+ON alias3.pk = alias2.pk)
+ON alias3.col_varchar_nokey = alias2.col_varchar_key OR
+alias2.col_varchar_nokey
+WHERE (alias2.col_varchar_key, alias2.col_varchar_key) IN
+(SELECT sq2_alias2.col_varchar_key, sq2_alias1.col_varchar_nokey
+FROM t1 AS sq2_alias1, t1 AS sq2_alias2
+WHERE sq2_alias2.col_int_key < 2);
+col_datetime_key
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+2001-01-20 12:47:23
+2001-02-15 03:08:38
+2002-01-16 00:00:00
+2002-02-13 17:30:06
+2002-08-20 22:48:00
+2002-08-25 20:35:06
+2002-12-08 11:34:58
+2004-10-02 20:31:15
+2005-08-15 00:00:00
+2006-10-12 04:32:53
+2007-05-28 00:00:00
+2008-05-16 08:09:06
+2008-07-02 00:00:00
+2008-09-27 00:34:58
+2009-07-25 09:21:20
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+2001-01-20 12:47:23
+2001-02-15 03:08:38
+2002-01-16 00:00:00
+2002-02-13 17:30:06
+2002-08-20 22:48:00
+2002-08-25 20:35:06
+2002-12-08 11:34:58
+2004-10-02 20:31:15
+2005-08-15 00:00:00
+2006-10-12 04:32:53
+2007-05-28 00:00:00
+2008-05-16 08:09:06
+2008-07-02 00:00:00
+2008-09-27 00:34:58
+2009-07-25 09:21:20
+SELECT alias1.col_datetime_key
+FROM t2 AS alias1
+RIGHT JOIN (t2 AS alias2
+JOIN t2 AS alias3
+ON alias3.pk = alias2.pk)
+ON alias3.col_varchar_nokey = alias2.col_varchar_key OR
+alias2.col_varchar_nokey
+WHERE (alias2.col_varchar_key, alias2.col_varchar_key) IN
+(SELECT sq2_alias2.col_varchar_key, sq2_alias1.col_varchar_nokey
+FROM t1 AS sq2_alias1, t1 AS sq2_alias2
+WHERE sq2_alias2.col_int_key < 2);
+col_datetime_key
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+2001-01-20 12:47:23
+2001-02-15 03:08:38
+2002-01-16 00:00:00
+2002-02-13 17:30:06
+2002-08-20 22:48:00
+2002-08-25 20:35:06
+2002-12-08 11:34:58
+2004-10-02 20:31:15
+2005-08-15 00:00:00
+2006-10-12 04:32:53
+2007-05-28 00:00:00
+2008-05-16 08:09:06
+2008-07-02 00:00:00
+2008-09-27 00:34:58
+2009-07-25 09:21:20
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+1900-01-01 00:00:00
+2001-01-20 12:47:23
+2001-02-15 03:08:38
+2002-01-16 00:00:00
+2002-02-13 17:30:06
+2002-08-20 22:48:00
+2002-08-25 20:35:06
+2002-12-08 11:34:58
+2004-10-02 20:31:15
+2005-08-15 00:00:00
+2006-10-12 04:32:53
+2007-05-28 00:00:00
+2008-05-16 08:09:06
+2008-07-02 00:00:00
+2008-09-27 00:34:58
+2009-07-25 09:21:20
+DROP TABLE if exists t1, t2;
+# End of test for bug#14064201.
+#
+# Bug#18223655:ASSERTION FAILED: (INT)IDX >= 0
+#               && IDX < PARENT_JOIN->TABLES
+#
+DROP TABLE if exists b, c;
+CREATE TABLE b (d INT);
+CREATE TABLE c (a INT, b INT,c INT,d VARCHAR(1) NOT NULL);
+SELECT(SELECT  1
+FROM b WHERE(SELECT 1 IN (SELECT 1 FROM b WHERE 1 NOT BETWEEN d AND 1)
+FROM  b) IN (SELECT d FROM c)) as cc FROM  b;
+cc
+INSERT INTO b VALUE(1);
+INSERT INTO c VALUES(1,2,3,'1'),(2,3,4,'1'),(3,4,5,'C');
+SELECT(SELECT d FROM b WHERE(SELECT d IN
+(SELECT d FROM b WHERE 1 NOT BETWEEN d AND 1) FROM b) IN
+(SELECT d FROM c)) as cc FROM  c;
+cc
+1
+1
+1
+#
+# Bug#18447874:WRONG RESULT COMING FROM SEMI-JOIN
+#
+DROP TABLE if exists b,c,d;
+CREATE TABLE b (
+d INT(11)
+);
+CREATE TABLE c (
+d VARCHAR(1)
+) ;
+CREATE TABLE d (
+b INT(11)
+);
+INSERT INTO b VALUES(1),(2),(4);
+INSERT INTO c VALUES(1),(2),(3);
+SELECT  1 FROM b  WHERE (SELECT 1 FROM d ) IN (SELECT d FROM c) ;
+1
+INSERT INTO d VALUES(2);
+SELECT  1 FROM b  WHERE (SELECT 1 FROM d ) IN (SELECT d FROM c) ;
+1
+1
+1
+1
+DROP TABLE if exists b,c,d;
+#
+# Bug#17292723:INCORRECT RESULT FOR (SELECT...) IN (SELECT...) STATEMENT
+#
+CREATE TABLE t1 (
+ID int(11) NOT NULL AUTO_INCREMENT,
+id2 int(11) DEFAULT NULL,
+id3 int(11) DEFAULT NULL,
+id4 varchar(150) COLLATE utf8_general_ci NOT NULL,
+id5 int(11) DEFAULT NULL,
+PRIMARY KEY (ID),
+KEY id2 (id2),
+KEY id3 (id3),
+KEY id5 (id5)
+) ;
+INSERT INTO t1 VALUES
+(123,1,1,'1',NULL),
+(124,1,1,'2',NULL),
+(125,1,1,'4',NULL),
+(126,1,1,'3',NULL),
+(127,1,1,'6',NULL),
+(128,1,1,'8',NULL);
+CREATE TABLE t2 (
+id6 int(11) NOT NULL,
+id7 int(11) NOT NULL,
+PRIMARY KEY (id6,id7),
+KEY id7 (id7)
+) ;
+INSERT INTO t2 VALUES (126,123),(130,123),(135,123);
+SELECT ID
+FROM t1 p0
+WHERE  p0.id3=1
+AND ( (SELECT p1.id FROM t1 p1 WHERE p1.id=123) IN (SELECT p3.id FROM t2
+p2, t1 p3 WHERE p0.id=p2.id6 AND p2.id7=p3.id));
+ID
+126
+DROP TABLE if exists t1,t2;
+# End of 5.6 tests

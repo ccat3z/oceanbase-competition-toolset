@@ -1,0 +1,67 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+#description: 测试limit在select语句中以及和calc_found_row一起使用时的正确性
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+#测试分区表中limit与SQL_CALC_FOUND_ROWS结合使用的情况
+CREATE TABLE t1 (
+titre char(80) NOT NULL default '',
+numeropost mediumint(8) unsigned NOT NULL,
+maxnumrep int(10) unsigned NOT NULL default '0',
+PRIMARY KEY  (numeropost)
+) partition by hash(numeropost) partitions 3;
+INSERT INTO t1 (numeropost, titre,maxnumrep) VALUES (1, 'test1','1');
+INSERT INTO t1 (numeropost, titre,maxnumrep) VALUES (2, 'test2','2');
+INSERT INTO t1 (numeropost, titre,maxnumrep) VALUES (3, 'test3','3');
+
+#与显示limit结合测试
+select * from t1 order by numeropost;
+select found_rows();
+SELECT SQL_CALC_FOUND_ROWS * FROM t1  order by numeropost LIMIT 0;
+select found_rows();
+select * from t1 order by numeropost limit 2;
+select found_rows();
+
+#与session变量sql_select_limit结合测试
+set sql_select_limit = 2;
+select * from t1 order by numeropost;
+select found_rows();
+select * from t1 order by numeropost limit 10;
+select found_rows();
+SELECT SQL_CALC_FOUND_ROWS * FROM t1  order by numeropost LIMIT 0;
+select found_rows();
+#重复查询一次，测试是否受plan_cache的影响
+SELECT SQL_CALC_FOUND_ROWS * FROM t1  order by numeropost LIMIT 0;
+select found_rows();
+select * from t1 order by numeropost limit 2;
+select found_rows();
+
+set sql_select_limit = default;
+
+#与union语句结合测试
+--disable_warnings
+drop table if exists t1;
+drop table if exists t2;
+--enable_warnings
+
+CREATE TABLE t1 (
+  a int(11) DEFAULT NULL
+);
+CREATE TABLE t2 (
+  a int(11) DEFAULT NULL
+);
+
+insert into t1 values (1),(2),(3),(4),(5);
+insert into t2 values (11),(12),(13),(14),(15);
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3);
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3) limit 2;
+set SQL_SELECT_LIMIT = 2;
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3);
+(select * from t1 order by a limit 1) union all (select * from t2 order by a limit 3);
+(select * from t1 order by a limit 1) union distinct (select * from t2 order by a limit 3);
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3) limit 10;
+set sql_select_limit = default;

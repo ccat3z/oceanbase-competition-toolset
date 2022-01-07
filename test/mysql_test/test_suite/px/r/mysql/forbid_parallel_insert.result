@@ -1,0 +1,78 @@
+result_format: 4
+explain_protocol: 0
+drop table t1;
+create table t1 (pk int primary key, c1 int);
+drop table t2;
+create table t2 (pk int primary key, c1 int);
+drop table t3;
+create table t3 (pk int primary key, c1 int);
+drop table t4;
+create table t4 (pk int primary key, c1 int);
+insert into t1 values (1,1);
+insert into t1 values (2,2);
+insert into t1 values (3,3);
+insert into t2 values (1,1);
+insert into t2 values (2,2);
+insert into t2 values (3,3);
+insert into t3 values (1,1);
+insert into t3 values (2,2);
+insert into t3 values (3,3);
+insert into t4 values (1,1);
+insert into t4 values (2,2);
+insert into t4 values (3,3);
+
+drop table t;
+create table t(c1 int, c2 int, c3 int, c4 int);
+
+insert into t select /*+leading(t1 t2 t3 t4)*/ t1.c1, t2.c1, t3.c1, t4.c1 from t1, t2, t3, t4 where t1.pk = t2.pk and t3.pk = t4.pk and t2.pk = t3.pk;
+
+delete/**/ from t;
+
+insert into t select /*+USE_PX parallel(2) log_level('debug') leading(t1 t2 t3 t4)*/ t1.c1, t1.c1, t1.c1, t1.c1 from t1;
+
+select * from t;
++------+------+------+------+
+| c1   | c2   | c3   | c4   |
++------+------+------+------+
+|    1 |    1 |    1 |    1 |
+|    2 |    2 |    2 |    2 |
+|    3 |    3 |    3 |    3 |
++------+------+------+------+
+
+insert into t select /*+USE_PX parallel(2) log_level('debug') leading(t1 t2 t3 t4)*/ t1.c1, t2.c1, t3.c1, t4.c1 from t1, t2, t3, t4 where t1.pk = t2.pk and t3.pk = t4.pk and t2.pk = t3.pk;
+
+select * from t;
++------+------+------+------+
+| c1   | c2   | c3   | c4   |
++------+------+------+------+
+|    1 |    1 |    1 |    1 |
+|    2 |    2 |    2 |    2 |
+|    3 |    3 |    3 |    3 |
+|    1 |    1 |    1 |    1 |
+|    2 |    2 |    2 |    2 |
+|    3 |    3 |    3 |    3 |
++------+------+------+------+
+
+delete /*+USE_PX parallel(2) log_level('debug') leading(t1 t2 t3 t4)*/ from t where c1 > 2;
+
+select * from t;
++------+------+------+------+
+| c1   | c2   | c3   | c4   |
++------+------+------+------+
+|    1 |    1 |    1 |    1 |
+|    2 |    2 |    2 |    2 |
+|    1 |    1 |    1 |    1 |
+|    2 |    2 |    2 |    2 |
++------+------+------+------+
+
+update /*+use_px parallel(2)*/ t set c1=0 where c2 > -1;
+
+select * from t;
++------+------+------+------+
+| c1   | c2   | c3   | c4   |
++------+------+------+------+
+|    0 |    1 |    1 |    1 |
+|    0 |    2 |    2 |    2 |
+|    0 |    1 |    1 |    1 |
+|    0 |    2 |    2 |    2 |
++------+------+------+------+

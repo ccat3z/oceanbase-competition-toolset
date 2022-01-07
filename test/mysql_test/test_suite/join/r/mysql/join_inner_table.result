@@ -1,0 +1,99 @@
+drop database if exists xy_db;
+create database xy_db;
+use xy_db;
+set collation_connection='utf8mb4_general_ci';
+drop table if exists t100_1, t200_2;
+use test;
+drop table if exists t100_1, t200_2;
+set @@ob_read_consistency='weak';
+use xy_db;
+create table t100_1(c1 int, c2 int);
+use test;
+create table t200_2(c1 int, c2 int);
+use oceanbase;
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from (select tenant_id, table_name, table_id from oceanbase.__all_virtual_table order by table_id) as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from (select tenant_id, table_name, table_id from oceanbase.__all_virtual_table order by table_id) as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select a.tenant_id,a.table_name, b.partition_id from (select table_id,tenant_id,table_name from oceanbase.__all_virtual_table) as a, (select table_id,partition_id from oceanbase.__all_virtual_meta_table) as b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a left join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+1	__all_user	NULL
+1	__all_virtual_meta_table	NULL
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a left join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+1	__all_user	NULL
+1	__all_virtual_meta_table	NULL
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a right join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a right join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+use test;
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from (select tenant_id, table_name, table_id from oceanbase.__all_virtual_table order by table_id) as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from (select tenant_id, table_name, table_id from oceanbase.__all_virtual_table order by table_id) as a, oceanbase.__all_virtual_meta_table b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select a.tenant_id,a.table_name, b.partition_id from (select table_id,tenant_id,table_name from oceanbase.__all_virtual_table) as a, (select table_id,partition_id from oceanbase.__all_virtual_meta_table) as b where a.table_id=b.table_id and (a.table_name='t100_1' or a.table_name='t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a left join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+1	__all_user	NULL
+1	__all_virtual_meta_table	NULL
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a left join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+1	__all_user	NULL
+1	__all_virtual_meta_table	NULL
+select /*+ use_merge(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a right join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+select /*+ use_nl(a b)*/ a.tenant_id,a.table_name, b.partition_id from oceanbase.__all_virtual_table as a right join oceanbase.__all_virtual_meta_table as b on a.table_id=b.table_id where a.table_name in ('__all_virtual_meta_table','__all_user','t100_1','t200_2') group by a.table_id order by a.table_name;
+tenant_id	table_name	partition_id
+1002	t100_1	0
+1002	t200_2	0
+use xy_db;
+drop table t100_1;
+use test;
+drop table t200_2;
+drop database xy_db;

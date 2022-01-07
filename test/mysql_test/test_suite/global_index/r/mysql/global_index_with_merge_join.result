@@ -1,0 +1,471 @@
+explain_protocol: 0
+drop table if exists aa;
+drop table if exists bb;
+drop table if exists cc;
+create table aa(a1 int primary key, a2 int, a3 int) partition by hash(a1) partitions 2;
+create index i1 on aa(a2, a3);
+create table bb(b1 int primary key, b2 int, b3 int) partition by hash(b1) partitions 2;
+create index i2 on bb(b2, b3);
+create table cc(c1 int primary key, c2 int, c3 int) partition by hash(c1) partitions 2;
+create index i3 on cc(c2, c3);
+delete from aa;
+insert into aa(a1, a2, a3) values (1, 10, 15), (2, 10, 14), (3, 10, 12), (4, 11, 13), (5, 12, 12), (6, 12, 10);
+delete from bb;
+insert into bb(b1, b2, b3) values (1, 10, 14), (2, 11, 14), (3, 11, 13), (4, 12, 11), (5, 12, 10);
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+delete from aa;
+insert into aa(a1, a2, a3) values (1, 10, 15), (2, 10, 14), (3, 10, 12), (4, 11, 13), (5, 12, 12),(6, 12, 10);
+delete from bb;
+insert into bb(b1, b2, b3) values (1, 10, 14), (2, 11, 14), (3, 11, 13), (4, 12, 11), (5, 12, 10);
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+delete from cc;
+insert into cc(c1, c2, c3) values (1, 10, 15), (2, 10, 14), (3, 10, 12), (4, 12, 10);
+select /*+ leading(aa bb cc) use_merge(aa, bb, cc) */ c2, a3 from aa, bb, cc where a2 = b2 and a3 = b3 and b2 = c2 and b3 = c3 and a2>0 and a3>0 order by c2, c3 desc;
+c2	a3
+10	14
+12	10
+select /*+ leading(aa bb cc) use_merge(aa, bb, cc) */ c2, a3 from aa, bb, cc where a2 = b2 and a3 = b3 and a2 = c2 and b3 = c3 and a2>0 and a3>0 order by c2, c3 desc;
+c2	a3
+10	14
+12	10
+drop table if exists tt1,tt2;
+CREATE TABLE `tt1` (
+`a` int(11) NOT NULL,
+`b` int(11) DEFAULT NULL,
+`c` varchar(20) DEFAULT NULL,
+`d` datetime NOT NULL,
+PRIMARY KEY (`a`)
+) partition by hash(a) partitions 2;
+create index i1 on tt1(d);
+create index i2 on tt1(c);
+CREATE TABLE `tt2` (
+`a` int(11) NOT NULL,
+`b` int(11) DEFAULT NULL,
+`c` varchar(20) DEFAULT NULL,
+`d` datetime NOT NULL,
+PRIMARY KEY (`a`)
+) partition by hash(a) partitions 2;
+create index i1 on tt2(d);
+create index i2 on tt2(c);
+select /*+ use_merge(tt1, tt2) */ * from tt1,tt2 where tt1.a=tt2.a order by tt1.d desc;
+a	b	c	d	a	b	c	d
+select /*+ use_merge(tt1, tt2) */ * from tt1,tt2 where tt1.a=tt2.a order by tt1.a desc;
+a	b	c	d	a	b	c	d
+select /*+ use_merge(tt1, tt2) */ * from tt1,tt2 where tt1.a=tt2.a order by tt1.c desc;
+a	b	c	d	a	b	c	d
+drop table if exists tt1,tt2;
+== test partitioned table merge join ==
+drop table if exists aa;
+drop table if exists bb;
+drop table if exists cc;
+create table aa(a1 int primary key, a2 int, a3 int) partition by hash(a1) partitions 5;
+create index i1 on aa(a2, a3);
+create table bb(b1 int primary key, b2 int, b3 int) partition by hash(b1) partitions 5;
+create index i2 on bb(b2, b3);
+create table cc(c1 int primary key, c2 int, c3 int) partition by hash(c1) partitions 5;
+create index i3 on cc(c2, c3);
+delete from aa;
+insert into aa values (1, 10, 15), (2, 10, 14), (3, 10, 12), (4, 11, 13), (5, 12, 12), (6, 12, 10);
+delete from bb;
+insert into bb values (1, 10, 14), (2, 11, 14), (3, 11, 13), (4, 12, 11), (5, 12, 10);
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+delete from aa;
+insert into aa values (1, 10, 15), (2, 10, 14), (3, 10, 12), (4, 11, 13), (5, 12, 12), (6, 12, 10);
+delete from bb;
+insert into bb values (1, 10, 14), (2, 11, 14), (3, 11, 13), (4, 12, 11), (5, 12, 10);
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3;
+a2	b3
+10	14
+11	13
+12	10
+select /*+ use_merge(aa, bb) */ a2, b3 from aa, bb where a2 = b2 and a3 = b3 and a2>0 and a3>0 order by a2 desc, a3 desc;
+a2	b3
+10	14
+11	13
+12	10
+delete from cc;
+insert into cc values (1, 10, 15), (2, 10, 14), (3, 10, 12), (4, 12, 10);
+select /*+ leading(aa bb cc) use_merge(aa, bb, cc) */ c2, a3 from aa, bb, cc where a2 = b2 and a3 = b3 and b2 = c2 and b3 = c3 and a2>0 and a3>0 order by c2, c3 desc;
+c2	a3
+10	14
+12	10
+select /*+ leading(aa bb cc) use_merge(aa, bb, cc) */ c2, a3 from aa, bb, cc where a2 = b2 and a3 = b3 and a2 = c2 and b3 = c3 and a2>0 and a3>0 order by c2, c3 desc;
+c2	a3
+10	14
+12	10
+drop table if exists aa;
+drop table if exists bb;
+drop table if exists cc;
+drop table if exists t_r4_01_20;
+create table t_r4_01_20(a int, b int, c datetime, primary key (a,b))
+partition by range columns(a)
+(
+partition p6 values less than (6),
+partition p11 values less than (11),
+partition p16 values less than (16),
+partition pm values less than (MAXVALUE)
+);
+create index i1 on t_r4_01_20(b);
+insert into t_r4_01_20 values ( 1,  1, 20161101), ( 2,  2, 20161102), ( 3,  3, 20161103), ( 4,  4, 20161104),
+( 5,  5, 20161105), ( 6,  6, 20161106), ( 7,  7, 20161107), ( 8,  8, 20161108),
+( 9,  9, 20161109), (10, 10, 20161110), (11, 11, 20161111), (12, 12, 20161112),
+(13, 13, 20161113), (14, 14, 20161114), (15, 15, 20161115), (16, 16, 20161116),
+(17, 17, 20161117), (18, 18, 20161118), (19, 19, 20161119), (20, 20, 20161120);
+select /*+use_merge(t1 t2)*/ t1.a, t2.a from t_r4_01_20 t1 inner join t_r4_01_20 t2 on t1.a = t2.a where t1.b>0 order by t1.a desc, t2.a desc;
+a	a
+1	1
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+19	19
+2	2
+20	20
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+select /*+use_merge(t1 t2)*/ t1.a, t2.a from t_r4_01_20 t1 inner join t_r4_01_20 t2 on t1.a = t2.a where t1.b>0 order by t1.a asc, t2.a asc;
+a	a
+1	1
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+19	19
+2	2
+20	20
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+drop table if exists t_r4_01_20;
+drop table if exists t2, t7;
+create table t2(a int, b varchar(20), c decimal(20,10), primary key(a, b)) partition by hash(a) partitions 2;
+create index i2 on t2(b, c);
+create table t7(a int(10), b varchar(10), c char(20), d decimal(20,10), primary key(a, b)) partition by hash(a) partitions 2;
+create index i7 on t7(b, c);
+insert into t2 values(1, "222", 3.33),(2,"222",3.33),(2,"333",2.22),(3,"3333",1.11), (5, "555", 5.55), (6, "6666", 5.5),(1, '1', 1), (1, '2', 2), (2, '2.00', 2.00001), (3, '3.0', 3.00001), (4, "A", 4.33), (5, "B", 5), (6, "AB", 6);
+insert into t7 values(65, '222', '333', 5), (65, '444', '5.550', 1), (66, '3.0', '555', 3.00001), (66, '2', 'B', 2), (67, 'A', '1', 1);
+drop table if exists t8, t9;
+create table t8(a int primary key, b int, c int, index idx(b,c)) partition by hash(a) partitions 2;
+create table t9(a int primary key, b int, c int, index idx(b,c)) partition by hash(a) partitions 2;
+
+************ 测试full join
+select /*+use_merge(t2,t7)*/* from t2 full join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+1	1	1.0000000000	NULL	NULL	NULL	NULL
+1	2	2.0000000000	NULL	NULL	NULL	NULL
+1	222	3.3300000000	NULL	NULL	NULL	NULL
+2	2.00	2.0000100000	NULL	NULL	NULL	NULL
+2	222	3.3300000000	NULL	NULL	NULL	NULL
+2	333	2.2200000000	NULL	NULL	NULL	NULL
+3	3.0	3.0000100000	NULL	NULL	NULL	NULL
+3	3333	1.1100000000	NULL	NULL	NULL	NULL
+4	A	4.3300000000	NULL	NULL	NULL	NULL
+5	555	5.5500000000	NULL	NULL	NULL	NULL
+5	B	5.0000000000	NULL	NULL	NULL	NULL
+6	6666	5.5000000000	NULL	NULL	NULL	NULL
+6	AB	6.0000000000	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	65	222	333	5.0000000000
+NULL	NULL	NULL	65	444	5.550	1.0000000000
+NULL	NULL	NULL	66	2	B	2.0000000000
+NULL	NULL	NULL	66	3.0	555	3.0000100000
+NULL	NULL	NULL	67	A	1	1.0000000000
+
+select /*+use_hash(t2,t7)*/* from t2 full join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+1	1	1.0000000000	NULL	NULL	NULL	NULL
+1	2	2.0000000000	NULL	NULL	NULL	NULL
+1	222	3.3300000000	NULL	NULL	NULL	NULL
+2	2.00	2.0000100000	NULL	NULL	NULL	NULL
+2	222	3.3300000000	NULL	NULL	NULL	NULL
+2	333	2.2200000000	NULL	NULL	NULL	NULL
+3	3.0	3.0000100000	NULL	NULL	NULL	NULL
+3	3333	1.1100000000	NULL	NULL	NULL	NULL
+4	A	4.3300000000	NULL	NULL	NULL	NULL
+5	555	5.5500000000	NULL	NULL	NULL	NULL
+5	B	5.0000000000	NULL	NULL	NULL	NULL
+6	6666	5.5000000000	NULL	NULL	NULL	NULL
+6	AB	6.0000000000	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	65	222	333	5.0000000000
+NULL	NULL	NULL	65	444	5.550	1.0000000000
+NULL	NULL	NULL	66	2	B	2.0000000000
+NULL	NULL	NULL	66	3.0	555	3.0000100000
+NULL	NULL	NULL	67	A	1	1.0000000000
+
+select /*+use_nl(t2,t7)*/* from t2 full join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+1	1	1.0000000000	NULL	NULL	NULL	NULL
+1	2	2.0000000000	NULL	NULL	NULL	NULL
+1	222	3.3300000000	NULL	NULL	NULL	NULL
+2	2.00	2.0000100000	NULL	NULL	NULL	NULL
+2	222	3.3300000000	NULL	NULL	NULL	NULL
+2	333	2.2200000000	NULL	NULL	NULL	NULL
+3	3.0	3.0000100000	NULL	NULL	NULL	NULL
+3	3333	1.1100000000	NULL	NULL	NULL	NULL
+4	A	4.3300000000	NULL	NULL	NULL	NULL
+5	555	5.5500000000	NULL	NULL	NULL	NULL
+5	B	5.0000000000	NULL	NULL	NULL	NULL
+6	6666	5.5000000000	NULL	NULL	NULL	NULL
+6	AB	6.0000000000	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	65	222	333	5.0000000000
+NULL	NULL	NULL	65	444	5.550	1.0000000000
+NULL	NULL	NULL	66	2	B	2.0000000000
+NULL	NULL	NULL	66	3.0	555	3.0000100000
+NULL	NULL	NULL	67	A	1	1.0000000000
+************ 测试right join
+
+select /*+use_merge(t2,t7)*/* from t2 right join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+NULL	NULL	NULL	65	222	333	5.0000000000
+NULL	NULL	NULL	65	444	5.550	1.0000000000
+NULL	NULL	NULL	66	2	B	2.0000000000
+NULL	NULL	NULL	66	3.0	555	3.0000100000
+NULL	NULL	NULL	67	A	1	1.0000000000
+
+select /*+use_hash(t2,t7)*/* from t2 right join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+NULL	NULL	NULL	65	222	333	5.0000000000
+NULL	NULL	NULL	65	444	5.550	1.0000000000
+NULL	NULL	NULL	66	2	B	2.0000000000
+NULL	NULL	NULL	66	3.0	555	3.0000100000
+NULL	NULL	NULL	67	A	1	1.0000000000
+
+select /*+use_nl(t2,t7)*/* from t2 right join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+NULL	NULL	NULL	65	222	333	5.0000000000
+NULL	NULL	NULL	65	444	5.550	1.0000000000
+NULL	NULL	NULL	66	2	B	2.0000000000
+NULL	NULL	NULL	66	3.0	555	3.0000100000
+NULL	NULL	NULL	67	A	1	1.0000000000
+select /*+leading(t8, t9)*/ t8.b,t8.c,t9.b,t9.c from t8 right join t9 on t8.b = t9.b;
+b	c	b	c
+2	1	2	1
+2	1	2	2
+2	1	2	3
+2	2	2	1
+2	2	2	2
+2	2	2	3
+2	3	2	1
+2	3	2	2
+2	3	2	3
+4	1	4	1
+4	1	4	2
+4	1	4	3
+4	2	4	1
+4	2	4	2
+4	2	4	3
+4	3	4	1
+4	3	4	2
+4	3	4	3
+NULL	NULL	3	1
+************ 测试left join
+
+select /*+use_merge(t2,t7)*/* from t2 left join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+1	1	1.0000000000	NULL	NULL	NULL	NULL
+1	2	2.0000000000	NULL	NULL	NULL	NULL
+1	222	3.3300000000	NULL	NULL	NULL	NULL
+2	2.00	2.0000100000	NULL	NULL	NULL	NULL
+2	222	3.3300000000	NULL	NULL	NULL	NULL
+2	333	2.2200000000	NULL	NULL	NULL	NULL
+3	3.0	3.0000100000	NULL	NULL	NULL	NULL
+3	3333	1.1100000000	NULL	NULL	NULL	NULL
+4	A	4.3300000000	NULL	NULL	NULL	NULL
+5	555	5.5500000000	NULL	NULL	NULL	NULL
+5	B	5.0000000000	NULL	NULL	NULL	NULL
+6	6666	5.5000000000	NULL	NULL	NULL	NULL
+6	AB	6.0000000000	NULL	NULL	NULL	NULL
+
+select /*+use_hash(t2,t7)*/* from t2 left join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+1	1	1.0000000000	NULL	NULL	NULL	NULL
+1	2	2.0000000000	NULL	NULL	NULL	NULL
+1	222	3.3300000000	NULL	NULL	NULL	NULL
+2	2.00	2.0000100000	NULL	NULL	NULL	NULL
+2	222	3.3300000000	NULL	NULL	NULL	NULL
+2	333	2.2200000000	NULL	NULL	NULL	NULL
+3	3.0	3.0000100000	NULL	NULL	NULL	NULL
+3	3333	1.1100000000	NULL	NULL	NULL	NULL
+4	A	4.3300000000	NULL	NULL	NULL	NULL
+5	555	5.5500000000	NULL	NULL	NULL	NULL
+5	B	5.0000000000	NULL	NULL	NULL	NULL
+6	6666	5.5000000000	NULL	NULL	NULL	NULL
+6	AB	6.0000000000	NULL	NULL	NULL	NULL
+
+select /*+use_nl(t2,t7)*/* from t2 left join t7 on t2.b = t7.a and t2.c = t7.d order by t2.a,t2.b,t7.a,t7.b;
+a	b	c	a	b	c	d
+1	1	1.0000000000	NULL	NULL	NULL	NULL
+1	2	2.0000000000	NULL	NULL	NULL	NULL
+1	222	3.3300000000	NULL	NULL	NULL	NULL
+2	2.00	2.0000100000	NULL	NULL	NULL	NULL
+2	222	3.3300000000	NULL	NULL	NULL	NULL
+2	333	2.2200000000	NULL	NULL	NULL	NULL
+3	3.0	3.0000100000	NULL	NULL	NULL	NULL
+3	3333	1.1100000000	NULL	NULL	NULL	NULL
+4	A	4.3300000000	NULL	NULL	NULL	NULL
+5	555	5.5500000000	NULL	NULL	NULL	NULL
+5	B	5.0000000000	NULL	NULL	NULL	NULL
+6	6666	5.5000000000	NULL	NULL	NULL	NULL
+6	AB	6.0000000000	NULL	NULL	NULL	NULL
+********** join condition 必须和 ordering 排序一致
+select /*+use_merge(t8 t9)*/ * from t8 join t9 on t8.c = t9.c and t8.b = t9.b;
+a	b	c	a	b	c
+1	2	1	1	2	1
+2	2	2	2	2	2
+3	2	3	3	2	3
+4	4	1	5	4	1
+5	4	2	6	4	2
+6	4	3	7	4	3
+select /*+index(t8 idx), index(t9 idx), use_merge(t8 t9)*/ * from t8 join t9 on t8.a = t9.b and t8.b = t9.a;
+a	b	c	a	b	c
+2	2	2	2	2	2
+select /*+use_merge(t8 t9)*/ * from t8 left join t9 on t8.c = t9.c and t8.b = t9.b;
+a	b	c	a	b	c
+1	2	1	1	2	1
+2	2	2	2	2	2
+3	2	3	3	2	3
+4	4	1	5	4	1
+5	4	2	6	4	2
+6	4	3	7	4	3
+select /*+index(t8 idx), index(t9 idx), use_merge(t8 t9)*/ * from t8 left join t9 on t8.a = t9.b and t8.b = t9.a;
+a	b	c	a	b	c
+1	2	1	NULL	NULL	NULL
+2	2	2	2	2	2
+3	2	3	NULL	NULL	NULL
+4	4	1	NULL	NULL	NULL
+5	4	2	NULL	NULL	NULL
+6	4	3	NULL	NULL	NULL
+select /*+use_merge(t8 t9)*/ * from t8 right join t9 on t8.c = t9.c and t8.b = t9.b;
+a	b	c	a	b	c
+1	2	1	1	2	1
+2	2	2	2	2	2
+3	2	3	3	2	3
+4	4	1	5	4	1
+5	4	2	6	4	2
+6	4	3	7	4	3
+NULL	NULL	NULL	4	3	1
+select /*+index(t8 idx), index(t9 idx), use_merge(t8 t9)*/ * from t8 right join t9 on t8.a = t9.b and t8.b = t9.a;
+a	b	c	a	b	c
+2	2	2	2	2	2
+NULL	NULL	NULL	1	2	1
+NULL	NULL	NULL	3	2	3
+NULL	NULL	NULL	4	3	1
+NULL	NULL	NULL	5	4	1
+NULL	NULL	NULL	6	4	2
+NULL	NULL	NULL	7	4	3
+select /*+use_merge(t8 t9)*/ * from t8 right join t9 on t8.c = t9.c and t8.b = t9.b;
+a	b	c	a	b	c
+1	2	1	1	2	1
+2	2	2	2	2	2
+3	2	3	3	2	3
+4	4	1	5	4	1
+5	4	2	6	4	2
+6	4	3	7	4	3
+NULL	NULL	NULL	4	3	1
+select /*+index(t8 idx), index(t9 idx), use_merge(t8 t9)*/ * from t8 full join t9 on t8.a = t9.b and t8.b = t9.a;
+a	b	c	a	b	c
+1	2	1	NULL	NULL	NULL
+2	2	2	2	2	2
+3	2	3	NULL	NULL	NULL
+4	4	1	NULL	NULL	NULL
+5	4	2	NULL	NULL	NULL
+6	4	3	NULL	NULL	NULL
+NULL	NULL	NULL	1	2	1
+NULL	NULL	NULL	3	2	3
+NULL	NULL	NULL	4	3	1
+NULL	NULL	NULL	5	4	1
+NULL	NULL	NULL	6	4	2
+NULL	NULL	NULL	7	4	3
+drop table if exists BB,CC;
+CREATE TABLE BB ( col_varchar_key varchar (1), col_varchar_10 varchar(10), col_varchar varchar (1), col_int_key int, col_varchar_10_key varchar(10), col_varchar_20_key varchar(20), col_int int, col_varchar_20 varchar(20), pk int, /*Indices*/ key idx3(pk, col_varchar_key ), key idx1(pk, col_int_key ), key idx5(pk, col_varchar_10_key ), key idx7(pk, col_varchar_20_key ), primary key (pk) ) partition by hash(pk) partitions 2;
+CREATE TABLE CC ( col_varchar_key varchar (1), col_varchar_20_key varchar(20), col_varchar_20 varchar(20), col_int_key int, col_int int, pk int, col_varchar_10 varchar(10), col_varchar_10_key varchar(10), col_varchar varchar (1), /*Indices*/ key idx3(pk, col_varchar_key ), key idx7(pk, col_varchar_20_key ), key idx1(pk, col_int_key ), primary key (pk) , key idx5(pk, col_varchar_10_key )) partition by hash(pk) partitions 2;
+SELECT /*+no_rewrite,leading(table1 table2),use_merge(table1 table2)*/   table1 . col_varchar_10_key AS field1  FROM    BB AS table1, CC AS table2    WHERE  table1 . `col_int_key` = table2 . `pk`  and table2 . `col_int_key` = table1 . `pk` ORDER BY table1 . col_int_key DESC;
+field1
+b
+p
+drop table if exists t2, t7, t8, t9, BB, CC;

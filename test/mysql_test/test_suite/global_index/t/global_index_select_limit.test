@@ -1,0 +1,59 @@
+
+--disable_query_log
+--result_format 4
+--explain_protocol 0
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (a int auto_increment primary key, b bigint, c char(100), d varchar(1000));
+insert into t1 (b, c, d) values(1, "a", repeat('a', 1000));
+insert into t1 (b, c, d) values(2, "ab", repeat("ab", 500));
+insert into t1 (b, c, d) values(3, "ab ", repeat("ab", 500));
+insert into t1 (b, c, d) values(4, "abcd", repeat("ab", 500));
+insert into t1 (b, c, d) values(5, "ab c ", repeat("a", 1000));
+insert into t1 (b, c, d) values(6, "abc ", repeat("abcd", 250));
+insert into t1 (b, c, d) values(7, "abcd", repeat("abbb", 250));
+insert into t1 (b, c, d) values(8, "abcde", repeat("accc", 250));
+--let $loop=5
+while($loop > 0)
+{
+  insert into t1 (b, c, d) select b + 1, c, d from t1;
+  dec $loop;
+}
+create index i1 on t1(b, c, d) partition by hash(b) partitions 2;
+select /*+index(t1 i1)*/ count(1) from t1;
+
+--disable_query_log
+--let $loop=5
+while($loop > 0)
+{
+  eval insert into t1 (b, c, d) values($loop, "ab", repeat("ab", 500));
+  dec $loop;
+}
+select count(1) from t1;
+insert into t1 (b, c, d) values(9, "ab c", repeat('ab ', 300));
+--enable_query_log
+
+select /*+index(t1 i1)*/ count(1) from t1;
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 100) t;
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 100, 200) t;
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 200 offset 100) t;
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 256) t;
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 256 offset 256) t;
+select /*+index(t1 i1)*/ b, c from t1 where c > 'ab' order by a;
+select b, c from (select /*+index(t1 i1)*/ * from t1 where c>'ab' limit 100) t order by a;
+select b, c from (select /*+index(t1 i1)*/ * from t1 where c>'ab' limit 100, 200) t order by a;
+select b, c from (select /*+index(t1 i1)*/ * from t1 where c>'ab' limit 256, 256) t order by a;
+select /*+index(t1 i1)*/ sum(b), avg(b*1.5) from t1 where c > 'ab';
+select /*+index(t1 i1)*/ b, c from t1 where c <= 'ab' order by a;
+drop table t1;
+create table t1(a int primary key, b int);
+create index i1 on t1(b) partition by hash(b) partitions 2;
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+select /*+index(t1 i1)*/ * from t1 limit 1, 2;
+select /*+index(t1 i1)*/ * from t1 limit 2, 2;
+select /*+index(t1 i1)*/ * from t1 limit 2;
+select /*+index(t1 i1)*/ * from t1 limit 2, 5;
+drop table t1;

@@ -1,0 +1,209 @@
+drop database if exists muhangtest;
+drop table if exists t1;
+drop table if exists t2;
+create database muhangtest;
+use muhangtest;
+result_format: 4
+set ob_enable_plan_cache = false;
+
+create table t1 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2)) partition by hash(c2) partitions 4;
+create index lkey on t1(c1) global;
+create index gkey on t1(c1) global partition by hash(c1) partitions 2;
+insert into t1 values(0,2,3,4);
+insert into t1 values(1,2,3,4);
+insert into t1 values(2,2,3,4);
+insert into t1 values(3,2,3,4);
+insert into t1 values(4,2,3,4);
+insert into t1 values(5,2,3,4);
+insert into t1 values(6,2,3,4);
+insert into t1 values(7,2,3,4);
+insert into t1 values(8,2,3,4);
+insert into t1 values(9,2,3,4);
+insert into t1 values(10,2,3,4);
+
+select * from t1 where c1 = 1 union all select /*+index(t1 gkey)*/ * from t1 where c1 = 2 union all select * from t1 where c1 = 5 union all select * from t1 where c1 = 3 union all select * from t1 where c1 = 7 union all select * from t1 where c1 = 10 union all select * from t1 where c1 = 15;
++----+----+------+------+
+| c1 | c2 | c3   | c4   |
++----+----+------+------+
+|  1 |  2 |    3 |    4 |
+|  2 |  2 |    3 |    4 |
+|  5 |  2 |    3 |    4 |
+|  3 |  2 |    3 |    4 |
+|  7 |  2 |    3 |    4 |
+| 10 |  2 |    3 |    4 |
++----+----+------+------+
+
+select /*+no_use_px*/ * from t1 where c1 = 1 union all select /*+index(t1 gkey)*/ * from t1 where c1 = 2 union all select * from t1 where c1 = 5 union all select * from t1 where c1 = 3 union all select * from t1 where c1 = 7 union all select * from t1 where c1 = 10 union all select * from t1 where c1 = 15;
++----+----+------+------+
+| c1 | c2 | c3   | c4   |
++----+----+------+------+
+|  1 |  2 |    3 |    4 |
+|  2 |  2 |    3 |    4 |
+|  5 |  2 |    3 |    4 |
+|  3 |  2 |    3 |    4 |
+|  7 |  2 |    3 |    4 |
+| 10 |  2 |    3 |    4 |
++----+----+------+------+
+
+select /*+no_use_px*/ * from t1 where c1 = 1 union all select /*+index(t1 lkey)*/ * from t1 where c1 = 2 union all select * from t1 where c1 = 5 union all select * from t1 where c1 = 3 union all select * from t1 where c1 = 7 union all select * from t1 where c1 = 10 union all select * from t1 where c1 = 15;
++----+----+------+------+
+| c1 | c2 | c3   | c4   |
++----+----+------+------+
+|  1 |  2 |    3 |    4 |
+|  2 |  2 |    3 |    4 |
+|  5 |  2 |    3 |    4 |
+|  3 |  2 |    3 |    4 |
+|  7 |  2 |    3 |    4 |
+| 10 |  2 |    3 |    4 |
++----+----+------+------+
+
+drop table if exists ZHSQXP;
+drop table if exists ZCZHMP;
+CREATE TABLE
+ZHSQXP
+(ZSTXDZ CHAR(120) comment '通讯地址',
+ZSFRHM CHAR(40) comment '法人证件号码',
+ZSFRZJ CHAR(1) comment '法人证件类型',
+ZSFRXM CHAR(80) comment '法人姓名',
+ZSSQDH CHAR(24) comment '申请单编号',
+ZSTRZJ CHAR(1) comment '投资人证件类型',
+ZSTRHM CHAR(40) comment '投资人证件号码 ',
+ZSTRMC CHAR(120) comment '投资人名称',
+ZSJYRQ CHAR(8) comment '交易日期',
+ZSJYSJ CHAR(6) comment '交易时间',
+ZSGJBZ CHAR(1) comment '个人/机构标志',
+ZSTRYB CHAR(6) comment '投资人邮政编码',
+ZSJRHM CHAR(40) comment '经办人证件号码',
+ZSJRZJ CHAR(1) comment '经办人证件类型',
+ZSJRXM CHAR(80) comment '经办人姓名',
+ZSJYZH CHAR(17) comment '交易账号',
+ZSDRDM CHAR(3) comment '代理人代码',
+ZSYWLX CHAR(3) comment '业务类型',
+ZSQSHZ CHAR(28) comment '交收账户',
+ZSQSHM CHAR(60) comment '交收户名',
+ZSQSJG CHAR(9) comment '清算机构代码',
+ZSTRSR CHAR(8) comment '出生日期',
+ZSZJZH CHAR(19) comment '资金账户',
+ZSDQBH CHAR(4) comment '地区编号',
+ZSTRXL CHAR(3) comment '学历',
+ZSTREM CHAR(40) comment '投资人E-MAIL',
+ZSTRCZ CHAR(30) comment '传真号码',
+ZSTRZY CHAR(3) comment '职业代码',
+ZSTRZD CHAR(30) comment '住宅电话',
+ZSTRNS DECIMAL(8,0) comment '年收入',
+ZSTRSJ CHAR(30) comment '手机号码',
+ZSTRDD CHAR(30) comment '投资人单位电话',
+ZSTRJC CHAR(40) comment '投资人简称',
+ZSMHBH CHAR(8) comment '密函编号',
+ZSTRXB CHAR(1) comment '投资人性别',
+ZSHSZH CHAR(10) comment '上海证券账号',
+ZSSSZH CHAR(10) comment '深圳证券账号',
+ZSJJZH CHAR(12) comment '基金账号',
+ZSTRDH CHAR(30) comment '电话号码',
+ZSJYSD CHAR(8) comment '交易手段',
+ZSWCNR CHAR(1) comment '未成年人标志',
+ZSDZFS CHAR(1) comment '对账单寄送选择',
+ZSJRSB CHAR(1) comment '经办人识别方式',
+ZSZHKH CHAR(8) comment '账户卡凭证号',
+ZSSKHM CHAR(60) comment '收款银行户名',
+ZSSKZH CHAR(28) comment '收款银行账号',
+ZSSKYH CHAR(9) comment '收款开户银行',
+ZSJSFS CHAR(8) comment '账单寄送方式',
+ZSGJ CHAR(3) comment '国籍',
+ZSJJR CHAR(12) comment '经纪人',
+ZSDWMC CHAR(40) comment '工作单位',
+ZSZJRQ CHAR(8) comment '证件有效日',
+ZSJZRQ CHAR(8) comment '经办人证件有效日',
+ZSFZRQ CHAR(8) comment '法人证件有效日',
+ZSFXDJ CHAR(1) comment '风险等级',
+ZSJYFW CHAR(2) comment '经营范围',
+ZSKGGD CHAR(80) comment '控股股东',
+ZSKZR CHAR(80) comment '实际控制人',
+ZSHYZK CHAR(1) comment '婚姻状况',
+ZSJTRK DECIMAL(2,0) comment '家庭人口',
+ZSJTZC DECIMAL(16,2) comment '家庭资产',
+ZSMTPH CHAR(1) comment '媒体偏好',
+ZSJGLX CHAR(1) comment '机构类型',
+ZSYWM CHAR(20) comment '英文名',
+ZSYWX CHAR(20) comment '英文姓',
+ZSHY CHAR(4) comment '行业',
+ZSQYXZ CHAR(2) comment '企业性质',
+ZSYGRS DECIMAL(16,2) comment '员工人数',
+ZSXQAH CHAR(2) comment '兴趣爱好',
+ZSSZXS CHAR(6) comment '省/直辖市',
+ZSSHI CHAR(6) comment '市',
+ZSQX CHAR(6) comment '县/区',
+ZSTJR CHAR(40) comment '推荐人',
+ZSTRLX CHAR(1) comment '推荐人类型     ',
+ZSSLFS CHAR(1) comment '受理方式',
+ZSZYSM CHAR(60) comment '摘要/说明',
+ZSTRCH CHAR(24) comment '投资人传呼号码',
+ZSJKJY BINARY(20) comment '接口检验信息',
+ZSSQXH BINARY(10) comment '申请序号',
+ZSCLBZ CHAR(1) comment '处理标志',
+ZSFHDM CHAR(4) comment '返回代码',
+ZSQRRQ CHAR(8) comment '确认日期',
+ZSTALS CHAR(20) comment 'TA流水号',
+ZSCCXX CHAR(60) comment '出错详细信息',
+primary key (`ZSJKJY`, `ZSSQXH`)) partition by key(`ZSJKJY`, `ZSSQXH`) partitions 5;
+
+CREATE TABLE ZCZHMP
+(ZZJJZH CHAR(12) comment '投资人基金账户',
+ZZTZRM CHAR(120) comment '投资人姓名 ',
+ZZZHLX CHAR(1) comment '账户类型',
+ZZTADM CHAR(2) comment 'TA代码 ',
+ZZZQZH CHAR(10) comment '证券账户',
+ZZZJDM CHAR(40) comment '证件代码',
+ZZZJLX CHAR(1) comment '证件类型',
+ZZZHZT CHAR(1) comment '账户状态',
+ZZZCRQ DATE comment '注册日期',
+ZZBGRQ DATE comment '变更日期',
+ZZZHLY CHAR(1) comment '账户来源',
+PRIMARY KEY (ZZJJZH)
+)partition by key (`ZZJJZH`) partitions 11;
+
+create index GI_ZHSQXP on ZHSQXP(ZSSQDH) global partition by key(ZSSQDH) partitions 17;
+
+select /*+index(zhsqxp GI_ZHSQXP)*/ zsjglx,zsgjbz,zstrxl,zstrzy,zstrxb,zsjysj,zsjyrq,zstrsr,zstrns,zsjtrk,zsjtzc,zsygrs,zsywlx,zshszh,zssszh,zsdrdm,zsjyzh,zssqxh,b.zzjjzh, b.zzzhzt from (SELECT zsjglx,zsgjbz,zstrxl,zstrzy,zstrxb,zsjysj,zsjyrq,zstrsr,zstrns,zsjtrk,zsjtzc,zsygrs,zsywlx,zshszh,zssszh,zsdrdm,zsjyzh,zssqxh,case substr(zsjkjy, 12, 2) when '98' then concat('98', zshszh) when '99' then concat('99', zssszh) end ccc FROM zhsqxp where zsjkjy = 2019020166698 and zssqxh between 3250001 and 3300000) a left join zczhmp b on (a.ccc = b.zzjjzh);
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+| zsjglx | zsgjbz | zstrxl | zstrzy | zstrxb | zsjysj | zsjyrq | zstrsr | zstrns | zsjtrk | zsjtzc | zsygrs | zsywlx | zshszh | zssszh | zsdrdm | zsjyzh | zssqxh | zzjjzh | zzzhzt |
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+
+create table t2 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2)) partition by hash(c2) partitions 4;
+create index lkey on t2(c1) global;
+create index gkey on t2(c1) global partition by hash(c1) partitions 2;
+
+insert into t2 values(0,2,3,4);
+
+insert into t2 select /*+index(t2 gkey) parallel(2)*/ * from t2 where c2 = 1 or c2 = 2 or c2 = 3 order by 1,2,3,4;
+ERROR 23000: Duplicate entry '0-2' for key 'PRIMARY'
+
+insert into t2 values(1,2,3,4);
+insert into t2 values(2,2,3,4);
+insert into t2 values(3,2,3,4);
+insert into t2 values(4,2,3,4);
+insert into t2 values(5,2,3,4);
+insert into t2 values(6,2,3,4);
+insert into t2 values(7,2,3,4);
+insert into t2 values(8,2,3,4);
+insert into t2 values(9,2,3,4);
+insert into t2 values(10,2,3,4);
+
+update /*+index(t2 gkey) parallel(2)*/ t2 set c3=123 where c2 = 1 or c2 = 2 or c2 = 3;
+select * from t2 order by c1;
++----+----+------+------+
+| c1 | c2 | c3   | c4   |
++----+----+------+------+
+|  0 |  2 |  123 |    4 |
+|  1 |  2 |  123 |    4 |
+|  2 |  2 |  123 |    4 |
+|  3 |  2 |  123 |    4 |
+|  4 |  2 |  123 |    4 |
+|  5 |  2 |  123 |    4 |
+|  6 |  2 |  123 |    4 |
+|  7 |  2 |  123 |    4 |
+|  8 |  2 |  123 |    4 |
+|  9 |  2 |  123 |    4 |
+| 10 |  2 |  123 |    4 |
++----+----+------+------+

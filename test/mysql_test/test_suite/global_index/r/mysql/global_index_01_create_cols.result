@@ -1,0 +1,164 @@
+create table t1(c1 int primary key, c2 varchar(1024), c3 int, index i11(c2) storing(c1), index i12(c2) storing(c3), index i13(c1) storing(c2,c3), index i14(c1) storing(c1,c2,c3), index i15(c2)) partition by hash(c1) partitions 2;
+replace into t1 values(1,'a',1),(2,'b',2);
+select * from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+select /*+index(t1 i11)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+select /*+index(t1 i12)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+select /*+index(t1 i13)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+select /*+index(t1 i14)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+select /*+index(t1 i15)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+create table t2(c1 int , c2 varchar(1024), c3 int, c4 varchar(1024), c5  timestamp(6) default "2012-01-01 12:00:00", c6 int, primary key(c1, c2), index i21(c3,c4) storing(c5,c6), index i22(c1,c2) storing(c3,c4,c5,c6), index i23(c3) storing(c3,c4), index i24(c5), index i25(c1,c2,c3) storing(c4), index i26(c2,c3) storing(c4,c5,c6)) partition by hash(c1) partitions 2;
+insert into t2 values(1,'a',1,'a','2013-12-03 00:00:00',1), (2,'b',2,'b','2013-12-03 00:00:00',2);
+insert into t1 values(3,'c',3),(4,'d',4);
+insert into t1 values(5,'c',3),(6,'d',4);
+replace into t2 values(3,'c',3,'c','2013-12-03 00:00:00',3), (4,'d',4,'d','2013-12-03 00:00:00',4);
+replace into t2 values(5,'c',3,'c','2013-12-03 00:00:00',3), (6,'d',4,'d','2013-12-03 00:00:00',4);
+select * from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+3	c	3
+4	d	4
+5	c	3
+6	d	4
+select /*+index(t1 i11)*/* from t1;
+c1	c2	c3
+1	a	1
+3	c	3
+5	c	3
+2	b	2
+4	d	4
+6	d	4
+select /*+index(t1 i12)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+3	c	3
+5	c	3
+4	d	4
+6	d	4
+select /*+index(t1 i13)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+3	c	3
+4	d	4
+5	c	3
+6	d	4
+select /*+index(t1 i14)*/* from t1;
+c1	c2	c3
+1	a	1
+2	b	2
+3	c	3
+4	d	4
+5	c	3
+6	d	4
+select /*+index(t1 i15)*/* from t1;
+c1	c2	c3
+1	a	1
+3	c	3
+5	c	3
+2	b	2
+4	d	4
+6	d	4
+select * from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+2	b	2	b	2013-12-03 00:00:00.000000	2
+3	c	3	c	2013-12-03 00:00:00.000000	3
+4	d	4	d	2013-12-03 00:00:00.000000	4
+5	c	3	c	2013-12-03 00:00:00.000000	3
+6	d	4	d	2013-12-03 00:00:00.000000	4
+select /*+index(t2 i21)*/* from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+2	b	2	b	2013-12-03 00:00:00.000000	2
+3	c	3	c	2013-12-03 00:00:00.000000	3
+5	c	3	c	2013-12-03 00:00:00.000000	3
+4	d	4	d	2013-12-03 00:00:00.000000	4
+6	d	4	d	2013-12-03 00:00:00.000000	4
+select /*+index(t2 i22)*/* from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+2	b	2	b	2013-12-03 00:00:00.000000	2
+3	c	3	c	2013-12-03 00:00:00.000000	3
+4	d	4	d	2013-12-03 00:00:00.000000	4
+5	c	3	c	2013-12-03 00:00:00.000000	3
+6	d	4	d	2013-12-03 00:00:00.000000	4
+select /*+index(t2 i23)*/* from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+3	c	3	c	2013-12-03 00:00:00.000000	3
+5	c	3	c	2013-12-03 00:00:00.000000	3
+2	b	2	b	2013-12-03 00:00:00.000000	2
+4	d	4	d	2013-12-03 00:00:00.000000	4
+6	d	4	d	2013-12-03 00:00:00.000000	4
+select /*+index(t2 i24)*/* from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+3	c	3	c	2013-12-03 00:00:00.000000	3
+5	c	3	c	2013-12-03 00:00:00.000000	3
+2	b	2	b	2013-12-03 00:00:00.000000	2
+4	d	4	d	2013-12-03 00:00:00.000000	4
+6	d	4	d	2013-12-03 00:00:00.000000	4
+select /*+index(t2 i25)*/* from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+3	c	3	c	2013-12-03 00:00:00.000000	3
+5	c	3	c	2013-12-03 00:00:00.000000	3
+2	b	2	b	2013-12-03 00:00:00.000000	2
+4	d	4	d	2013-12-03 00:00:00.000000	4
+6	d	4	d	2013-12-03 00:00:00.000000	4
+select /*+index(t2 i26)*/* from t2;
+c1	c2	c3	c4	c5	c6
+1	a	1	a	2013-12-03 00:00:00.000000	1
+2	b	2	b	2013-12-03 00:00:00.000000	2
+3	c	3	c	2013-12-03 00:00:00.000000	3
+5	c	3	c	2013-12-03 00:00:00.000000	3
+4	d	4	d	2013-12-03 00:00:00.000000	4
+6	d	4	d	2013-12-03 00:00:00.000000	4
+create table t3(c1 int , c2 varchar(1024), c3 int, c4 varchar(1024), c5  timestamp(6) default "2012-01-01 12:00:00", c6 int, primary key(c1, c2)) partition by key(c2) partitions 2;
+create index i31 on t3(c3,c4) storing(c5,c6);
+create index test1 on testtable(c4);
+ERROR 42S02: Table 'test.testtable' doesn't exist
+create index test2 on t3(c3,c4) storing(c5,c6);
+create index test3 on t3(c1, c1) storing(c2, c2);
+ERROR 42S21: Duplicate column name 'c1'
+create index test4 on t3(testcol);
+ERROR 42000: Key column 'testcol' doesn't exist in table
+create index test5 on t3 storing (c1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your OceanBase version for the right syntax to use near 'storing (c1)' at line 1
+show index from t3;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible
+t3	0	PRIMARY	1	c1	A	NULL	NULL	NULL		BTREE	available		YES
+t3	0	PRIMARY	2	c2	A	NULL	NULL	NULL		BTREE	available		YES
+t3	1	i31	1	c3	A	NULL	NULL	NULL	YES	BTREE	available		YES
+t3	1	i31	2	c4	A	NULL	NULL	NULL	YES	BTREE	available		YES
+t3	1	test2	1	c3	A	NULL	NULL	NULL	YES	BTREE	available		YES
+t3	1	test2	2	c4	A	NULL	NULL	NULL	YES	BTREE	available		YES
+drop index i11 on t1;
+drop index i12 on t1;
+drop index i13 on t1;
+drop index i14 on t1;
+drop index i15 on t1;
+drop table t1;
+drop index i21 on t2;
+drop table t2;
+drop table t3;

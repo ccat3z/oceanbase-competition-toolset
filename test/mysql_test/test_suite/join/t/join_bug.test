@@ -1,0 +1,241 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+# description: 新增case覆盖OB发现的bug
+#
+# Initialization
+--disable_warnings
+drop table if exists t1,t2,t3,t4,t5,t6;
+set collation_connection='utf8mb4_general_ci';
+--disable_warnings
+drop view if exists v1,v2,v3,v4,v5,v6;
+--enable_warnings
+--disable_warnings
+drop table if exists ob_adgroup,ob_bidword;
+--enable_warnings
+
+create table t1(c1 int primary key, c2 int) ;
+create table t2(c1 int primary key, c2 int, c3 varchar(32));
+create table t3(c3 int primary key, c4 int);
+create table t4(c1 int primary key, c2 int not null, c3 int default 1, c4 int not null default 2);
+insert into t1 values(1,2);
+insert into t2 values(1,2,3);
+insert into t3 values(3,4); 
+insert into t4 values(1,2,3,4);
+SELECT * FROM t1 LEFT JOIN t2 USING (c1) , t2 z JOIN t4 USING (c1) WHERE t1.c1=z.c1 order by 1;
+drop table t1,t2,t3,t4;
+
+CREATE TABLE t1 (c1 int);
+#select (select i1 from t1) as field from t1 GROUP BY field;
+#SELECT (select t1.i1 from t1 left join t1 t2 on (t1.i1=t2.i1) limit 1) as field from t1 group by field;
+SELECT c1 FROM t1 AS table1 INNER JOIN t1 AS table2 USING ( c1 ) LEFT JOIN t1 AS table3 USING ( c1 ) LEFT OUTER JOIN t1 AS table4 USING ( c1  )  order by 1;
+drop table t1;
+
+CREATE TABLE t1 (p1 INT PRIMARY KEY, a CHAR(1));
+CREATE TABLE t2 (p2 INT PRIMARY KEY, b CHAR(1));
+INSERT INTO t1 VALUES (1,'a'),(2,'b'),(3,'c');
+INSERT INTO t2 VALUES (1,'h'),(2,'i'),(3,'j'),(4,'k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t2;
+select * from v1 left join v2 on a=b order by 1;
+DROP VIEW v1, v2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (p1 INT PRIMARY KEY, a VARCHAR(1));
+CREATE TABLE t2 (p2 INT PRIMARY KEY, b VARCHAR(1));
+INSERT INTO t1 VALUES (1,'a'),(2,'b'),(3,'c');
+INSERT INTO t2 VALUES (1,'h'),(2,'i'),(3,'j'),(4,'k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t2;
+select * from v1 left join v2 on a=b order by 1;
+DROP VIEW v1, v2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (p1 INT PRIMARY KEY, a TIMESTAMP(6) default '2010-10-10 10:10:10.000001');
+CREATE TABLE t2 (p2 INT PRIMARY KEY, b TIMESTAMP(6) default '2010-10-10 10:10:10.000001');
+INSERT INTO t1(p1) VALUES (1);
+INSERT INTO t2(p2) VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t2;
+select * from v1 left join v2 on a=b order by 1;
+DROP VIEW v1, v2;
+DROP TABLE t1, t2;
+
+create table t1(grp_id bigint, row_id bigint, KEY t11 (grp_id));
+insert into t1 values(45, 270);
+insert into t1 values(45, 271);
+insert into t1 values(45, 272);
+create table t2(grp_id bigint, row_hex varchar(2048), KEY t21 (grp_id));
+insert into t2 values(45, '000000000000000000000000000000000000000000000000000000000000010e');
+insert into t2 values(45, '000000000000000000000000000000000000000000000000000000000000010f');
+insert into t2 values(45, '0000000000000000000000000000000000000000000000000000000000000110');
+insert into t2 values(45, '0000000000000000000000000000000000000000000000000000000000000111');
+insert into t2 values(45, '0000000000000000000000000000000000000000000000000000000000000112');
+insert into t2 values(45, '0000000000000000000000000000000000000000000000000000000000000113');
+select /*+use_merge(t1,t2)*/ t1.grp_id as t1grpid, t2.grp_id as t2grpid, t1.row_id as t1rowid, t2.row_hex as t2rowhex  FROM t1 inner join t2 on t1.grp_id = t2.grp_id  order by t1.row_id, t2.row_hex;
+drop table t1,t2;
+
+
+create table t1(a bigint primary key, b char(12), c char(20), index idx1(b));
+create table t2(a bigint primary key, b char(12));
+INSERT INTO t1  ( a ,  b ) VALUES ( 1 ,'a' ),( 2 , 1);
+SELECT table1 . a FROM   t2 AS table1  RIGHT JOIN t1  AS table2 ON  table1 . b =  table2 . b   RIGHT JOIN t1  AS table3 ON table2 . b =  table3 . b  ;
+drop table t1,t2;
+
+create table t1(c1 int);
+create table t2(c1 int);
+create table t3(c1 int);
+select /*+ use_merge(t3,t2) leading(t3,t2,t1) */* from t1,t2,t3;
+drop table t1,t2,t3;
+
+create table ob_adgroup(custid bigint, campid varchar(10), adgrpid bigint, date datetime(6),
+title char(255), detail varchar(255), c1 date, c2 datetime, c3 time, c4 year,
+gmt_create datetime(6) default now(6), gmt_modified timestamp(6) default now(6), primary key(custid, campid, adgrpid, date));
+
+create table ob_bidword(custid bigint, campid varchar(10), adgrpid bigint, bidwordid bigint, date datetime(6),
+c1 int, c2 int, c3 tinyint, c4 bool, c5 smallint, c6 mediumint,
+c7 float(18,6), c8 double(47,6), c9 decimal(16,6),
+c10 char(255), c11 varchar(255), c12 binary(255), c13 varbinary(255),
+c14 date, c15 datetime(6), c16 time, c17 year,
+gmt_create datetime(6) default now(6), gmt_modified timestamp(6) default now(6), primary key(custid, campid, adgrpid, bidwordid, date));
+
+insert into ob_bidword(custid,campid,adgrpid,bidwordid,date) values(0,0,0,0,'1992-01-01 08:00:00.000001');
+insert into ob_bidword(custid,campid,adgrpid,bidwordid,date) values(0,0,0,1,'1992-01-01 08:00:00.000001');
+insert into ob_adgroup(custid,campid,adgrpid,date) values(0,0,0,'1992-01-01 08:00:00.000001');
+insert into ob_adgroup(custid,campid,adgrpid,date) values(0,0,1,'1992-01-01 08:00:00.000001');
+
+select /*+query_timeout(30000000) use_merge(a,b)*/ a.custid, a.campid, a.bidwordid as a_bidwordid, a.c1, a.c4, a.c9, a.c11, a.c15, b.campid, b.adgrpid from ob_bidword as a left join ob_adgroup as b on a.custid=b.custid and a.campid=b.campid and a.adgrpid=b.adgrpid and a.date=b.date where a.custid>=0 and a.custid<=0 order by a.bidwordid;
+
+drop table ob_adgroup,ob_bidword;
+
+
+--disable_warnings
+DROP TABLE IF EXISTS `C`;
+--enable_warnings
+CREATE TABLE `C` (
+  `col_varchar_key` varchar(1) DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar` varchar(1) DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx3` (`pk`, `col_varchar_key`) ,
+  KEY `idx1` (`pk`, `col_int_key`) ,
+  KEY `idx7` (`pk`, `col_varchar_20_key`) ,
+  KEY `idx5` (`pk`, `col_varchar_10_key`)
+);
+INSERT INTO `C` VALUES ('s',2,'d','z','b',1,'z','m',2),('t',5,'j','q',NULL,2,'v','a',3);
+
+--disable_warnings
+DROP TABLE IF EXISTS `D`;
+--enable_warnings
+
+CREATE TABLE `D` (
+  `col_varchar_key` varchar(1) DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_varchar` varchar(1) DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx3` (`pk`, `col_varchar_key`) ,
+  KEY `idx7` (`pk`, `col_varchar_20_key`) ,
+  KEY `idx5` (`pk`, `col_varchar_10_key`) ,
+  KEY `idx1` (`pk`, `col_int_key`)
+);
+INSERT INTO `D` VALUES (NULL,1,'z','m','k',NULL,5,'v',4),('v',2,NULL,'d',NULL,'q',0,'e',8);
+
+select/*+use_nl(table1 table2)*/ * FROM (C AS table1 INNER JOIN D AS table2 ON (table2.`pk` = table1.`col_int_key`)) WHERE  table1 . `col_int_key` IN (34, 59, 113) OR table1 . `col_int` > table2 . `pk`;
+explain basic select/*+use_nl(table1 table2)*/ * FROM (C AS table1 INNER JOIN D AS table2 ON (table2.`pk` = table1.`col_int_key`)) WHERE  table1 . `col_int_key` IN (34, 59, 113) OR table1 . `col_int` > table2 . `pk`;
+
+drop table `C`;
+drop table `D`;
+
+--disable_warnings
+drop table if exists `a`, `bb`, `cc`;
+--enable_warnings
+
+CREATE TABLE `a` (
+  `pk` int(11) NOT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_varchar` varchar(1) DEFAULT NULL,
+  `col_varchar_key` varchar(1) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx7` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_key`) BLOCK_SIZE 16384,
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384
+) ;
+
+CREATE TABLE `bb` (
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_varchar_key` varchar(1) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_varchar` varchar(1) DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384,
+  KEY `idx7` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384
+) ;
+
+CREATE TABLE `cc` (
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_varchar_key` varchar(1) DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_varchar` varchar(1) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_key`) BLOCK_SIZE 16384,
+  KEY `idx7` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384
+) ;
+
+--disable_query_log
+--disable_result_log
+INSERT INTO `bb` VALUES (4,'r',3,NULL,'d','w',1,'c','o'),(4,'y',9,'a','a',NULL,2,NULL,NULL),(0,'b',NULL,'j','j','k',3,'z','e'),(NULL,'n',5,'v','w','f',4,NULL,NULL),(4,'h',9,NULL,NULL,'t',5,'g','e'),(2,NULL,0,'v','o','a',6,'u','g'),(7,NULL,4,'v','w','z',7,NULL,'f'),(NULL,'c',5,NULL,'v',NULL,8,'j','n'),(4,NULL,9,'b','n','n',9,'i','g'),(8,'t',NULL,'e','x','t',10,'u','e'),(8,NULL,NULL,'b',NULL,'u',11,NULL,'i'),(5,'z',NULL,'i',NULL,'t',12,NULL,'c'),(NULL,NULL,8,'r','x','u',13,'e','e'),(3,'m',9,'q','b','m',14,'s','v'),(1,'p',3,'g','k',NULL,15,'t','y'),(5,'w',7,'i','j','t',16,'t','s'),(3,'w',8,'b','v','o',17,'b','x'),(7,'w',0,'p','m','u',18,'l',NULL),(0,'p',8,NULL,'f','v',19,'e','h'),(3,'n',6,NULL,'k','k',20,NULL,NULL),(1,'j',NULL,'g','h','q',21,'w','e'),(6,'p',9,'x','m','r',22,'d','w'),(9,'z',3,'v',NULL,'a',23,NULL,'m'),(NULL,'h',NULL,NULL,'l','a',24,'h','j'),(9,NULL,8,'q','j','j',25,'i',NULL),(NULL,'f',4,'e','h','o',26,'m',NULL),(3,'k',1,'l','o',NULL,27,'d','o'),(1,'b',4,'u','d','u',28,'q',NULL);
+INSERT INTO `cc` VALUES (NULL,9,'f','b',1,NULL,'d',7,'m'),('d',NULL,'u','v',2,NULL,NULL,6,'y'),('v',2,NULL,'t',3,'n','b',2,'x'),('l',4,'s','w',4,'u',NULL,NULL,'z'),('b',7,'y','p',5,'u','x',8,'k'),('m',NULL,NULL,'i',6,NULL,'m',6,'p'),(NULL,7,'a','v',7,NULL,'w',3,'w'),(NULL,7,'m','y',8,'k',NULL,4,NULL),(NULL,5,'q','w',9,'z','o',9,'r'),('l',2,NULL,'k',10,'k','u',1,'t'),('d',4,'k','o',11,NULL,NULL,8,NULL),('a',6,'s','i',12,'j','a',NULL,'i'),('n',NULL,'v','e',13,NULL,'i',3,'b'),('g',1,'q','c',14,'p','m',2,'w'),('u',9,'w','w',15,'e','s',NULL,NULL),('g',NULL,'a','d',16,'f','u',5,'l'),(NULL,2,NULL,'u',17,'f','x',8,'x'),('l',NULL,'a','e',18,'j','d',2,NULL),('x',7,NULL,'s',19,'b','q',9,'w'),('j',NULL,'b','q',20,'v','h',NULL,'l'),('m',0,NULL,'u',21,'h','x',5,'x'),('r',2,'a','x',22,'h','r',1,'b'),('g',NULL,'d','f',23,'u','g',0,'z'),(NULL,3,NULL,'o',24,NULL,'z',9,'w'),('e',7,'h',NULL,25,'t',NULL,9,'q'),(NULL,4,'f','w',26,'e',NULL,NULL,'w'),('h',1,'m','b',27,'d','e',8,NULL),(NULL,7,'s','t',28,'n',NULL,8,'w'),('o',5,'s','b',29,'i','l',0,'o');
+select count(*) from `bb`;
+select count(*) from `cc`;
+--enable_result_log
+--enable_query_log
+
+explain basic SELECT /*+use_nl(table1, table2, table3)*/ table1 . `col_int` AS field1,
+       table2 . col_int_key AS field2,
+       table1 . col_varchar_10_key AS field3,
+       table1 . `col_varchar` AS field4,
+       table2 . col_varchar_20_key AS field5
+FROM (BB AS table1
+      LEFT  JOIN ((CC table2
+                   LEFT JOIN A table3 ON (table3.pk=table2.pk))) ON (table3.pk=table2.pk));
+SELECT /*+use_nl(table1, table2, table3)*/ table1 . `col_int` AS field1,
+       table2 . col_int_key AS field2,
+       table1 . col_varchar_10_key AS field3,
+       table1 . `col_varchar` AS field4,
+       table2 . col_varchar_20_key AS field5
+FROM (BB AS table1
+      LEFT  JOIN ((CC table2
+                   LEFT JOIN A table3 ON (table3.pk=table2.pk))) ON (table3.pk=table2.pk));

@@ -1,0 +1,548 @@
+drop table if exists t1,t2;
+result_format: 4
+set autocommit = false;
+affected rows: 0
+alter system set ob_enable_batched_multi_statement=true;
+affected rows: 0
+create table t1(a int, b int, c int, primary key(a,b)) partition by hash(a) partitions 4;
+affected rows: 0
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 |    1 |
+| 2 | 1 |    2 |
+| 3 | 3 |    3 |
++---+---+------+
+affected rows: 3
+drop table t1;
+affected rows: 0
+
+create table t1(a int primary key, b int) partition by hash(a) partitions 2;
+affected rows: 0
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+set autocommit = false;
+affected rows: 0
+alter system set ob_enable_batched_multi_statement=true;
+affected rows: 0
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a;
++---+------+
+| a | b    |
++---+------+
+| 1 |    2 |
+| 2 |    3 |
+| 3 |    4 |
+| 4 |    5 |
++---+------+
+affected rows: 4
+drop table t1;
+affected rows: 0
+
+create table t1(a int, b int, c int, primary key(a,b)) partition by hash(a) partitions 4;
+affected rows: 0
+create index gkey on t1(b);
+affected rows: 0
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 |    1 |
+| 2 | 1 |    2 |
+| 3 | 3 |    3 |
++---+---+------+
+affected rows: 3
+drop table t1;
+affected rows: 0
+
+create table t1(a int primary key, b int) partition by hash(a) partitions 2;
+affected rows: 0
+create index gkey on t1(b);
+affected rows: 0
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a;
++---+------+
+| a | b    |
++---+------+
+| 1 |    2 |
+| 2 |    3 |
+| 3 |    4 |
+| 4 |    5 |
++---+------+
+affected rows: 4
+drop table t1;
+affected rows: 0
+
+drop table if exists sbtest_hash1;
+affected rows: 0
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+affected rows: 0
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+commit;
+affected rows: 0
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from sbtest_hash1 order by id;
++------------------+------+----------+------+------+-----+
+| id               | k    | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+| 0190000653580000 |    1 | 30181417 | c2   | c3   | pad |
+| 0190000653580003 |    2 | 30181417 | c2   | c3   | pad |
+| 0190000653580004 |    3 | 30181417 | c2   | c3   | pad |
+| 0190000653580007 |    4 | 30181417 | c2   | c3   | pad |
+| 0190000653580008 |    6 | c1       | c2   | c3   | pad |
+| 0190000653580009 |    5 | c1       | c2   | c3   | pad |
+| 0190000653580010 |    8 | c1       | c2   | c3   | pad |
+| 1                |    7 | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+affected rows: 8
+drop table sbtest_hash1;
+affected rows: 0
+
+drop table if exists sbtest_hash1;
+affected rows: 0
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+affected rows: 0
+CREATE INDEX gkey ON sbtest_hash1(c1);
+affected rows: 0
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+commit;
+affected rows: 0
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from sbtest_hash1 order by id;
++------------------+------+----------+------+------+-----+
+| id               | k    | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+| 0190000653580000 |    1 | 30181417 | c2   | c3   | pad |
+| 0190000653580003 |    2 | 30181417 | c2   | c3   | pad |
+| 0190000653580004 |    3 | 30181417 | c2   | c3   | pad |
+| 0190000653580007 |    4 | 30181417 | c2   | c3   | pad |
+| 0190000653580008 |    6 | c1       | c2   | c3   | pad |
+| 0190000653580009 |    5 | c1       | c2   | c3   | pad |
+| 0190000653580010 |    8 | c1       | c2   | c3   | pad |
+| 1                |    7 | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+affected rows: 8
+drop table sbtest_hash1;
+affected rows: 0
+
+create table t1(a int, b int, c int, primary key(a,b));
+affected rows: 0
+create index gkey on t1(b) partition by hash(b) partitions 2;
+affected rows: 0
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 |    1 |
+| 2 | 1 |    2 |
+| 3 | 3 |    3 |
++---+---+------+
+affected rows: 3
+drop table t1;
+affected rows: 0
+
+create table t1(a int, b int, c int, primary key(a,b));
+affected rows: 0
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 |    1 |
+| 2 | 1 |    2 |
+| 3 | 3 |    3 |
++---+---+------+
+affected rows: 3
+drop table t1;
+affected rows: 0
+
+create table t1(a int primary key, b int);
+affected rows: 0
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+set autocommit = false;
+affected rows: 0
+alter system set ob_enable_batched_multi_statement=true;
+affected rows: 0
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a;
++---+------+
+| a | b    |
++---+------+
+| 1 |    2 |
+| 2 |    3 |
+| 3 |    4 |
+| 4 |    5 |
++---+------+
+affected rows: 4
+drop table t1;
+affected rows: 0
+
+create table t1(a int, b int, c int, primary key(a,b));
+affected rows: 0
+create index gkey on t1(b);
+affected rows: 0
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 |    1 |
+| 2 | 1 |    2 |
+| 3 | 3 |    3 |
++---+---+------+
+affected rows: 3
+drop table t1;
+affected rows: 0
+
+create table t1(a int primary key, b int);
+affected rows: 0
+create index gkey on t1(b);
+affected rows: 0
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a;
++---+------+
+| a | b    |
++---+------+
+| 1 |    2 |
+| 2 |    3 |
+| 3 |    4 |
+| 4 |    5 |
++---+------+
+affected rows: 4
+drop table t1;
+affected rows: 0
+
+##Test scenarios where the number of partitions on the server is different
+create table t1(a int primary key, b int) partition by hash(a) partitions 4;
+affected rows: 0
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from t1 order by a;
++---+------+
+| a | b    |
++---+------+
+| 1 |    2 |
+| 2 |    3 |
+| 3 |    4 |
+| 4 |    5 |
++---+------+
+affected rows: 4
+drop table t1;
+affected rows: 0
+
+drop table if exists sbtest_hash1;
+affected rows: 0
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+affected rows: 0
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+commit;
+affected rows: 0
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from sbtest_hash1 order by id;
++------------------+------+----------+------+------+-----+
+| id               | k    | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+| 0190000653580000 |    1 | 30181417 | c2   | c3   | pad |
+| 0190000653580003 |    2 | 30181417 | c2   | c3   | pad |
+| 0190000653580004 |    3 | 30181417 | c2   | c3   | pad |
+| 0190000653580007 |    4 | 30181417 | c2   | c3   | pad |
+| 0190000653580008 |    6 | c1       | c2   | c3   | pad |
+| 0190000653580009 |    5 | c1       | c2   | c3   | pad |
+| 0190000653580010 |    8 | c1       | c2   | c3   | pad |
+| 1                |    7 | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+affected rows: 8
+drop table sbtest_hash1;
+affected rows: 0
+
+drop table if exists sbtest_hash1;
+affected rows: 0
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+affected rows: 0
+CREATE INDEX gkey ON sbtest_hash1(c1);
+affected rows: 0
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+commit;
+affected rows: 0
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 1
+info:  Rows matched: 1  Changed: 1  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 0
+info:  Rows matched: 0  Changed: 0  Warnings: 0
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+commit;
+affected rows: 0
+select * from sbtest_hash1 order by id;
++------------------+------+----------+------+------+-----+
+| id               | k    | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+| 0190000653580000 |    1 | 30181417 | c2   | c3   | pad |
+| 0190000653580003 |    2 | 30181417 | c2   | c3   | pad |
+| 0190000653580004 |    3 | 30181417 | c2   | c3   | pad |
+| 0190000653580007 |    4 | 30181417 | c2   | c3   | pad |
+| 0190000653580008 |    6 | c1       | c2   | c3   | pad |
+| 0190000653580009 |    5 | c1       | c2   | c3   | pad |
+| 0190000653580010 |    8 | c1       | c2   | c3   | pad |
+| 1                |    7 | c1       | c2   | c3   | pad |
++------------------+------+----------+------+------+-----+
+affected rows: 8
+alter system set ob_enable_batched_multi_statement=false;
+affected rows: 0
+drop table sbtest_hash1;
+affected rows: 0
+

@@ -1,0 +1,14 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description:
+
+set @@binlog_row_image = 'MINIMAL';
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+create table test(c1 int primary key, c2 int, index i2 (c2));
+delete from test where c1 = 1;
+
+set @@binlog_row_image = 'FULL';
+drop table test;

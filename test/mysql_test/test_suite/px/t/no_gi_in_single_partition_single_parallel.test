@@ -1,0 +1,47 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+--disable_warnings
+drop database if exists muhangtest_no_gi_in_single_partition_single_parallel;
+create database muhangtest_no_gi_in_single_partition_single_parallel;
+use muhangtest_no_gi_in_single_partition_single_parallel;
+--enable_warnings
+
+create table mhzb1(c1 int, c2 int, c3 int) partition by hash(c1) partitions 3;
+
+insert into mhzb1 values(1,1,1);
+insert into mhzb1 values(2,2,2);
+insert into mhzb1 values(3,3,3);
+insert into mhzb1 values(4,4,4);
+insert into mhzb1 values(5,5,5);
+
+create table mhzb2(c1 int, c2 int, c3 int) partition by hash(c1) partitions 4;
+
+insert into mhzb2 values(1,1,1);
+insert into mhzb2 values(2,2,2);
+insert into mhzb2 values(3,3,3);
+insert into mhzb2 values(4,4,4);
+insert into mhzb2 values(5,5,5);
+
+--result_format 4
+
+# 似乎是bug，制定分区后认为不能做pkey了
+select /*+use_px parallel(1) leading(mhzb1, mhzb2) pq_distribute(mhzb2 none broadcast)*/ * from mhzb1 join mhzb2 partition(p0) on mhzb1.c1 = mhzb2.c1;
+
+--sorted_result
+select /*+use_px parallel(2) leading(mhzb1, mhzb2) pq_distribute(mhzb2 none broadcast)*/ * from mhzb1 join mhzb2 partition(p0) on mhzb1.c1 = mhzb2.c1;
+
+select /*+use_px parallel(1) leading(mhzb1, mhzb2) pq_distribute(mhzb2 none broadcast)*/ * from mhzb1 join mhzb2 on mhzb1.c1 = mhzb2.c1 and mhzb2.c1=4;
+
+--sorted_result
+select /*+use_px parallel(2) leading(mhzb1, mhzb2) pq_distribute(mhzb2 none broadcast)*/ * from mhzb1 join mhzb2 on mhzb1.c1 = mhzb2.c1 and mhzb2.c1=4;
+
+--disable_warnings
+drop database if exists muhangtest_no_gi_in_single_partition_single_parallel;
+--enable_warnings
+

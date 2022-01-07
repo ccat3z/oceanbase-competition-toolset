@@ -1,0 +1,40 @@
+drop table if exists test,tmp,test2;
+create table test(c1 int primary key, c2 int) partition by hash(c1) partitions 3;
+insert into test values(1,1);
+insert into test values(2,2);
+insert into test values(3,3);
+insert into test values(4,4),(5,5),(6,6);
+update test set c2 = c2 + 1;
+replace into test values(4,4),(5,5),(6,6);
+insert into test values(4,4),(5,5),(6,6) on duplicate key update c2 = c2 + 1;
+delete from test;
+select * from test;
+c1	c2
+create table tmp(c1 int primary key, c2 int) partition by hash(c1) partitions 3;
+insert into tmp values(1, 4);
+insert into tmp values(3, 3);
+update test set c2 = c2 + 1 where c1 in (select c1 from tmp);
+update test set c2 = c2 + 1 where c1 in (select c1 from tmp limit 1);
+update test set c2 = c2 + 1 where c1 in (select c1 from tmp) limit 1;
+delete from test where c1 in (select c1 from tmp);
+delete from test where c1 in (select c1 from tmp limit 1);
+delete from test where c1 in (select c1 from tmp) limit 1;
+drop table test;
+drop table tmp;
+create table test(c1 int primary key, c2 int);
+create table test2(c1 int primary key, c2 int);
+insert into test values(1,1);
+insert into test values(2,2);
+insert into test values(3,3);
+insert into test2 values(1,1);
+insert into test2 values(2,2);
+insert into test2 values(3,3);
+update test set c2 = c2 + 1 where c1 in (select c1 from test2);
+select * from test;
+c1	c2
+1	2
+2	3
+3	4
+delete from test where c1 in (select c1 from test2);
+select * from test;
+c1	c2

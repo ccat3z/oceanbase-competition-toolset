@@ -1,0 +1,1842 @@
+result_format: 4
+##     新框架下带GI并行扫描测试文件，内容包含
+##     part 1. 单表单分区查询
+##     part 2. 单表多分区查询，一级分区二级分区，各类组合。
+##     part 3. 大数据量查询
+##     part 4. TPCH改写准入, join bloom filter准入
+##     part 5. Partiton wise join/union
+##     part 6. Hybrid full partition wise join
+##     part 7. 物化视图
+drop database if exists muhangtest;
+create database muhangtest;
+use muhangtest;
+set ob_enable_plan_cache = off;
+##     超时设置为20s
+##     part 1. 单表但分区查询
+drop table if exists t1;
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d));
+create index i1 on t1(c);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+##     最基本的查询
+select /*+use_px parallel(3)*/ * from t1;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     带in条件的查询
+select /*+use_px parallel(3) full()*/ * from t1 where a in (1,2,3,4,5) order by a,b,c,d;;
++---+---+---+---+------+
+| a | b | c | d | e    |
++---+---+---+---+------+
+| 1 | 1 | 1 | 1 |    1 |
+| 2 | 2 | 2 | 2 |    2 |
+| 3 | 3 | 3 | 3 |    3 |
+| 4 | 4 | 4 | 4 |    4 |
+| 5 | 5 | 5 | 5 |    5 |
++---+---+---+---+------+
+##     简单的group by
+select /*+use_px parallel(3)*/ * from t1 group by a;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     group by + having + limit
+select /*+use_px parallel(3)*/ * from t1 group by a having a > 3 ;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     简单的表达式计算
+;
+ERROR 42000: Query was empty
+select /*+use_px parallel(3)*/ a+1 from t1;;
++-----+
+| a+1 |
++-----+
+|   2 |
+|   3 |
+|   4 |
+|   5 |
+|   6 |
+|   7 |
+|   8 |
+|   9 |
+|  10 |
+|  11 |
+|  12 |
+|  13 |
+|  14 |
+|  15 |
+|  16 |
+|  17 |
+|  18 |
+|  19 |
+|  20 |
+|  21 |
++-----+
+##     子查询
+select * from (select /*+use_px parallel(3)*/ a from t1) cte;;
++----+
+| a  |
++----+
+|  1 |
+|  2 |
+|  3 |
+|  4 |
+|  5 |
+|  6 |
+|  7 |
+|  8 |
+|  9 |
+| 10 |
+| 11 |
+| 12 |
+| 13 |
+| 14 |
+| 15 |
+| 16 |
+| 17 |
+| 18 |
+| 19 |
+| 20 |
++----+
+##     CTE     
+##     window function
+select /*+use_px parallel(3)*/ *, count(a) over(partition by a) from t1;;
++----+----+----+----+------+-------------------------------+
+| a  | b  | c  | d  | e    | count(a) over(partition by a) |
++----+----+----+----+------+-------------------------------+
+|  1 |  1 |  1 |  1 |    1 |                             1 |
+|  2 |  2 |  2 |  2 |    2 |                             1 |
+|  3 |  3 |  3 |  3 |    3 |                             1 |
+|  4 |  4 |  4 |  4 |    4 |                             1 |
+|  5 |  5 |  5 |  5 |    5 |                             1 |
+|  6 |  6 |  6 |  6 |    6 |                             1 |
+|  7 |  7 |  7 |  7 |    7 |                             1 |
+|  8 |  8 |  8 |  8 |    8 |                             1 |
+|  9 |  9 |  9 |  9 |    9 |                             1 |
+| 10 | 10 | 10 | 10 |   10 |                             1 |
+| 11 | 11 | 11 | 11 |   11 |                             1 |
+| 12 | 12 | 12 | 12 |   12 |                             1 |
+| 13 | 13 | 13 | 13 |   13 |                             1 |
+| 14 | 14 | 14 | 14 |   14 |                             1 |
+| 15 | 15 | 15 | 15 |   15 |                             1 |
+| 16 | 16 | 16 | 16 |   16 |                             1 |
+| 17 | 17 | 17 | 17 |   17 |                             1 |
+| 18 | 18 | 18 | 18 |   18 |                             1 |
+| 19 | 19 | 19 | 19 |   19 |                             1 |
+| 20 | 20 | 20 | 20 |   20 |                             1 |
++----+----+----+----+------+-------------------------------+
+##     index back
+select /*+use_px parallel(3) index(test i1)*/ c, d from t1;;
++----+----+
+| c  | d  |
++----+----+
+|  1 |  1 |
+|  2 |  2 |
+|  3 |  3 |
+|  4 |  4 |
+|  5 |  5 |
+|  6 |  6 |
+|  7 |  7 |
+|  8 |  8 |
+|  9 |  9 |
+| 10 | 10 |
+| 11 | 11 |
+| 12 | 12 |
+| 13 | 13 |
+| 14 | 14 |
+| 15 | 15 |
+| 16 | 16 |
+| 17 | 17 |
+| 18 | 18 |
+| 19 | 19 |
+| 20 | 20 |
++----+----+
+select /*+use_px parallel(3)*/ count(*) from t1;
++----------+
+| count(*) |
++----------+
+|       20 |
++----------+
+##     part 2. 单表多分区查询，一级分区二级分区。
+##     2.1 hash 一级分区
+drop table if exists t1;
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d)) partition by hash(b) partitions 5;
+create index i1 on t1(c);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+##     最基本的查询
+select /*+use_px parallel(3)*/ * from t1;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     带in条件的查询
+select /*+use_px parallel(3) full()*/ * from t1 where a in (1,2,3,4,5) order by a,b,c,d;;
++---+---+---+---+------+
+| a | b | c | d | e    |
++---+---+---+---+------+
+| 1 | 1 | 1 | 1 |    1 |
+| 2 | 2 | 2 | 2 |    2 |
+| 3 | 3 | 3 | 3 |    3 |
+| 4 | 4 | 4 | 4 |    4 |
+| 5 | 5 | 5 | 5 |    5 |
++---+---+---+---+------+
+##     简单的group by
+select /*+use_px parallel(3)*/ * from t1 group by a;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     group by + having + limit
+select /*+use_px parallel(3)*/ * from t1 group by a having a > 3 ;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     简单的表达式计算
+;
+ERROR 42000: Query was empty
+select /*+use_px parallel(3)*/ a+1 from t1;;
++-----+
+| a+1 |
++-----+
+|   2 |
+|   3 |
+|   4 |
+|   5 |
+|   6 |
+|   7 |
+|   8 |
+|   9 |
+|  10 |
+|  11 |
+|  12 |
+|  13 |
+|  14 |
+|  15 |
+|  16 |
+|  17 |
+|  18 |
+|  19 |
+|  20 |
+|  21 |
++-----+
+##     子查询
+select * from (select /*+use_px parallel(3)*/ a from t1) cte;;
++----+
+| a  |
++----+
+|  1 |
+|  2 |
+|  3 |
+|  4 |
+|  5 |
+|  6 |
+|  7 |
+|  8 |
+|  9 |
+| 10 |
+| 11 |
+| 12 |
+| 13 |
+| 14 |
+| 15 |
+| 16 |
+| 17 |
+| 18 |
+| 19 |
+| 20 |
++----+
+##     CTE     
+##     window function
+select /*+use_px parallel(3)*/ *, count(a) over(partition by a) from t1;;
++----+----+----+----+------+-------------------------------+
+| a  | b  | c  | d  | e    | count(a) over(partition by a) |
++----+----+----+----+------+-------------------------------+
+|  1 |  1 |  1 |  1 |    1 |                             1 |
+|  2 |  2 |  2 |  2 |    2 |                             1 |
+|  3 |  3 |  3 |  3 |    3 |                             1 |
+|  4 |  4 |  4 |  4 |    4 |                             1 |
+|  5 |  5 |  5 |  5 |    5 |                             1 |
+|  6 |  6 |  6 |  6 |    6 |                             1 |
+|  7 |  7 |  7 |  7 |    7 |                             1 |
+|  8 |  8 |  8 |  8 |    8 |                             1 |
+|  9 |  9 |  9 |  9 |    9 |                             1 |
+| 10 | 10 | 10 | 10 |   10 |                             1 |
+| 11 | 11 | 11 | 11 |   11 |                             1 |
+| 12 | 12 | 12 | 12 |   12 |                             1 |
+| 13 | 13 | 13 | 13 |   13 |                             1 |
+| 14 | 14 | 14 | 14 |   14 |                             1 |
+| 15 | 15 | 15 | 15 |   15 |                             1 |
+| 16 | 16 | 16 | 16 |   16 |                             1 |
+| 17 | 17 | 17 | 17 |   17 |                             1 |
+| 18 | 18 | 18 | 18 |   18 |                             1 |
+| 19 | 19 | 19 | 19 |   19 |                             1 |
+| 20 | 20 | 20 | 20 |   20 |                             1 |
++----+----+----+----+------+-------------------------------+
+##     index back
+select /*+use_px parallel(3) index(test i1)*/ c, d from t1;;
++----+----+
+| c  | d  |
++----+----+
+|  1 |  1 |
+|  2 |  2 |
+|  3 |  3 |
+|  4 |  4 |
+|  5 |  5 |
+|  6 |  6 |
+|  7 |  7 |
+|  8 |  8 |
+|  9 |  9 |
+| 10 | 10 |
+| 11 | 11 |
+| 12 | 12 |
+| 13 | 13 |
+| 14 | 14 |
+| 15 | 15 |
+| 16 | 16 |
+| 17 | 17 |
+| 18 | 18 |
+| 19 | 19 |
+| 20 | 20 |
++----+----+
+select /*+use_px parallel(3)*/ count(*) from t1;
++----------+
+| count(*) |
++----------+
+|       20 |
++----------+
+##     2.2 list columns 一级分区  bug  list columns分区带索引插入数据显示 trans roll back
+##     2.3 range columns 一级分区
+drop table if exists t1;
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d)) partition by range columns(b,c,d) (
+partition p0 values less than (2,2,2),
+partition p1 values less than (5,5,5),
+partition p2 values less than (MAXVALUE, MAXVALUE, MAXVALUE)
+);
+create index i1 on t1(c);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+##     最基本的查询
+select /*+use_px parallel(3)*/ * from t1;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     带in条件的查询
+select /*+use_px parallel(3) full()*/ * from t1 where a in (1,2,3,4,5) order by a,b,c,d;;
++---+---+---+---+------+
+| a | b | c | d | e    |
++---+---+---+---+------+
+| 1 | 1 | 1 | 1 |    1 |
+| 2 | 2 | 2 | 2 |    2 |
+| 3 | 3 | 3 | 3 |    3 |
+| 4 | 4 | 4 | 4 |    4 |
+| 5 | 5 | 5 | 5 |    5 |
++---+---+---+---+------+
+##     简单的group by
+select /*+use_px parallel(3)*/ * from t1 group by a;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     group by + having + limit
+select /*+use_px parallel(3)*/ * from t1 group by a having a > 3 ;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     简单的表达式计算
+;
+ERROR 42000: Query was empty
+select /*+use_px parallel(3)*/ a+1 from t1;;
++-----+
+| a+1 |
++-----+
+|   2 |
+|   3 |
+|   4 |
+|   5 |
+|   6 |
+|   7 |
+|   8 |
+|   9 |
+|  10 |
+|  11 |
+|  12 |
+|  13 |
+|  14 |
+|  15 |
+|  16 |
+|  17 |
+|  18 |
+|  19 |
+|  20 |
+|  21 |
++-----+
+##     子查询
+select * from (select /*+use_px parallel(3)*/ a from t1) cte;;
++----+
+| a  |
++----+
+|  1 |
+|  2 |
+|  3 |
+|  4 |
+|  5 |
+|  6 |
+|  7 |
+|  8 |
+|  9 |
+| 10 |
+| 11 |
+| 12 |
+| 13 |
+| 14 |
+| 15 |
+| 16 |
+| 17 |
+| 18 |
+| 19 |
+| 20 |
++----+
+##     CTE     
+##     window function
+select /*+use_px parallel(3)*/ *, count(a) over(partition by a) from t1;;
++----+----+----+----+------+-------------------------------+
+| a  | b  | c  | d  | e    | count(a) over(partition by a) |
++----+----+----+----+------+-------------------------------+
+|  1 |  1 |  1 |  1 |    1 |                             1 |
+|  2 |  2 |  2 |  2 |    2 |                             1 |
+|  3 |  3 |  3 |  3 |    3 |                             1 |
+|  4 |  4 |  4 |  4 |    4 |                             1 |
+|  5 |  5 |  5 |  5 |    5 |                             1 |
+|  6 |  6 |  6 |  6 |    6 |                             1 |
+|  7 |  7 |  7 |  7 |    7 |                             1 |
+|  8 |  8 |  8 |  8 |    8 |                             1 |
+|  9 |  9 |  9 |  9 |    9 |                             1 |
+| 10 | 10 | 10 | 10 |   10 |                             1 |
+| 11 | 11 | 11 | 11 |   11 |                             1 |
+| 12 | 12 | 12 | 12 |   12 |                             1 |
+| 13 | 13 | 13 | 13 |   13 |                             1 |
+| 14 | 14 | 14 | 14 |   14 |                             1 |
+| 15 | 15 | 15 | 15 |   15 |                             1 |
+| 16 | 16 | 16 | 16 |   16 |                             1 |
+| 17 | 17 | 17 | 17 |   17 |                             1 |
+| 18 | 18 | 18 | 18 |   18 |                             1 |
+| 19 | 19 | 19 | 19 |   19 |                             1 |
+| 20 | 20 | 20 | 20 |   20 |                             1 |
++----+----+----+----+------+-------------------------------+
+##     index back
+select /*+use_px parallel(3) index(test i1)*/ c, d from t1;;
++----+----+
+| c  | d  |
++----+----+
+|  1 |  1 |
+|  2 |  2 |
+|  3 |  3 |
+|  4 |  4 |
+|  5 |  5 |
+|  6 |  6 |
+|  7 |  7 |
+|  8 |  8 |
+|  9 |  9 |
+| 10 | 10 |
+| 11 | 11 |
+| 12 | 12 |
+| 13 | 13 |
+| 14 | 14 |
+| 15 | 15 |
+| 16 | 16 |
+| 17 | 17 |
+| 18 | 18 |
+| 19 | 19 |
+| 20 | 20 |
++----+----+
+select /*+use_px parallel(3)*/ count(*) from t1;
++----------+
+| count(*) |
++----------+
+|       20 |
++----------+
+
+##     3.1 一级range columns partitionin 二级 hash partitionin
+drop table if exists t1;
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d))
+partition by range columns(b) subpartition by hash(c) subpartitions 2 ( 
+  partition p0 values less than (5),
+  partition p1 values less than (maxvalue)
+);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+##     最基本的查询
+select /*+use_px parallel(3)*/ * from t1;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     带in条件的查询
+select /*+use_px parallel(3) full()*/ * from t1 where a in (1,2,3,4,5) order by a,b,c,d;;
++---+---+---+---+------+
+| a | b | c | d | e    |
++---+---+---+---+------+
+| 1 | 1 | 1 | 1 |    1 |
+| 2 | 2 | 2 | 2 |    2 |
+| 3 | 3 | 3 | 3 |    3 |
+| 4 | 4 | 4 | 4 |    4 |
+| 5 | 5 | 5 | 5 |    5 |
++---+---+---+---+------+
+##     简单的group by
+select /*+use_px parallel(3)*/ * from t1 group by a;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     group by + having + limit
+select /*+use_px parallel(3)*/ * from t1 group by a having a > 3 ;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     简单的表达式计算
+;
+ERROR 42000: Query was empty
+select /*+use_px parallel(3)*/ a+1 from t1;;
++-----+
+| a+1 |
++-----+
+|   2 |
+|   3 |
+|   4 |
+|   5 |
+|   6 |
+|   7 |
+|   8 |
+|   9 |
+|  10 |
+|  11 |
+|  12 |
+|  13 |
+|  14 |
+|  15 |
+|  16 |
+|  17 |
+|  18 |
+|  19 |
+|  20 |
+|  21 |
++-----+
+##     子查询
+select * from (select /*+use_px parallel(3)*/ a from t1) cte;;
++----+
+| a  |
++----+
+|  1 |
+|  2 |
+|  3 |
+|  4 |
+|  5 |
+|  6 |
+|  7 |
+|  8 |
+|  9 |
+| 10 |
+| 11 |
+| 12 |
+| 13 |
+| 14 |
+| 15 |
+| 16 |
+| 17 |
+| 18 |
+| 19 |
+| 20 |
++----+
+##     CTE     
+##     window function
+select /*+use_px parallel(3)*/ *, count(a) over(partition by a) from t1;;
++----+----+----+----+------+-------------------------------+
+| a  | b  | c  | d  | e    | count(a) over(partition by a) |
++----+----+----+----+------+-------------------------------+
+|  1 |  1 |  1 |  1 |    1 |                             1 |
+|  2 |  2 |  2 |  2 |    2 |                             1 |
+|  3 |  3 |  3 |  3 |    3 |                             1 |
+|  4 |  4 |  4 |  4 |    4 |                             1 |
+|  5 |  5 |  5 |  5 |    5 |                             1 |
+|  6 |  6 |  6 |  6 |    6 |                             1 |
+|  7 |  7 |  7 |  7 |    7 |                             1 |
+|  8 |  8 |  8 |  8 |    8 |                             1 |
+|  9 |  9 |  9 |  9 |    9 |                             1 |
+| 10 | 10 | 10 | 10 |   10 |                             1 |
+| 11 | 11 | 11 | 11 |   11 |                             1 |
+| 12 | 12 | 12 | 12 |   12 |                             1 |
+| 13 | 13 | 13 | 13 |   13 |                             1 |
+| 14 | 14 | 14 | 14 |   14 |                             1 |
+| 15 | 15 | 15 | 15 |   15 |                             1 |
+| 16 | 16 | 16 | 16 |   16 |                             1 |
+| 17 | 17 | 17 | 17 |   17 |                             1 |
+| 18 | 18 | 18 | 18 |   18 |                             1 |
+| 19 | 19 | 19 | 19 |   19 |                             1 |
+| 20 | 20 | 20 | 20 |   20 |                             1 |
++----+----+----+----+------+-------------------------------+
+##     index back
+select /*+use_px parallel(3) index(test i1)*/ c, d from t1;;
++----+----+
+| c  | d  |
++----+----+
+|  1 |  1 |
+|  2 |  2 |
+|  3 |  3 |
+|  4 |  4 |
+|  5 |  5 |
+|  6 |  6 |
+|  7 |  7 |
+|  8 |  8 |
+|  9 |  9 |
+| 10 | 10 |
+| 11 | 11 |
+| 12 | 12 |
+| 13 | 13 |
+| 14 | 14 |
+| 15 | 15 |
+| 16 | 16 |
+| 17 | 17 |
+| 18 | 18 |
+| 19 | 19 |
+| 20 | 20 |
++----+----+
+select /*+use_px parallel(3)*/ count(*) from t1;
++----------+
+| count(*) |
++----------+
+|       20 |
++----------+
+##     3.2 一级hash partitionin 二级 range columns partitionin
+drop table if exists t1;
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d)) partition by hash(b) 
+subpartition by range columns(c,d)
+subpartition template (
+subpartition p0 values less than (5,5),  
+subpartition p1 values less than (100,100)) partitions 2;
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+##     最基本的查询
+select /*+use_px parallel(3)*/ * from t1;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     带in条件的查询
+select /*+use_px parallel(3) full()*/ * from t1 where a in (1,2,3,4,5) order by a,b,c,d;;
++---+---+---+---+------+
+| a | b | c | d | e    |
++---+---+---+---+------+
+| 1 | 1 | 1 | 1 |    1 |
+| 2 | 2 | 2 | 2 |    2 |
+| 3 | 3 | 3 | 3 |    3 |
+| 4 | 4 | 4 | 4 |    4 |
+| 5 | 5 | 5 | 5 |    5 |
++---+---+---+---+------+
+##     简单的group by
+select /*+use_px parallel(3)*/ * from t1 group by a;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  1 |  1 |  1 |  1 |    1 |
+|  2 |  2 |  2 |  2 |    2 |
+|  3 |  3 |  3 |  3 |    3 |
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     group by + having + limit
+select /*+use_px parallel(3)*/ * from t1 group by a having a > 3 ;;
++----+----+----+----+------+
+| a  | b  | c  | d  | e    |
++----+----+----+----+------+
+|  4 |  4 |  4 |  4 |    4 |
+|  5 |  5 |  5 |  5 |    5 |
+|  6 |  6 |  6 |  6 |    6 |
+|  7 |  7 |  7 |  7 |    7 |
+|  8 |  8 |  8 |  8 |    8 |
+|  9 |  9 |  9 |  9 |    9 |
+| 10 | 10 | 10 | 10 |   10 |
+| 11 | 11 | 11 | 11 |   11 |
+| 12 | 12 | 12 | 12 |   12 |
+| 13 | 13 | 13 | 13 |   13 |
+| 14 | 14 | 14 | 14 |   14 |
+| 15 | 15 | 15 | 15 |   15 |
+| 16 | 16 | 16 | 16 |   16 |
+| 17 | 17 | 17 | 17 |   17 |
+| 18 | 18 | 18 | 18 |   18 |
+| 19 | 19 | 19 | 19 |   19 |
+| 20 | 20 | 20 | 20 |   20 |
++----+----+----+----+------+
+##     简单的表达式计算
+;
+ERROR 42000: Query was empty
+select /*+use_px parallel(3)*/ a+1 from t1;;
++-----+
+| a+1 |
++-----+
+|   2 |
+|   3 |
+|   4 |
+|   5 |
+|   6 |
+|   7 |
+|   8 |
+|   9 |
+|  10 |
+|  11 |
+|  12 |
+|  13 |
+|  14 |
+|  15 |
+|  16 |
+|  17 |
+|  18 |
+|  19 |
+|  20 |
+|  21 |
++-----+
+##     子查询
+select * from (select /*+use_px parallel(3)*/ a from t1) cte;;
++----+
+| a  |
++----+
+|  1 |
+|  2 |
+|  3 |
+|  4 |
+|  5 |
+|  6 |
+|  7 |
+|  8 |
+|  9 |
+| 10 |
+| 11 |
+| 12 |
+| 13 |
+| 14 |
+| 15 |
+| 16 |
+| 17 |
+| 18 |
+| 19 |
+| 20 |
++----+
+##     CTE     
+##     window function
+select /*+use_px parallel(3)*/ *, count(a) over(partition by a) from t1;;
++----+----+----+----+------+-------------------------------+
+| a  | b  | c  | d  | e    | count(a) over(partition by a) |
++----+----+----+----+------+-------------------------------+
+|  1 |  1 |  1 |  1 |    1 |                             1 |
+|  2 |  2 |  2 |  2 |    2 |                             1 |
+|  3 |  3 |  3 |  3 |    3 |                             1 |
+|  4 |  4 |  4 |  4 |    4 |                             1 |
+|  5 |  5 |  5 |  5 |    5 |                             1 |
+|  6 |  6 |  6 |  6 |    6 |                             1 |
+|  7 |  7 |  7 |  7 |    7 |                             1 |
+|  8 |  8 |  8 |  8 |    8 |                             1 |
+|  9 |  9 |  9 |  9 |    9 |                             1 |
+| 10 | 10 | 10 | 10 |   10 |                             1 |
+| 11 | 11 | 11 | 11 |   11 |                             1 |
+| 12 | 12 | 12 | 12 |   12 |                             1 |
+| 13 | 13 | 13 | 13 |   13 |                             1 |
+| 14 | 14 | 14 | 14 |   14 |                             1 |
+| 15 | 15 | 15 | 15 |   15 |                             1 |
+| 16 | 16 | 16 | 16 |   16 |                             1 |
+| 17 | 17 | 17 | 17 |   17 |                             1 |
+| 18 | 18 | 18 | 18 |   18 |                             1 |
+| 19 | 19 | 19 | 19 |   19 |                             1 |
+| 20 | 20 | 20 | 20 |   20 |                             1 |
++----+----+----+----+------+-------------------------------+
+##     index back
+select /*+use_px parallel(3) index(test i1)*/ c, d from t1;;
++----+----+
+| c  | d  |
++----+----+
+|  1 |  1 |
+|  2 |  2 |
+|  3 |  3 |
+|  4 |  4 |
+|  5 |  5 |
+|  6 |  6 |
+|  7 |  7 |
+|  8 |  8 |
+|  9 |  9 |
+| 10 | 10 |
+| 11 | 11 |
+| 12 | 12 |
+| 13 | 13 |
+| 14 | 14 |
+| 15 | 15 |
+| 16 | 16 |
+| 17 | 17 |
+| 18 | 18 |
+| 19 | 19 |
+| 20 | 20 |
++----+----+
+select /*+use_px parallel(3)*/ count(*) from t1;
++----------+
+| count(*) |
++----------+
+|       20 |
++----------+
+##     part 3. 大数据量查询，为了时间快，关闭大数据量查询
+
+##     part 4. TPCH改写准入
+##     schema
+##     2M tpch数据 
+## 
+CREATE TABLE nation  ( N_NATIONKEY  INTEGER NOT NULL,
+  N_NAME       CHAR(25) NOT NULL,
+  N_REGIONKEY  INTEGER NOT NULL,
+  N_COMMENT    VARCHAR(152));
+
+CREATE TABLE region  ( R_REGIONKEY  INTEGER NOT NULL,
+  R_NAME       CHAR(25) NOT NULL,
+  R_COMMENT    VARCHAR(152));
+
+CREATE TABLE `supplier` (
+  `s_suppkey` bigint(20) NOT NULL,
+  `s_name` char(25) DEFAULT NULL,
+  `s_address` varchar(40) DEFAULT NULL,
+  `s_nationkey` bigint(20) DEFAULT NULL,
+  `s_phone` char(15) DEFAULT NULL,
+  `s_acctbal` bigint(20) DEFAULT NULL,
+  `s_comment` varchar(101) DEFAULT NULL,
+  PRIMARY KEY (`s_suppkey`)
+);
+
+CREATE TABLE `part` (
+`p_partkey` bigint(20) NOT NULL,
+`p_name` varchar(55) DEFAULT NULL,
+`p_mfgr` char(25) DEFAULT NULL,
+`p_brand` char(10) DEFAULT NULL,
+`p_type` varchar(25) DEFAULT NULL,
+`p_size` bigint(20) DEFAULT NULL,
+`p_container` char(10) DEFAULT NULL,
+`p_retailprice` decimal(10,2) DEFAULT NULL,
+`p_comment` varchar(23) DEFAULT NULL,
+PRIMARY KEY (`p_partkey`)
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'zstd_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10
+partition by hash(p_partkey) partitions 3;
+
+CREATE TABLE `orders` (
+  `o_orderkey` bigint(20) NOT NULL,
+  `o_custkey` bigint(20) NOT NULL,
+  `o_orderstatus` char(1) DEFAULT NULL,
+  `o_totalprice` decimal(10,2) DEFAULT NULL,
+  `o_orderdate` date NOT NULL,
+  `o_orderpriority` char(15) DEFAULT NULL,
+  `o_clerk` char(15) DEFAULT NULL,
+  `o_shippriority` bigint(20) DEFAULT NULL,
+  `o_comment` varchar(79) DEFAULT NULL,
+  PRIMARY KEY (`o_orderkey`, `o_orderdate`, `o_custkey`),
+  KEY `o_orderkey` (`o_orderkey`) LOCAL  BLOCK_SIZE 16384
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'zstd_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10
+partition by range columns(o_orderdate) subpartition by hash(o_custkey) subpartitions 4
+(partition ord1 values less than ('1992-01-01'),
+  partition ord2 values less than ('1992-02-01'),
+  partition ord3 values less than ('1992-03-01'),
+  partition ord4 values less than (MAXVALUE));
+
+CREATE TABLE `lineitem` (
+  `l_orderkey` bigint(20) NOT NULL,
+  `l_partkey` bigint(20) NOT NULL,
+  `l_suppkey` bigint(20) NOT NULL,
+  `l_linenumber` bigint(20) NOT NULL,
+  `l_quantity` bigint(20) NOT NULL,
+  `l_extendedprice` decimal(10,2) NOT NULL,
+  `l_discount` decimal(10,2) NOT NULL,
+  `l_tax` decimal(10,2) NOT NULL,
+  `l_returnflag` char(1) DEFAULT NULL,
+  `l_linestatus` char(1) DEFAULT NULL,
+  `l_shipdate` date NOT NULL,
+  `l_commitdate` date DEFAULT NULL,
+  `l_receiptdate` date DEFAULT NULL,
+  `l_shipinstruct` char(25) DEFAULT NULL,
+  `l_shipmode` char(10) DEFAULT NULL,
+  `l_comment` varchar(44) DEFAULT NULL,
+  PRIMARY KEY (`l_orderkey`, `l_linenumber`, `l_shipdate`, `l_partkey`),
+  KEY `i_l_orderkey` (`l_orderkey`) LOCAL  BLOCK_SIZE 16384
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'zstd_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10
+partition by range columns(l_shipdate) subpartition by hash(l_partkey) subpartitions 4
+(partition item1 values less than ('1992-01-01'),
+  partition item2 values less than ('1992-02-01'),
+  partition item3 values less than ('1992-03-01'),
+  partition item4 values less than ('1992-04-01'),
+  partition item84 values less than (MAXVALUE));
+
+##   Q2
+##   Q11
+##   Q4
+##   Q17
+##     part 5. Partition-Wise join/Union
+drop table t1;
+CREATE TABLE `t1` ( `c1` int(11) DEFAULT NULL, `c2` int(11) DEFAULT NULL,  `c3` int(11) DEFAULT NULL) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 partition by list columns(c1,c2)(partition p0 values in ((1,1),(2,2)),partition p1 values in ((3,3),(4,4)),partition p2 values in ((5,5),(6,6)));
+CREATE TABLE `t2` (  `c1` int(11) DEFAULT NULL,  `c2` int(11) DEFAULT NULL,  `c3` int(11) DEFAULT NULL) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 partition by list columns(c1,c2)(partition p0 values in ((1,1),(2,2)),partition p1 values in ((3,3),(4,4)),partition p2 values in ((5,5),(6,6)));
+CREATE TABLE `t3` (  `c1` int(11) DEFAULT NULL,  `c2` int(11) DEFAULT NULL,  `c3` int(11) DEFAULT NULL) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 partition by list columns(c1,c2)(partition p0 values in ((1,1),(2,2)),partition p1 values in ((3,3),(4,4)),partition p2 values in ((5,5),(6,6)));
+
+insert into t1 values (1,1,1);
+insert into t1 values (3,3,1);
+insert into t1 values (6,6,1);
+
+insert into t2 values (1,1,21);
+insert into t2 values (2,2,22);
+insert into t2 values (6,6,26);
+
+insert into t3 values (1,1,31);
+insert into t3 values (2,2,32);
+insert into t3 values (6,6,36);
+select /*+use_px parallel(2) use_hash(t1 t2)*/ * from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2;
++------+------+------+------+------+------+
+| c1   | c2   | c3   | c1   | c2   | c3   |
++------+------+------+------+------+------+
+|    1 |    1 |    1 |    1 |    1 |   21 |
+|    6 |    6 |    1 |    6 |    6 |   26 |
++------+------+------+------+------+------+
+
+select /*+use_px parallel(2) use_nl(t1 t2)*/ * from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2;
++------+------+------+------+------+------+
+| c1   | c2   | c3   | c1   | c2   | c3   |
++------+------+------+------+------+------+
+|    1 |    1 |    1 |    1 |    1 |   21 |
+|    6 |    6 |    1 |    6 |    6 |   26 |
++------+------+------+------+------+------+
+
+select /*+use_px parallel(2) use_merge(t1 t2)*/ * from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2;
++------+------+------+------+------+------+
+| c1   | c2   | c3   | c1   | c2   | c3   |
++------+------+------+------+------+------+
+|    1 |    1 |    1 |    1 |    1 |   21 |
+|    6 |    6 |    1 |    6 |    6 |   26 |
++------+------+------+------+------+------+
+
+select /*+use_px parallel(2) use_merge(t1 t2)*/ * from t1,t2,t3 where (t1.c1,t1.c2) = (t2.c1,t2.c2) and (t2.c1,t2.c2) = (t3.c1,t3.c2);
++------+------+------+------+------+------+------+------+------+
+| c1   | c2   | c3   | c1   | c2   | c3   | c1   | c2   | c3   |
++------+------+------+------+------+------+------+------+------+
+|    1 |    1 |    1 |    1 |    1 |   21 |    1 |    1 |   31 |
+|    6 |    6 |    1 |    6 |    6 |   26 |    6 |    6 |   36 |
++------+------+------+------+------+------+------+------+------+
+
+select /*+use_px parallel(2)*/ * from (select * from t1 union all select * from t2) a;
++------+------+------+
+| c1   | c2   | c3   |
++------+------+------+
+|    1 |    1 |    1 |
+|    1 |    1 |   21 |
+|    2 |    2 |   22 |
+|    3 |    3 |    1 |
+|    6 |    6 |    1 |
+|    6 |    6 |   26 |
++------+------+------+
+
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t1_hash;
+drop table if exists t2_hash;
+drop table if exists t3_hash;
+PURGE RECYCLEBIN;
+drop tablegroup if exists pwj;
+create tablegroup pwj partition by hash partitions 4;
+CREATE TABLE `t1_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+CREATE TABLE `t2_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+CREATE TABLE `t3_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+insert into t1_hash values (1,1,1);
+insert into t1_hash values (2,2,1);
+insert into t1_hash values (3,3,1);
+insert into t1_hash values (4,4,1);
+insert into t1_hash values (5,5,1);
+insert into t1_hash values (6,6,1);
+insert into t1_hash values (7,7,1);
+insert into t1_hash values (8,8,1);
+insert into t1_hash values (9,9,1);
+insert into t1_hash values (10,10,1);
+insert into t1_hash values (11,11,1);
+insert into t1_hash values (12,12,1);
+
+insert into t2_hash values (1,1,2);
+insert into t2_hash values (2,2,2);
+insert into t2_hash values (3,3,2);
+insert into t2_hash values (4,4,2);
+insert into t2_hash values (5,5,2);
+insert into t2_hash values (6,6,2);
+insert into t2_hash values (7,7,2);
+insert into t2_hash values (8,8,2);
+insert into t2_hash values (9,9,2);
+insert into t2_hash values (10,10,2);
+insert into t2_hash values (11,11,2);
+insert into t2_hash values (12,12,2);
+
+insert into t3_hash values (1,1,3);
+insert into t3_hash values (2,2,3);
+insert into t3_hash values (3,3,3);
+insert into t3_hash values (4,4,3);
+insert into t3_hash values (5,5,3);
+insert into t3_hash values (6,6,3);
+insert into t3_hash values (7,7,3);
+insert into t3_hash values (8,8,3);
+insert into t3_hash values (9,9,3);
+insert into t3_hash values (10,10,3);
+insert into t3_hash values (11,11,3);
+insert into t3_hash values (12,12,3);
+select /*+use_px parallel(2)*/ * from t1_hash, t2_hash where t1_hash.c1 = t2_hash.c1 and t1_hash.c2 = t2_hash.c2;
++------+------+------+------+------+------+
+| c1   | c2   | c3   | c1   | c2   | c3   |
++------+------+------+------+------+------+
+|    1 |    1 |    1 |    1 |    1 |    2 |
+|    2 |    2 |    1 |    2 |    2 |    2 |
+|    3 |    3 |    1 |    3 |    3 |    2 |
+|    4 |    4 |    1 |    4 |    4 |    2 |
+|    5 |    5 |    1 |    5 |    5 |    2 |
+|    6 |    6 |    1 |    6 |    6 |    2 |
+|    7 |    7 |    1 |    7 |    7 |    2 |
+|    8 |    8 |    1 |    8 |    8 |    2 |
+|    9 |    9 |    1 |    9 |    9 |    2 |
+|   10 |   10 |    1 |   10 |   10 |    2 |
+|   11 |   11 |    1 |   11 |   11 |    2 |
+|   12 |   12 |    1 |   12 |   12 |    2 |
++------+------+------+------+------+------+
+
+select /*+use_px parallel(2)*/ * from t1_hash, t2_hash, t3_hash where (t1_hash.c1, t1_hash.c2) = (t2_hash.c1, t2_hash.c2) and (t3_hash.c1, t3_hash.c2) = (t2_hash.c1, t2_hash.c2);
++------+------+------+------+------+------+------+------+------+
+| c1   | c2   | c3   | c1   | c2   | c3   | c1   | c2   | c3   |
++------+------+------+------+------+------+------+------+------+
+|    1 |    1 |    1 |    1 |    1 |    2 |    1 |    1 |    3 |
+|    2 |    2 |    1 |    2 |    2 |    2 |    2 |    2 |    3 |
+|    3 |    3 |    1 |    3 |    3 |    2 |    3 |    3 |    3 |
+|    4 |    4 |    1 |    4 |    4 |    2 |    4 |    4 |    3 |
+|    5 |    5 |    1 |    5 |    5 |    2 |    5 |    5 |    3 |
+|    6 |    6 |    1 |    6 |    6 |    2 |    6 |    6 |    3 |
+|    7 |    7 |    1 |    7 |    7 |    2 |    7 |    7 |    3 |
+|    8 |    8 |    1 |    8 |    8 |    2 |    8 |    8 |    3 |
+|    9 |    9 |    1 |    9 |    9 |    2 |    9 |    9 |    3 |
+|   10 |   10 |    1 |   10 |   10 |    2 |   10 |   10 |    3 |
+|   11 |   11 |    1 |   11 |   11 |    2 |   11 |   11 |    3 |
+|   12 |   12 |    1 |   12 |   12 |    2 |   12 |   12 |    3 |
++------+------+------+------+------+------+------+------+------+
+
+##     part 6. Hybrid full partition wise join
+create table prc1(a datetime, b int) partition by range columns(a) (
+  partition p0 values less than ('2011-01-01'),
+  partition p1 values less than ('2116-01-01'));
+create table prc2(a datetime, b int) partition by range columns(a) (
+  partition p0 values less than ('2011-01-01'),
+  partition p1 values less than ('2115-01-01'));
+create table prc3(a datetime, b int) partition by range columns(a) (
+  partition p0 values less than ('2011-01-01'),
+  partition p1 values less than ('2115-01-01'));
+
+insert into prc1 values('2010-01-01', 11);
+insert into prc1 values('2010-02-01', 11);
+insert into prc1 values('2012-01-01', 11);
+insert into prc1 values('2012-02-01', 11);
+
+insert into prc2 values('2010-01-01', 11);
+insert into prc2 values('2010-02-01', 11);
+insert into prc2 values('2012-01-01', 11);
+insert into prc2 values('2012-02-01', 11);
+
+insert into prc3 values('2010-01-01', 11);
+insert into prc3 values('2010-02-01', 11);
+insert into prc3 values('2012-01-01', 11);
+insert into prc3 values('2012-02-01', 11);
+select /*+use_px parallel(2)*/ * from prc1,prc2,prc3 where prc1.a=prc2.a and prc1.a=prc3.a;
++---------------------+------+---------------------+------+---------------------+------+
+| a                   | b    | a                   | b    | a                   | b    |
++---------------------+------+---------------------+------+---------------------+------+
+| 2010-01-01 00:00:00 |   11 | 2010-01-01 00:00:00 |   11 | 2010-01-01 00:00:00 |   11 |
+| 2010-02-01 00:00:00 |   11 | 2010-02-01 00:00:00 |   11 | 2010-02-01 00:00:00 |   11 |
+| 2012-01-01 00:00:00 |   11 | 2012-01-01 00:00:00 |   11 | 2012-01-01 00:00:00 |   11 |
+| 2012-02-01 00:00:00 |   11 | 2012-02-01 00:00:00 |   11 | 2012-02-01 00:00:00 |   11 |
++---------------------+------+---------------------+------+---------------------+------+
+
+##     part 7. 物化视图
+insert into collect_item values(1, 'abc');
+insert into collect_item values(2, 'abcd');
+insert into collect_item values(3, 'abcde');
+insert into collect_item values(4, 'abcdef');
+insert into collect_item values(5, 'abcdefg');
+
+insert into collect_info values(1, 1);
+insert into collect_info values(1, 2);
+insert into collect_info values(1, 3);
+insert into collect_info values(1, 4);
+
+insert into collect_info values(2, 1);
+insert into collect_info values(2, 2);
+insert into collect_info values(2, 3);
+insert into collect_info values(2, 4);
+
+insert into collect_info values(3, 1);
+insert into collect_info values(3, 2);
+insert into collect_info values(3, 3);
+insert into collect_info values(3, 4);
+
+insert into collect_info values(4, 1);
+insert into collect_info values(4, 2);
+insert into collect_info values(4, 3);
+insert into collect_info values(4, 4);
+create materialized view info_item_mv as select user_id, collect_item.item_id, item_detail from collect_info join collect_item on collect_info.item_id = collect_item.item_id;
+
+select /*+use_px parallel(2)*/ * from info_item_mv;
++---------+---------+-------------+
+| user_id | item_id | item_detail |
++---------+---------+-------------+
+|       1 |       1 | abc         |
+|       1 |       2 | abcd        |
+|       1 |       3 | abcde       |
+|       1 |       4 | abcdef      |
+|       2 |       1 | abc         |
+|       2 |       2 | abcd        |
+|       2 |       3 | abcde       |
+|       2 |       4 | abcdef      |
+|       3 |       1 | abc         |
+|       3 |       2 | abcd        |
+|       3 |       3 | abcde       |
+|       3 |       4 | abcdef      |
+|       4 |       1 | abc         |
+|       4 |       2 | abcd        |
+|       4 |       3 | abcde       |
+|       4 |       4 | abcdef      |
++---------+---------+-------------+
+
+################### bin.lb test case ################
+drop table if exists t1,t2,t3,t4,t5;
+create table t1 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t2 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t3 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t4 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2))  partition by hash(c2) partitions 4;
+create table t5 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2))  partition by hash(c2) partitions 4;
+
+insert into t5 values (10, 10, 10, 10);
+insert into t5 values (9, 9, 9, 9);
+insert into t5 values (8, 8, 8, 8);
+insert into t5 values (7, 7, 7, 7);
+insert into t5 values (6, 6, 6, 6);
+insert into t5 values (5, 5, 5, 5);
+insert into t5 values (4, 4, 4, 4);
+insert into t5 values (3, 3, 3, 3);
+insert into t5 values (2, 2, 2, 2);
+insert into t5 values (1, 1, 1, 1);
+insert into t4 values (10, 10, 10, 10);
+insert into t4 values (9, 9, 9, 9);
+insert into t4 values (8, 8, 8, 8);
+insert into t4 values (7, 7, 7, 7);
+insert into t4 values (6, 6, 6, 6);
+insert into t4 values (5, 5, 5, 5);
+insert into t4 values (4, 4, 4, 4);
+insert into t4 values (3, 3, 3, 3);
+insert into t4 values (2, 2, 2, 2);
+insert into t4 values (1, 1, 1, 1);
+insert into t3 values (10, 10, 10, 10);
+insert into t3 values (9, 9, 9, 9);
+insert into t3 values (8, 8, 8, 8);
+insert into t3 values (7, 7, 7, 7);
+insert into t3 values (6, 6, 6, 6);
+insert into t3 values (5, 5, 5, 5);
+insert into t3 values (4, 4, 4, 4);
+insert into t3 values (3, 3, 3, 3);
+insert into t3 values (2, 2, 2, 2);
+insert into t3 values (1, 1, 1, 1);
+insert into t2 values (10, 10, 10, 10);
+insert into t2 values (9, 9, 9, 9);
+insert into t2 values (8, 8, 8, 8);
+insert into t2 values (7, 7, 7, 7);
+insert into t2 values (6, 6, 6, 6);
+insert into t2 values (5, 5, 5, 5);
+insert into t2 values (4, 4, 4, 4);
+insert into t2 values (3, 3, 3, 3);
+insert into t2 values (2, 2, 2, 2);
+insert into t2 values (1, 1, 1, 1);
+insert into t1 values (10, 10, 10, 10);
+insert into t1 values (9, 9, 9, 9);
+insert into t1 values (8, 8, 8, 8);
+insert into t1 values (7, 7, 7, 7);
+insert into t1 values (6, 6, 6, 6);
+insert into t1 values (5, 5, 5, 5);
+insert into t1 values (4, 4, 4, 4);
+insert into t1 values (3, 3, 3, 3);
+insert into t1 values (2, 2, 2, 2);
+insert into t1 values (1, 1, 1, 1);
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t4 b where a.c2 = b.c1 and a.c3 = b.c2;
++----+------+------+------+----+----+------+------+
+| c1 | c2   | c3   | c4   | c1 | c2 | c3   | c4   |
++----+------+------+------+----+----+------+------+
+|  1 |    1 |    1 |    1 |  1 |  1 |    1 |    1 |
+|  2 |    2 |    2 |    2 |  2 |  2 |    2 |    2 |
+|  3 |    3 |    3 |    3 |  3 |  3 |    3 |    3 |
+|  4 |    4 |    4 |    4 |  4 |  4 |    4 |    4 |
+|  5 |    5 |    5 |    5 |  5 |  5 |    5 |    5 |
+|  6 |    6 |    6 |    6 |  6 |  6 |    6 |    6 |
+|  7 |    7 |    7 |    7 |  7 |  7 |    7 |    7 |
+|  8 |    8 |    8 |    8 |  8 |  8 |    8 |    8 |
+|  9 |    9 |    9 |    9 |  9 |  9 |    9 |    9 |
+| 10 |   10 |   10 |   10 | 10 | 10 |   10 |   10 |
++----+------+------+------+----+----+------+------+
+
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t2 b where a.c2 = b.c1;
++----+------+------+------+----+------+------+------+
+| c1 | c2   | c3   | c4   | c1 | c2   | c3   | c4   |
++----+------+------+------+----+------+------+------+
+|  1 |    1 |    1 |    1 |  1 |    1 |    1 |    1 |
+|  2 |    2 |    2 |    2 |  2 |    2 |    2 |    2 |
+|  3 |    3 |    3 |    3 |  3 |    3 |    3 |    3 |
+|  4 |    4 |    4 |    4 |  4 |    4 |    4 |    4 |
+|  5 |    5 |    5 |    5 |  5 |    5 |    5 |    5 |
+|  6 |    6 |    6 |    6 |  6 |    6 |    6 |    6 |
+|  7 |    7 |    7 |    7 |  7 |    7 |    7 |    7 |
+|  8 |    8 |    8 |    8 |  8 |    8 |    8 |    8 |
+|  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |
+| 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 |
++----+------+------+------+----+------+------+------+
+
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t4 a, t5 b where a.c3 = b.c1;
++----+----+------+------+----+----+------+------+
+| c1 | c2 | c3   | c4   | c1 | c2 | c3   | c4   |
++----+----+------+------+----+----+------+------+
+|  1 |  1 |    1 |    1 |  1 |  1 |    1 |    1 |
+|  2 |  2 |    2 |    2 |  2 |  2 |    2 |    2 |
+|  3 |  3 |    3 |    3 |  3 |  3 |    3 |    3 |
+|  4 |  4 |    4 |    4 |  4 |  4 |    4 |    4 |
+|  5 |  5 |    5 |    5 |  5 |  5 |    5 |    5 |
+|  6 |  6 |    6 |    6 |  6 |  6 |    6 |    6 |
+|  7 |  7 |    7 |    7 |  7 |  7 |    7 |    7 |
+|  8 |  8 |    8 |    8 |  8 |  8 |    8 |    8 |
+|  9 |  9 |    9 |    9 |  9 |  9 |    9 |    9 |
+| 10 | 10 |   10 |   10 | 10 | 10 |   10 |   10 |
++----+----+------+------+----+----+------+------+
+
+select /*+ use_px parallel(4) */ * from ((select 1 c1) union (select c1 from t5)) a left join t4 b on a.c1 = b.c1;
++------+----+----+------+------+
+| c1   | c1 | c2 | c3   | c4   |
++------+----+----+------+------+
+|    1 |  1 |  1 |    1 |    1 |
+|    2 |  2 |  2 |    2 |    2 |
+|    3 |  3 |  3 |    3 |    3 |
+|    4 |  4 |  4 |    4 |    4 |
+|    5 |  5 |  5 |    5 |    5 |
+|    6 |  6 |  6 |    6 |    6 |
+|    7 |  7 |  7 |    7 |    7 |
+|    8 |  8 |  8 |    8 |    8 |
+|    9 |  9 |  9 |    9 |    9 |
+|   10 | 10 | 10 |   10 |   10 |
++------+----+----+------+------+
+
+select /*+ use_px parallel(4) */ * from (select 1 c1) a left join t5 b on a.c1 = b.c1;
++----+----+----+------+------+
+| c1 | c1 | c2 | c3   | c4   |
++----+----+----+------+------+
+|  1 |  1 |  1 |    1 |    1 |
++----+----+----+------+------+
+
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from (select * from t1 where t1.c3 < (select max(c2) from t2)) a, t3 b where a.c4 = b.c1;
++----+------+------+------+----+------+------+------+
+| c1 | c2   | c3   | c4   | c1 | c2   | c3   | c4   |
++----+------+------+------+----+------+------+------+
+|  1 |    1 |    1 |    1 |  1 |    1 |    1 |    1 |
+|  2 |    2 |    2 |    2 |  2 |    2 |    2 |    2 |
+|  3 |    3 |    3 |    3 |  3 |    3 |    3 |    3 |
+|  4 |    4 |    4 |    4 |  4 |    4 |    4 |    4 |
+|  5 |    5 |    5 |    5 |  5 |    5 |    5 |    5 |
+|  6 |    6 |    6 |    6 |  6 |    6 |    6 |    6 |
+|  7 |    7 |    7 |    7 |  7 |    7 |    7 |    7 |
+|  8 |    8 |    8 |    8 |  8 |    8 |    8 |    8 |
+|  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |
++----+------+------+------+----+------+------+------+
+
+select /*+ use_px parallel(4) use_hash(a, b) */ * from (select 5 > (select 1) c2) a left join t4 b using (c2);
++----+----+------+------+
+| c2 | c1 | c3   | c4   |
++----+----+------+------+
+|  1 |  1 |    1 |    1 |
++----+----+------+------+
+
+select /*+ use_px parallel(4) */ 8 union all select c1 from t4;
++------+
+| 8    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
+|    6 |
+|    7 |
+|    8 |
+|    8 |
+|    9 |
+|   10 |
++------+
+
+select /*+ use_px parallel(4) */ 8 union select c1 from t4;
++------+
+| 8    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
+|    6 |
+|    7 |
+|    8 |
+|    9 |
+|   10 |
++------+
+
+select /*+ use_px parallel(4) */ 8, c2 from t1 union select c3, c4 from t4;
++------+------+
+| 8    | c2   |
++------+------+
+|    1 |    1 |
+|    2 |    2 |
+|    3 |    3 |
+|    4 |    4 |
+|    5 |    5 |
+|    6 |    6 |
+|    7 |    7 |
+|    8 |    1 |
+|    8 |    2 |
+|    8 |    3 |
+|    8 |    4 |
+|    8 |    5 |
+|    8 |    6 |
+|    8 |    7 |
+|    8 |    8 |
+|    8 |    9 |
+|    8 |   10 |
+|    9 |    9 |
+|   10 |   10 |
++------+------+
+
+select /*+ use_px parallel(4) */ 8, c2 from t1 union all select c3, c4 from t4;
++------+------+
+| 8    | c2   |
++------+------+
+|    1 |    1 |
+|    2 |    2 |
+|    3 |    3 |
+|    4 |    4 |
+|    5 |    5 |
+|    6 |    6 |
+|    7 |    7 |
+|    8 |    1 |
+|    8 |    2 |
+|    8 |    3 |
+|    8 |    4 |
+|    8 |    5 |
+|    8 |    6 |
+|    8 |    7 |
+|    8 |    8 |
+|    8 |    8 |
+|    8 |    9 |
+|    8 |   10 |
+|    9 |    9 |
+|   10 |   10 |
++------+------+
+
+select /*+ use_px parallel(4) */ c2 , c3 from t1 intersect select c3, c4 from t4;
++------+------+
+| c2   | c3   |
++------+------+
+|    1 |    1 |
+|    2 |    2 |
+|    3 |    3 |
+|    4 |    4 |
+|    5 |    5 |
+|    6 |    6 |
+|    7 |    7 |
+|    8 |    8 |
+|    9 |    9 |
+|   10 |   10 |
++------+------+
+
+select /*+ use_px parallel(2) */  8, c2 from t2 union select c3, c4 from t5 union select 15, c4 from t4;
++------+------+
+| 8    | c2   |
++------+------+
+|    1 |    1 |
+|    2 |    2 |
+|    3 |    3 |
+|    4 |    4 |
+|    5 |    5 |
+|    6 |    6 |
+|    7 |    7 |
+|    8 |    1 |
+|    8 |    2 |
+|    8 |    3 |
+|    8 |    4 |
+|    8 |    5 |
+|    8 |    6 |
+|    8 |    7 |
+|    8 |    8 |
+|    8 |    9 |
+|    8 |   10 |
+|    9 |    9 |
+|   10 |   10 |
+|   15 |    1 |
+|   15 |    2 |
+|   15 |    3 |
+|   15 |    4 |
+|   15 |    5 |
+|   15 |    6 |
+|   15 |    7 |
+|   15 |    8 |
+|   15 |    9 |
+|   15 |   10 |
++------+------+
+
+drop table if exists t1,t2,t3,t4,t5;
+
+CREATE TABLE department
+ (
+ DepartmentID INT Primary key,
+ DepartmentName VARCHAR(20)
+ )partition by hash(DepartmentID) partitions 4;
+
+CREATE TABLE employee
+ (
+ LastName VARCHAR(20),
+ DepartmentID INT
+)partition by hash(DepartmentID) partitions 4;
+
+INSERT INTO department VALUES(31, 'Sales');
+INSERT INTO department VALUES(33, 'Engineering');
+INSERT INTO department VALUES(34, 'Clerical');
+INSERT INTO department VALUES(35, 'Marketing');
+
+INSERT INTO employee VALUES('Rafferty', 31);
+INSERT INTO employee VALUES('Jones', 33);
+INSERT INTO employee VALUES('Heisenberg', 33);
+INSERT INTO employee VALUES('Robinson', 34);
+INSERT INTO employee VALUES('Smith', 34);
+INSERT INTO employee VALUES('Williams', NULL);
+select /*+ use_px parallel(4)*/ *from department inner join employee on employee.DepartmentID = department.DepartmentID;
++--------------+----------------+------------+--------------+
+| DepartmentID | DepartmentName | LastName   | DepartmentID |
++--------------+----------------+------------+--------------+
+|           31 | Sales          | Rafferty   |           31 |
+|           33 | Engineering    | Heisenberg |           33 |
+|           33 | Engineering    | Jones      |           33 |
+|           34 | Clerical       | Robinson   |           34 |
+|           34 | Clerical       | Smith      |           34 |
++--------------+----------------+------------+--------------+
+
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t1_hash;
+drop table if exists t2_hash;
+drop table if exists t3_hash;
+PURGE RECYCLEBIN;
+drop tablegroup if exists pwj;
+create tablegroup pwj partition by hash partitions 4;
+CREATE TABLE `t1_hash` (
+  `c1` int(11),
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL,
+#   unique i1(c1) local
+  primary key(c1)
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+CREATE TABLE `t2_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+CREATE TABLE `t3_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+insert into t1_hash values (1,1,1);
+insert into t1_hash values (2,2,1);
+insert into t1_hash values (3,3,1);
+insert into t1_hash values (4,4,1);
+insert into t1_hash values (5,5,1);
+insert into t1_hash values (6,6,1);
+insert into t1_hash values (7,7,1);
+insert into t1_hash values (8,8,1);
+insert into t1_hash values (9,9,1);
+insert into t1_hash values (10,10,1);
+insert into t1_hash values (11,11,1);
+insert into t1_hash values (12,12,1);
+
+insert into t2_hash values (1,1,2);
+insert into t2_hash values (2,2,2);
+insert into t2_hash values (3,3,2);
+insert into t2_hash values (4,4,2);
+insert into t2_hash values (5,5,2);
+insert into t2_hash values (6,6,2);
+insert into t2_hash values (7,7,2);
+insert into t2_hash values (8,8,2);
+insert into t2_hash values (9,9,2);
+insert into t2_hash values (10,10,2);
+insert into t2_hash values (11,11,2);
+insert into t2_hash values (12,12,2);
+
+insert into t3_hash values (1,1,3);
+insert into t3_hash values (2,2,3);
+insert into t3_hash values (3,3,3);
+insert into t3_hash values (4,4,3);
+insert into t3_hash values (5,5,3);
+insert into t3_hash values (6,6,3);
+insert into t3_hash values (7,7,3);
+insert into t3_hash values (8,8,3);
+insert into t3_hash values (9,9,3);
+insert into t3_hash values (10,10,3);
+insert into t3_hash values (11,11,3);
+insert into t3_hash values (12,12,3);
+
+select /*+use_nl(t1_hash tx) no_rewrite() index(t1_hash i1)*/ t1_hash.c1 from t1_hash, (select /*+use_nl(t2_hash t3_hash) no_rewrite()*/ t2_hash.c1, t2_hash.c2 from t2_hash, t3_hash where t2_hash.c1 = t3_hash.c1) tx where t1_hash.c1 = tx.c1;
++----+
+| c1 |
++----+
+|  1 |
+|  2 |
+|  3 |
+|  4 |
+|  5 |
+|  6 |
+|  7 |
+|  8 |
+|  9 |
+| 10 |
+| 11 |
+| 12 |
++----+
+
+create table t1(a int, b int, primary key (a)) partition by hash(a) partitions 2;
+create table t2(a int, b int, primary key (a)) partition by hash(a) partitions 2;
+
+insert into t1 values (0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15);
+insert into t2 values (0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15);
+select /*+use_nl(t1 t2) parallel(2) use_px*/ * from t1 left join t2 on t1.a = t2.a and t1.a = 5 and t2.a = 5  order  by t1.a;
++----+------+---+------+
+| a  | b    | a | b    |
++----+------+---+------+
+|  0 |    0 | NULL | NULL |
+|  1 |    1 | NULL | NULL |
+|  2 |    2 | NULL | NULL |
+|  3 |    3 | NULL | NULL |
+|  4 |    4 | NULL | NULL |
+|  5 |    5 | 5 |    5 |
+|  6 |    6 | NULL | NULL |
+|  7 |    7 | NULL | NULL |
+|  8 |    8 | NULL | NULL |
+|  9 |    9 | NULL | NULL |
+| 10 |   10 | NULL | NULL |
+| 11 |   11 | NULL | NULL |
+| 12 |   12 | NULL | NULL |
+| 13 |   13 | NULL | NULL |
+| 14 |   14 | NULL | NULL |
+| 15 |   15 | NULL | NULL |
++----+------+---+------+
+
+select /*+use_nl(t1 t2) parallel(2) use_px*/ * from t1 join t2 on t1.a = t2.a and t1.a = 5 and t2.a = 5  order  by t1.a;
++---+------+---+------+
+| a | b    | a | b    |
++---+------+---+------+
+| 5 |    5 | 5 |    5 |
++---+------+---+------+
+
+drop table if exists t1,t2;
+
+## 按分区进行group by
+create table t1(a int, b int, c int) partition by hash(a) partitions 4;
+
+drop database if exists muhangtest;

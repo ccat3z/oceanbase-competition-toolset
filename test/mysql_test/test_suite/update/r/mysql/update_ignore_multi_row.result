@@ -1,0 +1,38 @@
+drop table if exists test;
+create table test (c1 int primary key, c2 int unique key, c3 int, c4 char(3));
+insert into test values(1,2,3,4);
+insert into test values(3,3,3,3);
+update test set c1 = 2;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+select * from test;
+c1	c2	c3	c4
+1	2	3	4
+3	3	3	3
+update ignore test set c1 = 2;
+select * from test;
+c1	c2	c3	c4
+2	2	3	4
+3	3	3	3
+update test set c2 = 2;
+ERROR 23000: Duplicate entry '2' for key 'c2'
+select * from test;
+c1	c2	c3	c4
+2	2	3	4
+3	3	3	3
+update ignore test set c2 = 2;
+select * from test;
+c1	c2	c3	c4
+2	2	3	4
+3	3	3	3
+update test set c4 = 'ssssssss';
+ERROR 22001: Data too long for column
+select * from test;
+c1	c2	c3	c4
+2	2	3	4
+3	3	3	3
+update ignore test set c4 = 'ssssssss';
+select * from test;
+c1	c2	c3	c4
+2	2	3	sss
+3	3	3	sss
+drop table test;

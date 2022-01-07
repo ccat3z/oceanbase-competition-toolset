@@ -1,0 +1,758 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+--result_format 4
+
+--disable_abort_on_error
+
+##     新框架下带GI并行扫描测试文件，内容包含
+##     part 1. 单表单分区查询
+##     part 2. 单表多分区查询，一级分区二级分区，各类组合。
+##     part 3. 大数据量查询
+##     part 4. TPCH改写准入, join bloom filter准入
+##     part 5. Partiton wise join/union
+##     part 6. Hybrid full partition wise join
+##     part 7. 物化视图
+
+#--explain_protocol 2
+#--enable_info
+
+--disable_warnings
+drop database if exists muhangtest;
+create database muhangtest;
+use muhangtest;
+--enable_warnings
+
+set ob_enable_plan_cache = off;
+##     超时设置为20s
+#set ob_query_timeout = 20000000;
+
+--disable_query_log
+#     最基本的查询
+--sorted_result
+--let $basic_select=select /*+use_px parallel(3)*/ * from t1
+#     带in条件的查询
+--sorted_result
+--let $select_in=select /*+use_px parallel(3) full()*/ * from t1 where a in (1,2,3,4,5) order by a,b,c,d;
+#     简单的group by
+--sorted_result
+--let $select_group=select /*+use_px parallel(3)*/ * from t1 group by a;
+#     group by + having + limit
+--sorted_result
+--let $select_group_having_limit=select /*+use_px parallel(3)*/ * from t1 group by a having a > 3 ;
+#     简单的表达式计算
+--sorted_result
+--let $select_expr=select /*+use_px parallel(3)*/ a+1 from t1;
+#     子查询
+--sorted_result
+--let $select_subquery=select * from (select /*+use_px parallel(3)*/ a from t1) cte;
+#     CTE     
+# --sorted_result
+# --let $select_cte=with cte as (select /*+use_px parallel(3)*/ a from t1) select * from cte;
+#     window function
+--sorted_result
+--let $select_win=select /*+use_px parallel(3)*/ *, count(a) over(partition by a) from t1;
+#     index back
+--sorted_result
+--let $select_index=select /*+use_px parallel(3) index(test i1)*/ c, d from t1;
+#     count
+--sorted_result
+--let $count_select = select /*+use_px parallel(3)*/ count(*) from t1
+#     global index back
+#select /*+use_px parallel(3) index(test i1)*/ c, d, b from t1;
+#
+--enable_query_log
+
+##     part 1. 单表但分区查询
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d));
+create index i1 on t1(c);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+--sleep 1
+
+##     最基本的查询
+--sorted_result
+--eval $basic_select
+##     带in条件的查询
+--sorted_result
+--eval $select_in
+##     简单的group by
+--sorted_result
+--eval $select_group
+##     group by + having + limit
+--sorted_result
+--eval $select_group_having_limit
+##     简单的表达式计算
+--eval $select_expr_cp
+--sorted_result
+--eval $select_expr
+##     子查询
+--sorted_result
+--eval $select_subquery
+##     CTE     
+# --eval $select_cte_eq
+# --sorted_result
+# --eval $select_cte
+##     window function
+--sorted_result
+--eval $select_win
+##     index back
+--sorted_result
+--eval $select_index
+#     count
+--sorted_result
+--eval $count_select
+
+##     part 2. 单表多分区查询，一级分区二级分区。
+
+##     2.1 hash 一级分区
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d)) partition by hash(b) partitions 5;
+create index i1 on t1(c);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+--sleep 1
+
+##     最基本的查询
+--sorted_result
+--eval $basic_select
+##     带in条件的查询
+--sorted_result
+--eval $select_in
+##     简单的group by
+--sorted_result
+--eval $select_group
+##     group by + having + limit
+--sorted_result
+--eval $select_group_having_limit
+##     简单的表达式计算
+--eval $select_expr_cp
+--sorted_result
+--eval $select_expr
+##     子查询
+--sorted_result
+--eval $select_subquery
+##     CTE     
+# --eval $select_cte_eq
+# --sorted_result
+# --eval $select_cte
+##     window function
+--sorted_result
+--eval $select_win
+##     index back
+--sorted_result
+--eval $select_index
+#     count
+--sorted_result
+--eval $count_select
+
+##     2.2 list columns 一级分区  bug  list columns分区带索引插入数据显示 trans roll back
+##     2.3 range columns 一级分区
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d)) partition by range columns(b,c,d) (
+partition p0 values less than (2,2,2),
+partition p1 values less than (5,5,5),
+partition p2 values less than (MAXVALUE, MAXVALUE, MAXVALUE)
+);
+create index i1 on t1(c);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+--sleep 1
+
+##     最基本的查询
+--sorted_result
+--eval $basic_select
+##     带in条件的查询
+--sorted_result
+--eval $select_in
+##     简单的group by
+--sorted_result
+--eval $select_group
+##     group by + having + limit
+--sorted_result
+--eval $select_group_having_limit
+##     简单的表达式计算
+--eval $select_expr_cp
+--sorted_result
+--eval $select_expr
+##     子查询
+--sorted_result
+--eval $select_subquery
+##     CTE     
+# --eval $select_cte_eq
+# --sorted_result
+# --eval $select_cte
+##     window function
+--sorted_result
+--eval $select_win
+##     index back
+--sorted_result
+--eval $select_index
+#     count
+--sorted_result
+--eval $count_select
+
+
+##     3.1 一级range columns partitionin 二级 hash partitionin
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d))
+partition by range columns(b) subpartition by hash(c) subpartitions 2 ( 
+  partition p0 values less than (5),
+  partition p1 values less than (maxvalue)
+);
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+--sleep 1
+
+##     最基本的查询
+--sorted_result
+--eval $basic_select
+##     带in条件的查询
+--sorted_result
+--eval $select_in
+##     简单的group by
+--sorted_result
+--eval $select_group
+##     group by + having + limit
+--sorted_result
+--eval $select_group_having_limit
+##     简单的表达式计算
+--eval $select_expr_cp
+--sorted_result
+--eval $select_expr
+##     子查询
+--sorted_result
+--eval $select_subquery
+##     CTE     
+# --eval $select_cte_eq
+# --sorted_result
+# --eval $select_cte
+##     window function
+--sorted_result
+--eval $select_win
+##     index back
+--sorted_result
+--eval $select_index
+#     count
+--sorted_result
+--eval $count_select
+
+##     3.2 一级hash partitionin 二级 range columns partitionin
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(a int, b int, c int, d int, e int, primary key(a,b,c,d)) partition by hash(b) 
+subpartition by range columns(c,d)
+subpartition template (
+subpartition p0 values less than (5,5),  
+subpartition p1 values less than (100,100)) partitions 2; 
+insert into t1 values(1,1,1,1,1),(2,2,2,2,2),(3,3,3,3,3),(4,4,4,4,4),(5,5,5,5,5),(6,6,6,6,6),(7,7,7,7,7),(8,8,8,8,8),(9,9,9,9,9),(10,10,10,10,10);
+insert into t1 values(11,11,11,11,11),(12,12,12,12,12),(13,13,13,13,13),(14,14,14,14,14),(15,15,15,15,15),(16,16,16,16,16),(17,17,17,17,17),(18,18,18,18,18),(19,19,19,19,19),(20,20,20,20,20);
+--sleep 1
+
+##     最基本的查询
+--sorted_result
+--eval $basic_select
+##     带in条件的查询
+--sorted_result
+--eval $select_in
+##     简单的group by
+--sorted_result
+--eval $select_group
+##     group by + having + limit
+--sorted_result
+--eval $select_group_having_limit
+##     简单的表达式计算
+--eval $select_expr_cp
+--sorted_result
+--eval $select_expr
+##     子查询
+--sorted_result
+--eval $select_subquery
+##     CTE     
+# --eval $select_cte_eq
+# --sorted_result
+# --eval $select_cte
+##     window function
+--sorted_result
+--eval $select_win
+##     index back
+--sorted_result
+--eval $select_index
+#     count
+--sorted_result
+--eval $count_select
+
+##     part 3. 大数据量查询，为了时间快，关闭大数据量查询
+#--disable_warnings
+#drop table if exists t1;
+#--enable_warnings
+
+#let $start = 1;
+#let $end = 5000;
+
+#--disable_query_log
+#create table t1 (c1 int, c2 int);
+
+#let $cnt = 20;
+#while($cnt)
+#{
+#  let $sql_1 = query_get_value("with recursive_cte(a,b) as (select $start, concat('insert into t1 values(',$start,',',$start,')') from dual union all select a+1, concat(b,',(',a+1,',',a+1,')') from recursive_cte where a <= $end) cycle a set iscyc to 'y' default 'n' select * from recursive_cte where a = $end;", b, 1);
+#  eval $sql_1;
+#  let $start = query_get_value("select ($start+4000) as x from dual", x, 1);
+#  let $end = query_get_value("select ($end+4000) as x from dual", x, 1);
+#  alter system flush plan cache;
+#  dec $cnt;
+#}
+#--enable_query_log
+
+#     count
+#--eval $count_select
+
+
+##     part 4. TPCH改写准入
+##     schema
+
+##     2M tpch数据 
+## 
+#--source mysql_test/include/sql_import_opt_tpch_part.inc
+--source mysql_test/include/sql_tpch_schame.inc
+#set ob_query_timeout = 60000000;
+#use opt_tpch_part;
+
+##   Q2
+
+#select/*+parallel(16) use_px*/ s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment from part, supplier, partsupp, nation, region where p_partkey = ps_partkey and s_suppkey = ps_suppkey and p_size = 30 and p_type like '%STEEL' and s_nationkey = n_nationkey and n_regionkey = r_regionkey and r_name = 'ASIA' and ps_supplycost = ( select min(ps_supplycost) from partsupp, supplier, nation, region where p_partkey = ps_partkey and s_suppkey = ps_suppkey and s_nationkey = n_nationkey and n_regionkey = r_regionkey and r_name = 'ASIA' ) order by s_acctbal desc, n_name, s_name, p_partkey limit 100;
+
+##   Q11
+
+#select/*+parallel(16) use_px*/ ps_partkey, sum(ps_supplycost * ps_availqty) as value from partsupp, supplier, nation where ps_suppkey = s_suppkey and s_nationkey = n_nationkey and n_name = 'MOZAMBIQUE' group by ps_partkey having sum(ps_supplycost * ps_availqty) > (select sum(ps_supplycost * ps_availqty) * 0.0001000000 from partsupp, supplier,nation where ps_suppkey = s_suppkey and s_nationkey = n_nationkey and n_name = 'MOZAMBIQUE' ) order by value desc;
+
+##   Q4
+
+#select sum(l_extendedprice) / 7.0 as avg_yearly from lineitem, part where p_partkey = l_partkey and p_brand = 'Brand#44' and p_container = 'WRAP PKG' and l_quantity < (select 0.2 * avg(l_quantity) from lineitem where l_partkey = p_partkey);
+
+##   Q17
+
+#select /*+use_px parallel(16)*/ sum(l_extendedprice) / 7.0 as avg_yearly from lineitem, part where p_partkey = l_partkey and p_brand = 'Brand#44' and p_container = 'WRAP PKG' and l_quantity < (select 0.2 * avg(l_quantity) from lineitem where l_partkey = p_partkey);
+
+##     part 5. Partition-Wise join/Union
+drop table t1;
+CREATE TABLE `t1` ( `c1` int(11) DEFAULT NULL, `c2` int(11) DEFAULT NULL,  `c3` int(11) DEFAULT NULL) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 partition by list columns(c1,c2)(partition p0 values in ((1,1),(2,2)),partition p1 values in ((3,3),(4,4)),partition p2 values in ((5,5),(6,6)));
+CREATE TABLE `t2` (  `c1` int(11) DEFAULT NULL,  `c2` int(11) DEFAULT NULL,  `c3` int(11) DEFAULT NULL) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 partition by list columns(c1,c2)(partition p0 values in ((1,1),(2,2)),partition p1 values in ((3,3),(4,4)),partition p2 values in ((5,5),(6,6)));
+CREATE TABLE `t3` (  `c1` int(11) DEFAULT NULL,  `c2` int(11) DEFAULT NULL,  `c3` int(11) DEFAULT NULL) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 partition by list columns(c1,c2)(partition p0 values in ((1,1),(2,2)),partition p1 values in ((3,3),(4,4)),partition p2 values in ((5,5),(6,6)));
+
+insert into t1 values (1,1,1);
+insert into t1 values (3,3,1);
+insert into t1 values (6,6,1);
+
+insert into t2 values (1,1,21);
+insert into t2 values (2,2,22);
+insert into t2 values (6,6,26);
+
+insert into t3 values (1,1,31);
+insert into t3 values (2,2,32);
+insert into t3 values (6,6,36);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(2) use_hash(t1 t2)*/ * from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2;
+
+# been fixed. muhang: https://aone.alibaba-inc.com/project/81079/issue/16377012
+--sorted_result
+select /*+use_px parallel(2) use_nl(t1 t2)*/ * from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2;
+
+--sorted_result
+select /*+use_px parallel(2) use_merge(t1 t2)*/ * from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2;
+
+--sorted_result
+select /*+use_px parallel(2) use_merge(t1 t2)*/ * from t1,t2,t3 where (t1.c1,t1.c2) = (t2.c1,t2.c2) and (t2.c1,t2.c2) = (t3.c1,t3.c2);
+
+--sorted_result
+select /*+use_px parallel(2)*/ * from (select * from t1 union all select * from t2) a;
+# --sorted_result
+# with cte_union(a,b,c) as (select * from t1 union all select * from t2), cte_join(d,e,f) as (select t1.c1,t1.c2,t1.c3 from t1,t2 where t1.c1 = t2.c1 and t1.c2 = t2.c2) select /*+use_px parallel(3)*/ * from cte_union, cte_join where cte_union.a = cte_join.d and cte_union.b = cte_join.e;
+
+
+--disable_warnings
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t1_hash;
+drop table if exists t2_hash;
+drop table if exists t3_hash;
+PURGE RECYCLEBIN;
+drop tablegroup if exists pwj;
+--enable_warnings
+
+create tablegroup pwj partition by hash partitions 4;
+CREATE TABLE `t1_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+CREATE TABLE `t2_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+CREATE TABLE `t3_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+insert into t1_hash values (1,1,1);
+insert into t1_hash values (2,2,1);
+insert into t1_hash values (3,3,1);
+insert into t1_hash values (4,4,1);
+insert into t1_hash values (5,5,1);
+insert into t1_hash values (6,6,1);
+insert into t1_hash values (7,7,1);
+insert into t1_hash values (8,8,1);
+insert into t1_hash values (9,9,1);
+insert into t1_hash values (10,10,1);
+insert into t1_hash values (11,11,1);
+insert into t1_hash values (12,12,1);
+
+insert into t2_hash values (1,1,2);
+insert into t2_hash values (2,2,2);
+insert into t2_hash values (3,3,2);
+insert into t2_hash values (4,4,2);
+insert into t2_hash values (5,5,2);
+insert into t2_hash values (6,6,2);
+insert into t2_hash values (7,7,2);
+insert into t2_hash values (8,8,2);
+insert into t2_hash values (9,9,2);
+insert into t2_hash values (10,10,2);
+insert into t2_hash values (11,11,2);
+insert into t2_hash values (12,12,2);
+
+insert into t3_hash values (1,1,3);
+insert into t3_hash values (2,2,3);
+insert into t3_hash values (3,3,3);
+insert into t3_hash values (4,4,3);
+insert into t3_hash values (5,5,3);
+insert into t3_hash values (6,6,3);
+insert into t3_hash values (7,7,3);
+insert into t3_hash values (8,8,3);
+insert into t3_hash values (9,9,3);
+insert into t3_hash values (10,10,3);
+insert into t3_hash values (11,11,3);
+insert into t3_hash values (12,12,3);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(2)*/ * from t1_hash, t2_hash where t1_hash.c1 = t2_hash.c1 and t1_hash.c2 = t2_hash.c2;
+
+--sorted_result
+select /*+use_px parallel(2)*/ * from t1_hash, t2_hash, t3_hash where (t1_hash.c1, t1_hash.c2) = (t2_hash.c1, t2_hash.c2) and (t3_hash.c1, t3_hash.c2) = (t2_hash.c1, t2_hash.c2);
+
+##     part 6. Hybrid full partition wise join
+create table prc1(a datetime, b int) partition by range columns(a) (
+  partition p0 values less than ('2011-01-01'),
+  partition p1 values less than ('2116-01-01'));
+create table prc2(a datetime, b int) partition by range columns(a) (
+  partition p0 values less than ('2011-01-01'),
+  partition p1 values less than ('2115-01-01'));
+create table prc3(a datetime, b int) partition by range columns(a) (
+  partition p0 values less than ('2011-01-01'),
+  partition p1 values less than ('2115-01-01'));
+
+insert into prc1 values('2010-01-01', 11);
+insert into prc1 values('2010-02-01', 11);
+insert into prc1 values('2012-01-01', 11);
+insert into prc1 values('2012-02-01', 11);
+
+insert into prc2 values('2010-01-01', 11);
+insert into prc2 values('2010-02-01', 11);
+insert into prc2 values('2012-01-01', 11);
+insert into prc2 values('2012-02-01', 11);
+
+insert into prc3 values('2010-01-01', 11);
+insert into prc3 values('2010-02-01', 11);
+insert into prc3 values('2012-01-01', 11);
+insert into prc3 values('2012-02-01', 11);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(2)*/ * from prc1,prc2,prc3 where prc1.a=prc2.a and prc1.a=prc3.a;
+
+##     part 7. 物化视图
+
+connect (obsys,$OBMYSQL_MS0,admin,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection obsys;
+--disable_query_log
+let $zone_list = query_get_value("select group_concat(distinct concat('F,R{all_server}@', zone)) zone_list from oceanbase.__all_zone where zone != ''", zone_list, 1);
+disconnect obsys;
+connection default;
+eval create table collect_item(item_id int, item_detail varchar(5000), primary key(item_id)) locality = '$zone_list';
+
+create table collect_info (user_id int, item_id int, primary key(user_id, item_id)) partition by hash(user_id) partitions 4;
+--enable_query_log
+
+insert into collect_item values(1, 'abc');
+insert into collect_item values(2, 'abcd');
+insert into collect_item values(3, 'abcde');
+insert into collect_item values(4, 'abcdef');
+insert into collect_item values(5, 'abcdefg');
+
+insert into collect_info values(1, 1);
+insert into collect_info values(1, 2);
+insert into collect_info values(1, 3);
+insert into collect_info values(1, 4);
+
+insert into collect_info values(2, 1);
+insert into collect_info values(2, 2);
+insert into collect_info values(2, 3);
+insert into collect_info values(2, 4);
+
+insert into collect_info values(3, 1);
+insert into collect_info values(3, 2);
+insert into collect_info values(3, 3);
+insert into collect_info values(3, 4);
+
+insert into collect_info values(4, 1);
+insert into collect_info values(4, 2);
+insert into collect_info values(4, 3);
+insert into collect_info values(4, 4);
+--sleep 1
+
+create materialized view info_item_mv as select user_id, collect_item.item_id, item_detail from collect_info join collect_item on collect_info.item_id = collect_item.item_id;
+
+--sorted_result
+select /*+use_px parallel(2)*/ * from info_item_mv;
+
+################### bin.lb test case ################
+--disable_warnings
+drop table if exists t1,t2,t3,t4,t5;
+--enable_warnings
+
+create table t1 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t2 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t3 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t4 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2))  partition by hash(c2) partitions 4;
+create table t5 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2))  partition by hash(c2) partitions 4;
+
+let $i = 5;
+while ($i)
+{
+  let $v = 10;
+  while ($v)
+  {
+    eval insert into t$i values ($v, $v, $v, $v);
+    dec $v;
+  }
+  dec $i;
+}
+--sleep 1
+
+# allocate exchange above subplan scan
+
+# NL with left repartined
+# bug has been fixed muhang: https://aone.alibaba-inc.com/project/81079/issue/16377198
+--sorted_result
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t4 b where a.c2 = b.c1 and a.c3 = b.c2;
+
+# NL with BC2HOST
+--sorted_result
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t2 b where a.c2 = b.c1;
+
+--sorted_result
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t4 a, t5 b where a.c3 = b.c1;
+
+# partition wise join order by (allocate sort above GI)
+
+# group by
+
+# hash hash distribute
+
+# local single PX worker execution
+--sorted_result
+select /*+ use_px parallel(4) */ * from ((select 1 c1) union (select c1 from t5)) a left join t4 b on a.c1 = b.c1;
+
+--sorted_result
+select /*+ use_px parallel(4) */ * from (select 1 c1) a left join t5 b on a.c1 = b.c1;
+
+--sorted_result
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from (select * from t1 where t1.c3 < (select max(c2) from t2)) a, t3 b where a.c4 = b.c1;
+
+--sorted_result
+select /*+ use_px parallel(4) use_hash(a, b) */ * from (select 5 > (select 1) c2) a left join t4 b using (c2);
+
+# hash distribute expr not columnlized in distinct const expr stmt.
+
+# union
+--sorted_result
+select /*+ use_px parallel(4) */ 8 union all select c1 from t4;
+
+--sorted_result
+select /*+ use_px parallel(4) */ 8 union select c1 from t4;
+
+--sorted_result
+select /*+ use_px parallel(4) */ 8, c2 from t1 union select c3, c4 from t4;
+
+--sorted_result
+select /*+ use_px parallel(4) */ 8, c2 from t1 union all select c3, c4 from t4;
+
+--sorted_result
+select /*+ use_px parallel(4) */ c2 , c3 from t1 intersect select c3, c4 from t4;
+
+--sorted_result
+select /*+ use_px parallel(2) */  8, c2 from t2 union select c3, c4 from t5 union select 15, c4 from t4;
+
+# bug #16333924, multi sort under union.
+
+# non-equal condition in join
+# 没有等值条件一定只会生成nest loop join
+
+drop table if exists t1,t2,t3,t4,t5;
+
+# bug #16557959
+CREATE TABLE department
+ (
+ DepartmentID INT Primary key,
+ DepartmentName VARCHAR(20)
+ )partition by hash(DepartmentID) partitions 4;
+
+ CREATE TABLE employee
+ (
+ LastName VARCHAR(20),
+ DepartmentID INT
+)partition by hash(DepartmentID) partitions 4;
+
+ INSERT INTO department VALUES(31, 'Sales');
+ INSERT INTO department VALUES(33, 'Engineering');
+ INSERT INTO department VALUES(34, 'Clerical');
+ INSERT INTO department VALUES(35, 'Marketing');
+
+ INSERT INTO employee VALUES('Rafferty', 31);
+ INSERT INTO employee VALUES('Jones', 33);
+ INSERT INTO employee VALUES('Heisenberg', 33);
+ INSERT INTO employee VALUES('Robinson', 34);
+ INSERT INTO employee VALUES('Smith', 34);
+ INSERT INTO employee VALUES('Williams', NULL);
+--sleep 1
+
+ --sorted_result
+ select /*+ use_px parallel(4)*/ *from department inner join employee on employee.DepartmentID = department.DepartmentID;
+
+
+--disable_warnings
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t1_hash;
+drop table if exists t2_hash;
+drop table if exists t3_hash;
+PURGE RECYCLEBIN;
+drop tablegroup if exists pwj;
+--enable_warnings
+
+create tablegroup pwj partition by hash partitions 4;
+CREATE TABLE `t1_hash` (
+  `c1` int(11),
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL,
+#   unique i1(c1) local
+  primary key(c1)
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+#create index i1 on t1_hash(c1) local;
+
+CREATE TABLE `t2_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+CREATE TABLE `t3_hash` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10 tablegroup = pwj
+ partition by hash(c1) partitions 4;
+
+insert into t1_hash values (1,1,1);
+insert into t1_hash values (2,2,1);
+insert into t1_hash values (3,3,1);
+insert into t1_hash values (4,4,1);
+insert into t1_hash values (5,5,1);
+insert into t1_hash values (6,6,1);
+insert into t1_hash values (7,7,1);
+insert into t1_hash values (8,8,1);
+insert into t1_hash values (9,9,1);
+insert into t1_hash values (10,10,1);
+insert into t1_hash values (11,11,1);
+insert into t1_hash values (12,12,1);
+
+insert into t2_hash values (1,1,2);
+insert into t2_hash values (2,2,2);
+insert into t2_hash values (3,3,2);
+insert into t2_hash values (4,4,2);
+insert into t2_hash values (5,5,2);
+insert into t2_hash values (6,6,2);
+insert into t2_hash values (7,7,2);
+insert into t2_hash values (8,8,2);
+insert into t2_hash values (9,9,2);
+insert into t2_hash values (10,10,2);
+insert into t2_hash values (11,11,2);
+insert into t2_hash values (12,12,2);
+
+insert into t3_hash values (1,1,3);
+insert into t3_hash values (2,2,3);
+insert into t3_hash values (3,3,3);
+insert into t3_hash values (4,4,3);
+insert into t3_hash values (5,5,3);
+insert into t3_hash values (6,6,3);
+insert into t3_hash values (7,7,3);
+insert into t3_hash values (8,8,3);
+insert into t3_hash values (9,9,3);
+insert into t3_hash values (10,10,3);
+insert into t3_hash values (11,11,3);
+insert into t3_hash values (12,12,3);
+--sleep 1
+
+
+--sorted_result
+select /*+use_nl(t1_hash tx) no_rewrite() index(t1_hash i1)*/ t1_hash.c1 from t1_hash, (select /*+use_nl(t2_hash t3_hash) no_rewrite()*/ t2_hash.c1, t2_hash.c2 from t2_hash, t3_hash where t2_hash.c1 = t3_hash.c1) tx where t1_hash.c1 = tx.c1; 
+
+# bug16879377
+create table t1(a int, b int, primary key (a)) partition by hash(a) partitions 2;
+create table t2(a int, b int, primary key (a)) partition by hash(a) partitions 2;
+
+insert into t1 values (0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15);
+insert into t2 values (0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15);
+--sleep 1
+
+--sorted_result
+select /*+use_nl(t1 t2) parallel(2) use_px*/ * from t1 left join t2 on t1.a = t2.a and t1.a = 5 and t2.a = 5  order  by t1.a;
+
+--sorted_result
+select /*+use_nl(t1 t2) parallel(2) use_px*/ * from t1 join t2 on t1.a = t2.a and t1.a = 5 and t2.a = 5  order  by t1.a;
+
+drop table if exists t1,t2;
+
+## 按分区进行group by
+create table t1(a int, b int, c int) partition by hash(a) partitions 4;
+
+--disable_warnings
+drop database if exists muhangtest;
+--enable_warnings
+

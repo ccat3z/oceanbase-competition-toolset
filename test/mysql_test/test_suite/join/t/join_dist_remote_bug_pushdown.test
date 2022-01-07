@@ -1,0 +1,43 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description:
+# tags: cost
+# after send query range to remote, we need some special tests
+
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+
+
+
+
+#manual case 1 (distributed):
+
+
+create table t1 (pk int primary key);
+create table t2 (pk1 int, pk2 int, primary key(pk1, pk2)) partition by hash(pk1) partitions 2;
+insert into t1 values (1), (2), (3), (4);
+insert into t2 values  (2,2),  (2, 4),  (2, 6),  (2, 8);
+insert into t2 values (1,1),  (1,3),  (1, 5),  (1, 7) ;
+# this should be a distributed join with join cond pushed down
+--sorted_result
+select * from t1, t2 where t1.pk = t2.pk1 and t1.pk > 0 and t1.pk < 5;
+
+#manual case 2 (start 2 machine, remote):
+
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+
+create table t1 (pk1 int, pk2 int, primary key(pk1, pk2));
+create table t2 (pk1 int, pk2 int, primary key(pk1, pk2));
+insert into t1 values (1,1), (2,2), (1,3), (2, 4), (1, 5), (2, 6), (1, 7), (2, 8);
+insert into t2 values (1,1), (2,2), (1,3), (2, 4), (1, 5), (2, 6), (1, 7), (2, 8);
+# this should be a remote join with join cond pushed down to remote
+--sorted_result
+select * from t1, t2 where t1.pk1 = t2.pk1 and t1.pk1 > 0 and t1.pk1 < 5;
+
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings

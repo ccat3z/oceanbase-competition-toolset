@@ -1,0 +1,580 @@
+drop table if exists t0,t1,t2,t3,t4,t5,test_22;
+set ob_enable_index_direct_select=1;
+alter system set merger_check_interval = '10s';
+create table t1 (
+grp int,
+a bigint,
+c char(10) NOT NULL default '',
+primary key(grp,a,c)
+) ;
+INSERT INTO t1 VALUES (1,1,'a'),(2,2,'b'),(2,3,'c'),(3,4,'E'),(3,5,'C'),(3,6,'D');
+create table t2 (id int, a bigint not null, c char(10), d int, primary key (a));
+insert into t2 values (1,1,'a',1),(3,4,'A',4),(3,5,'B',5),(3,6,'C',6),(4,7,'D',7);
+select t1.*,t2.* from t1 , t2 where t1.a=t2.a;
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+3	4	E	3	4	A	4
+3	5	C	3	5	B	5
+3	6	D	3	6	C	6
+select t1.*,t2.* from t1 left join t2 on (t1.a=t2.a) order by t1.grp,t1.a,t2.c;
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+2	2	b	NULL	NULL	NULL	NULL
+2	3	c	NULL	NULL	NULL	NULL
+3	4	E	3	4	A	4
+3	5	C	3	5	B	5
+3	6	D	3	6	C	6
+select t1.*,t2.* from t1 left join t2 on t1.a = t2.a;
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+2	2	b	NULL	NULL	NULL	NULL
+2	3	c	NULL	NULL	NULL	NULL
+3	4	E	3	4	A	4
+3	5	C	3	5	B	5
+3	6	D	3	6	C	6
+select t1.*,t2.* from t1 left join t2 on t1.a=t2.a;
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+2	2	b	NULL	NULL	NULL	NULL
+2	3	c	NULL	NULL	NULL	NULL
+3	4	E	3	4	A	4
+3	5	C	3	5	B	5
+3	6	D	3	6	C	6
+select t1.*,t2.* from t1 left join t2 on t1.a=t2.a and t1.c = t2.c;
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+2	2	b	NULL	NULL	NULL	NULL
+2	3	c	NULL	NULL	NULL	NULL
+3	4	E	NULL	NULL	NULL	NULL
+3	5	C	NULL	NULL	NULL	NULL
+3	6	D	NULL	NULL	NULL	NULL
+select t1.*,t2.* from t1 left join t2 on t1.c=t2.c order by grp, t1.a, t1.c;
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+1	1	a	3	4	A	4
+2	2	b	3	5	B	5
+2	3	c	3	6	C	6
+3	4	E	NULL	NULL	NULL	NULL
+3	5	C	3	6	C	6
+3	6	D	4	7	D	7
+select t1.*,t2.* from t1 left join t2 on (t1.a=t2.a) where t2.id=3;
+grp	a	c	id	a	c	d
+3	4	E	3	4	A	4
+3	5	C	3	5	B	5
+3	6	D	3	6	C	6
+select t1.*,t2.* from t1 left join t2 on (t1.a=t2.a) where t2.id is null order by grp;
+grp	a	c	id	a	c	d
+2	2	b	NULL	NULL	NULL	NULL
+2	3	c	NULL	NULL	NULL	NULL
+select t1.*,t2.*,t3.a from t1 left join t2 on (t1.a=t2.a) left join t1 as t3 on (t2.a=t3.a) order by grp, t1.a, t1.c;
+grp	a	c	id	a	c	d	a
+1	1	a	1	1	a	1	1
+2	2	b	NULL	NULL	NULL	NULL	NULL
+2	3	c	NULL	NULL	NULL	NULL	NULL
+3	4	E	3	4	A	4	4
+3	5	C	3	5	B	5	5
+3	6	D	3	6	C	6	6
+select t1.*,t2.*,t3.a from t1 left join t2 on (t3.a=t2.a) left join t1 as t3 on (t1.a=t3.a);
+ERROR 42S22: Unknown column 't3.a' in 'on clause'
+select t1.*,t2.*,t3.a from t1 left join t2 on (t3.a=t2.a) left join t1 as t3 on (t2.a=t3.a);
+ERROR 42S22: Unknown column 't3.a' in 'on clause'
+select t1.*,t2.* from t1 inner join t2 on (t1.a=t2.a);
+grp	a	c	id	a	c	d
+1	1	a	1	1	a	1
+3	4	E	3	4	A	4
+3	5	C	3	5	B	5
+3	6	D	3	6	C	6
+drop table t1,t2;
+create table t1 (
+usr_id INT NOT NULL,
+uniq_id INT NOT NULL AUTO_INCREMENT,
+start_num INT NOT NULL DEFAULT 1,
+increment INT NOT NULL DEFAULT 1,
+PRIMARY KEY (uniq_id)
+);
+create index usr_uniq_idx on t1(usr_id, uniq_id);
+create index uniq_usr_idx on t1(uniq_id, usr_id);
+create table t2 (
+id INT NOT NULL DEFAULT 0,
+usr2_id INT NOT NULL DEFAULT 0,
+max INT NOT NULL DEFAULT 0,
+c_amount INT NOT NULL DEFAULT 0,
+d_max INT NOT NULL DEFAULT 0,
+d_num INT NOT NULL DEFAULT 0,
+orig_time INT NOT NULL DEFAULT 0,
+c_time INT NOT NULL DEFAULT 0,
+active varchar(10) NOT NULL,
+PRIMARY KEY (id,usr2_id)
+);
+create index id_idx on t2(id);
+create index usr2_idx on t2(usr2_id);
+INSERT INTO t1 VALUES (3,1,0,50),(3,2,0,200),(3,3,0,25),(3,4,0,84676),(3,5,0,235),(3,6,0,10),(3,7,0,3098),(3,8,0,2947),(3,9,0,8987),(3,10,0,8347654),(3,11,0,20398),(3,12,0,8976),(3,13,0,500),(3,14,0,198);
+SELECT t1.usr_id,t1.uniq_id,t1.increment,
+t2.usr2_id,t2.c_amount,t2.max
+FROM t1
+LEFT JOIN t2 ON t2.id = t1.uniq_id
+WHERE t1.uniq_id = 4
+ORDER BY t2.c_amount;
+usr_id	uniq_id	increment	usr2_id	c_amount	max
+3	4	84676	NULL	NULL	NULL
+SELECT t1.usr_id,t1.uniq_id,t1.increment,
+t2.usr2_id,t2.c_amount,t2.max
+FROM t2
+RIGHT JOIN t1 ON t2.id = t1.uniq_id
+WHERE t1.uniq_id = 4
+ORDER BY t2.c_amount;
+usr_id	uniq_id	increment	usr2_id	c_amount	max
+3	4	84676	NULL	NULL	NULL
+INSERT INTO t2 VALUES (2,3,3000,6000,0,0,746584,837484,'yes');
+INSERT INTO t2 VALUES (7,3,1000,2000,0,0,746294,937484,'yes');
+SELECT t1.usr_id,t1.uniq_id,t1.increment,t2.usr2_id,t2.c_amount,t2.max FROM t1 LEFT JOIN t2 ON t2.id = t1.uniq_id WHERE t1.uniq_id = 4 ORDER BY t2.c_amount;
+usr_id	uniq_id	increment	usr2_id	c_amount	max
+3	4	84676	NULL	NULL	NULL
+SELECT t1.usr_id,t1.uniq_id,t1.increment,t2.usr2_id,t2.c_amount,t2.max FROM t1 LEFT JOIN t2 ON t2.id = t1.uniq_id WHERE t1.uniq_id = 4 GROUP BY t2.c_amount;
+usr_id	uniq_id	increment	usr2_id	c_amount	max
+3	4	84676	NULL	NULL	NULL
+SELECT t1.usr_id,t1.uniq_id,t1.increment,t2.usr2_id,t2.c_amount,t2.max FROM t1 LEFT JOIN t2 ON t2.id = t1.uniq_id WHERE t1.uniq_id = 4;
+usr_id	uniq_id	increment	usr2_id	c_amount	max
+3	4	84676	NULL	NULL	NULL
+drop table t1,t2;
+create table t1 (
+id smallint NOT NULL auto_increment,
+name char(60) DEFAULT '' NOT NULL,
+PRIMARY KEY (id)
+);
+INSERT INTO t1 VALUES (1,'Antonio Paz');
+INSERT INTO t1 VALUES (2,'Lilliana Angelovska');
+INSERT INTO t1 VALUES (3,'Thimble Smith');
+create table t2 (
+id smallint NOT NULL auto_increment,
+owner smallint DEFAULT '0' NOT NULL,
+name char(60),
+PRIMARY KEY (id)
+);
+INSERT INTO t2 VALUES (1,1,'El Gato');
+INSERT INTO t2 VALUES (2,1,'Perrito');
+INSERT INTO t2 VALUES (3,3,'Happy');
+select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner);
+name	name	id
+Antonio Paz	El Gato	1
+Antonio Paz	Perrito	2
+Lilliana Angelovska	NULL	NULL
+Thimble Smith	Happy	3
+select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner) where t2.id is null;
+name	name	id
+Lilliana Angelovska	NULL	NULL
+explain select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner) where t2.id is null;
+explain select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner) where t2.name is null;
+select count(*) from t1 left join t2 on (t1.id = t2.owner);
+count(*)
+4
+select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner);
+name	name	id
+Antonio Paz	El Gato	1
+Antonio Paz	Perrito	2
+Lilliana Angelovska	NULL	NULL
+Thimble Smith	Happy	3
+select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner) where t2.id is null;
+name	name	id
+Lilliana Angelovska	NULL	NULL
+explain select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner) where t2.id is null;
+explain select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner) where t2.name is null;
+select count(*) from t2 right join t1 on (t1.id = t2.owner);
+count(*)
+4
+select t1.name, t2.name, t2.id,t3.id from t2 right join t1 on (t1.id = t2.owner) left join t1 as t3 on t3.id=t2.owner order by t1.name;
+name	name	id	id
+Antonio Paz	El Gato	1	1
+Antonio Paz	Perrito	2	1
+Lilliana Angelovska	NULL	NULL	NULL
+Thimble Smith	Happy	3	3
+select t1.name, t2.name, t2.id,t3.id from t1 right join t2 on (t1.id = t2.owner) right join t1 as t3 on t3.id=t2.owner;
+name	name	id	id
+Antonio Paz	El Gato	1	1
+Antonio Paz	Perrito	2	1
+NULL	NULL	NULL	2
+Thimble Smith	Happy	3	3
+select t1.name, t2.name, t2.id, t2.owner, t3.id from t1 left join t2 on (t1.id = t2.owner) right join t1 as t3 on t3.id=t2.owner;
+name	name	id	owner	id
+Antonio Paz	El Gato	1	1	1
+Antonio Paz	Perrito	2	1	1
+NULL	NULL	NULL	NULL	2
+Thimble Smith	Happy	3	3	3
+drop table t1,t2;
+create table t1 (id int not null primary key, str char(10));
+create index idx on t1(str);
+alter system major freeze;
+insert into t1 values (1, null), (2, null), (3, 'foo'), (4, 'bar');
+select * from t1 where str is not null order by id;
+id	str
+3	foo
+4	bar
+select * from t1 where str is null;
+id	str
+1	NULL
+2	NULL
+drop table t1;
+create table t1 (n int, m int, o int, primary key(n,m,o));
+create table t2 (n int not null, m int, o int, primary key(n));
+insert into t1 values (1, 2, 11), (1, 2, 7), (2, 2, 8), (1,2,9),(1,3,9);
+insert into t2 values (1, 2, 3),(2, 2, 8), (4,3,9),(3,2,10);
+select t1.*, t2.* from t1 left join t2 on t1.n = t2.n and
+t1.m = t2.m where t1.n = 1;
+n	m	o	n	m	o
+1	2	11	1	2	3
+1	2	7	1	2	3
+1	2	9	1	2	3
+1	3	9	NULL	NULL	NULL
+select t1.*, t2.* from t1 left join t2 on t1.n = t2.n and
+t1.m = t2.m where t1.n = 1 order by t1.o;
+n	m	o	n	m	o
+1	2	11	1	2	3
+1	2	7	1	2	3
+1	2	9	1	2	3
+1	3	9	NULL	NULL	NULL
+drop table t1,t2;
+create table t1 (id1 INT NOT NULL PRIMARY KEY, dat1 CHAR(1), id2 INT);
+INSERT INTO t1 VALUES (1,'a',1);
+INSERT INTO t1 VALUES (2,'b',1);
+INSERT INTO t1 VALUES (3,'c',2);
+create table t2 (id2 INT NOT NULL PRIMARY KEY, dat2 CHAR(1));
+INSERT INTO t2 VALUES (1,'x');
+INSERT INTO t2 VALUES (2,'y');
+INSERT INTO t2 VALUES (3,'z');
+SELECT t2.id2 FROM t2 LEFT OUTER JOIN t1 ON t1.id2 = t2.id2 WHERE id1 IS NULL;
+id2
+3
+drop table if exists t1,t2,t3;
+create table t1 ( color varchar(20) primary key, name varchar(20) );
+insert into t1 values ( 'red', 'apple' );
+insert into t1 values ( 'yellow', 'banana' );
+insert into t1 values ( 'green', 'lime' );
+insert into t1 values ( 'black', 'grape' );
+insert into t1 values ( 'blue', 'blueberry' );
+create table t2 ( count int primary key, color varchar(20));
+insert into t2 values (10, 'green');
+insert into t2 values (5, 'black');
+insert into t2 values (15, 'white');
+insert into t2 values (7, 'green');
+select * from t1;
+color	name
+black	grape
+blue	blueberry
+green	lime
+red	apple
+yellow	banana
+select * from t2;
+count	color
+5	black
+7	green
+10	green
+15	white
+select t2.count, t1.name from t2 inner join t1 on t1.color = t2.color;
+count	name
+10	lime
+5	grape
+7	lime
+create table t3 ( color varchar(20) primary key, name varchar(20) );
+insert into t3 values ( 'red', 'apple' );
+insert into t3 values ( 'yellow', 'banana' );
+insert into t3 values ( 'green', 'lime' );
+insert into t3 values ( 'black', 'grape' );
+insert into t3 values ( 'blue', 'blueberry' );
+select * from t1 left join t2 on t1.color = t2.color left join t3 on t1.color = t2.color;
+color	name	count	color	color	name
+black	grape	5	black	black	grape
+black	grape	5	black	blue	blueberry
+black	grape	5	black	green	lime
+black	grape	5	black	red	apple
+black	grape	5	black	yellow	banana
+blue	blueberry	NULL	NULL	NULL	NULL
+green	lime	10	green	black	grape
+green	lime	10	green	blue	blueberry
+green	lime	10	green	green	lime
+green	lime	10	green	red	apple
+green	lime	10	green	yellow	banana
+green	lime	7	green	black	grape
+green	lime	7	green	blue	blueberry
+green	lime	7	green	green	lime
+green	lime	7	green	red	apple
+green	lime	7	green	yellow	banana
+red	apple	NULL	NULL	NULL	NULL
+yellow	banana	NULL	NULL	NULL	NULL
+select t1.color,t1.name,t2.color from t1 left join t2 on t1.color = t2.color;
+color	name	color
+black	grape	black
+blue	blueberry	NULL
+green	lime	green
+green	lime	green
+red	apple	NULL
+yellow	banana	NULL
+drop table if exists t1,t2;
+create table t1 (
+id int,
+pid int,
+rep_del tinyint,
+primary key (id)
+);
+INSERT INTO t1 VALUES (1,NULL,NULL);
+INSERT INTO t1 VALUES (2,1,NULL);
+select * from t1 LEFT JOIN t1 t2 ON (t1.id=t2.pid) AND t2.rep_del IS NULL;
+id	pid	rep_del	id	pid	rep_del
+1	NULL	NULL	2	1	NULL
+2	1	NULL	NULL	NULL	NULL
+create index rep_del ON t1(rep_del);
+select * from t1 LEFT JOIN t1 t2 ON (t1.id=t2.pid) AND t2.rep_del IS NULL;
+id	pid	rep_del	id	pid	rep_del
+1	NULL	NULL	2	1	NULL
+2	1	NULL	NULL	NULL	NULL
+drop table t1;
+create table t1 (
+id int DEFAULT '0' NOT NULL,
+name varchar(50) DEFAULT '' NOT NULL,
+primary key (id)
+);
+INSERT INTO t1 VALUES (1,'yes'),(2,'no');
+create table t2 (
+id int DEFAULT '0' NOT NULL,
+idx int DEFAULT '0' NOT NULL,
+primary key (id,idx)
+);
+INSERT INTO t2 VALUES (1,1);
+explain SELECT * from t1 left join t2 on t1.id=t2.id where t2.id IS NULL;
+SELECT * from t1 left join t2 on t1.id=t2.id where t2.id IS NULL;
+id	name	id	idx
+2	no	NULL	NULL
+drop table t1,t2;
+create table t1 (bug_id mediumint primary key, reporter mediumint);
+create table t2 (bug_id mediumint primary key, who mediumint);
+create index whoidx on t2(who);
+insert into t2 values (1,1),(2,2);
+insert into t1 values (3,1),(4,1);
+SELECT * FROM t1 LEFT JOIN t2 ON (t1.bug_id =  t2.bug_id AND  t2.who = 2) WHERE  (t1.reporter = 2 OR t2.who = 2);
+bug_id	reporter	bug_id	who
+drop table t1,t2;
+create table t1 (fooID smallint auto_increment, primary key (fooID));
+create table t2 (fooID smallint not null, barID smallint not null, primary key (fooID,barID));
+insert into t1 (fooID) values (10),(20),(30);
+insert into t2 values (10,1),(20,2),(30,3);
+explain select * from t2 left join t1 on t1.fooID = t2.fooID and t1.fooID = 30;
+select * from t2 left join t1 on t1.fooID = t2.fooID and t1.fooID = 30;
+fooID	barID	fooID
+10	1	NULL
+20	2	NULL
+30	3	30
+drop table t1,t2,t3;
+create table t1 (i int primary key);
+create table t2 (i int primary key);
+create table t3 (i int primary key);
+insert into t1 values(1),(2);
+insert into t2 values(2),(3);
+insert into t3 values(2),(4);
+drop table t1,t2,t3;
+create table t1 (a1 int primary key, a2 int);
+create table t2 (b1 int not null primary key, b2 int);
+create table t3 (c1 int primary key, c2 int);
+insert into t1 values (1,2), (2,2), (3,2);
+insert into t2 values (1,3), (2,3);
+insert into t3 values (2,4),        (3,4);
+select * from t1 left join t2  on  b1 = a1 left join t3  on  c1 = a1  and  b1 is null;
+a1	a2	b1	b2	c1	c2
+1	2	1	3	NULL	NULL
+2	2	2	3	NULL	NULL
+3	2	NULL	NULL	3	4
+explain select * from t1 left join t2  on  b1 = a1 left join t3  on  c1 = a1  and  b1 is null;
+drop table t1, t2, t3;
+create table t1 (
+a int,
+b char(10),
+primary  key (a)
+);
+insert into t1 (a) values (1),(2),(3),(4);
+create table t2 (a int primary key );
+select * from t1 left join t2 on t1.a=t2.a where not (t2.a != t1.a);
+a	b	a
+select * from t1 left join t2 on t1.a=t2.a having not (t2.a != t1.a);
+a	b	a
+drop table t1,t2;
+create table t1 (
+match_id tinyint not null auto_increment,
+home tinyint default '0',
+primary key (match_id)
+);
+insert into t1 values('1', '2');
+create table t2 (
+player_id tinyint default '0',
+match_1_h tinyint default '0',
+primary key  (player_id)
+);
+insert into t2 values('1', '5');
+insert into t2 values('2', '9');
+insert into t2 values('3', '3');
+insert into t2 values('4', '7');
+insert into t2 values('5', '6');
+insert into t2 values('6', '8');
+insert into t2 values('7', '4');
+insert into t2 values('8', '12');
+insert into t2 values('9', '11');
+insert into t2 values('10', '10');
+explain select s.*, '*', m.*, (s.match_1_h - m.home) UUX from  (t2 s left join t1 m on m.match_id = s.player_id)  order by m.match_id desc;
+select s.*, '*', m.*, (s.match_1_h - m.home) UUX from (t2 s left join t1 m on m.match_id = s.player_id) order by m.match_id desc, player_id asc;
+player_id	match_1_h	*	match_id	home	UUX
+1	5	*	1	2	3
+10	10	*	NULL	NULL	NULL
+2	9	*	NULL	NULL	NULL
+3	3	*	NULL	NULL	NULL
+4	7	*	NULL	NULL	NULL
+5	6	*	NULL	NULL	NULL
+6	8	*	NULL	NULL	NULL
+7	4	*	NULL	NULL	NULL
+8	12	*	NULL	NULL	NULL
+9	11	*	NULL	NULL	NULL
+explain select s.*, '*', m.*, (s.match_1_h - m.home) UUX from (t2 s left join t1 m on m.match_id = s.player_id) order by UUX desc;
+select s.*, '*', m.*, (s.match_1_h - m.home) UUX from (t2 s left join t1 m on m.match_id = s.player_id) order by UUX desc;
+player_id	match_1_h	*	match_id	home	UUX
+1	5	*	1	2	3
+10	10	*	NULL	NULL	NULL
+2	9	*	NULL	NULL	NULL
+3	3	*	NULL	NULL	NULL
+4	7	*	NULL	NULL	NULL
+5	6	*	NULL	NULL	NULL
+6	8	*	NULL	NULL	NULL
+7	4	*	NULL	NULL	NULL
+8	12	*	NULL	NULL	NULL
+9	11	*	NULL	NULL	NULL
+drop table t1, t2;
+create table t1 (a int, b int, primary key (a, b));
+create table t2 (a int, b int, c int, primary key (a, b));
+insert into t1 values (1, 10), (1,11), (2,10), (2,11);
+insert into t2 values (1,10,3);
+select t1.a, t1.b, t2.c from t1 left join t2
+on t1.a=t2.a and t1.b=t2.b and t2.c=3
+where t1.a=1 and t2.c is null;
+a	b	c
+1	11	NULL
+select t1.a, t1.b, t2.c from t1 left join t2 on t1.a=t2.a and t1.b=t2.b and t2.c=3;
+a	b	c
+1	10	3
+1	11	NULL
+2	10	NULL
+2	11	NULL
+drop table t1, t2;
+create table t1 (
+ts_id bigint,
+inst_id tinyint,
+flag_name varchar(64),
+flag_value varchar(500),
+primary key (ts_id,inst_id,flag_name)
+)  ;
+create table t2 (
+ts_id bigint,
+inst_id tinyint,
+flag_name varchar(64),
+flag_value varchar(40),
+primary key (ts_id,inst_id,flag_name)
+)  ;
+INSERT INTO t1 VALUES
+(111056548820001, 0, 'flag1', NULL),
+(111056548820001, 0, 'flag2', NULL),
+(2, 0, 'other_flag', NULL);
+INSERT INTO t2 VALUES
+(111056548820001, 3, 'flag1', 'sss');
+SELECT t1.flag_name,t2.flag_value 
+FROM t1 LEFT JOIN t2 
+ON (t1.ts_id = t2.ts_id AND t1.flag_name = t2.flag_name AND
+t2.inst_id = 3) 
+WHERE t1.inst_id = 0 AND t1.ts_id=111056548820001 AND
+t2.flag_value IS  NULL;
+flag_name	flag_value
+flag2	NULL
+SELECT t1.flag_name,t2.flag_value
+FROM t2 LEFT JOIN t1
+ON (t1.ts_id = t2.ts_id AND t1.flag_name = t2.flag_name AND
+t2.inst_id = 3)
+WHERE t1.inst_id = 0 AND t1.ts_id=111056548820001 AND
+t2.flag_value IS  NULL;
+flag_name	flag_value
+DROP TABLE t1,t2;
+create table t1 (
+id int NOT NULL auto_increment,
+text_id int default NULL,
+PRIMARY KEY  (id)
+);
+INSERT INTO t1 VALUES('1', '0');
+INSERT INTO t1 VALUES('2', '10');
+create table t2 (
+text_id char(3) NOT NULL default '',
+language_id char(3) NOT NULL default '',
+text_data char(50),
+PRIMARY KEY  (text_id,language_id)
+);
+INSERT INTO t2 VALUES('0', 'EN', '0-EN');
+INSERT INTO t2 VALUES('0', 'SV', '0-SV');
+INSERT INTO t2 VALUES('10', 'EN', '10-EN');
+INSERT INTO t2 VALUES('10', 'SV', '10-SV');
+SELECT t1.id, t1.text_id, t2.text_data
+FROM t1 LEFT JOIN t2
+ON t1.text_id = t2.text_id
+AND t2.language_id = 'SV'
+WHERE (t1.id >0 OR t2.text_data like '%');
+id	text_id	text_data
+1	0	0-SV
+2	10	10-SV
+explain SELECT t1.id, t1.text_id, t2.text_data FROM t1 LEFT JOIN t2  ON t1.text_id = t2.text_id  AND t2.language_id = 'SV' WHERE (t1.id >0 OR t2.text_data like '%');
+DROP TABLE t1, t2;
+create table t0 (a0 int PRIMARY KEY);
+create table t1 (a1 int PRIMARY KEY);
+create table t2 (a2 int primary key);
+create table t3 (a3 int primary key);
+INSERT INTO t0 VALUES (1);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1), (2);
+INSERT INTO t3 VALUES (1), (2);
+SELECT * FROM t1 LEFT JOIN t2 ON a1=0 and t1.a1=t2.a2;
+a1	a2
+1	NULL
+EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON a1=0 and t1.a1=t2.a2;
+SELECT * FROM t1 LEFT JOIN (t2,t3) ON a1=0 t1.a1=t2.a2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your OceanBase version for the right syntax to use near 't1.a1=t2.a2' at line 1
+EXPLAIN SELECT * FROM t1 LEFT JOIN (t2,t3) ON a1=0;
+SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=0 WHERE a0=a1;
+a0	a1	a2	a3
+1	1	NULL	NULL
+EXPLAIN SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=0 WHERE a0=a1;
+SELECT * FROM t1 LEFT JOIN t2 b ON a1=0 and t1.a1=b.a2;
+a1	a2
+1	NULL
+explain SELECT * FROM t1 LEFT JOIN t2 b ON a1=0 and t1.a1=b.a2;
+SELECT * FROM t1 a LEFT JOIN t2 b ON a.a1=0 and a.a1=b.a2;
+a1	a2
+1	NULL
+explain SELECT * FROM t1 a LEFT JOIN t2 b ON a.a1=0 and a.a1=b.a2;
+INSERT INTO t0 VALUES (0);
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=5 WHERE a2=a1 AND a2=1;
+a0	a1	a2	a3
+EXPLAIN SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=5 WHERE a2=a1 AND a2=1;
+SELECT * FROM  t1 LEFT JOIN t2 ON a1=5 WHERE a2=a1 AND a2=1;
+a1	a2
+SELECT * FROM  t1 LEFT JOIN t2 ON a1=5 and a2=a1;
+a1	a2
+0	NULL
+1	NULL
+explain SELECT * FROM  t1 LEFT JOIN t2 ON a1=5 and a2=a1;
+SELECT * FROM  t1 LEFT JOIN t2 ON a1=0 and a2=a1 where  a2=1;
+a1	a2
+create table test_22(pk int primary key, a int);
+insert into test_22 values(1, 1), (2, 2);
+select /*+ use_nl(a, b)*/ * from test_22 as a left outer join test_22 as b on a.pk=b.pk limit 1;
+pk	a	pk	a
+1	1	1	1
+drop table t1,t2;
+create table t1(a int primary key, b int);
+create table t2(a int primary key, b int);
+insert into t1 value(1,1),(2,2);
+insert into t2 value(3,3),(2,2);
+select t1.a, t2.a from t1 full outer join t2 on t1.a = t2.a order by t1.a, t2.a;
+a	a
+NULL	3
+1	NULL
+2	2

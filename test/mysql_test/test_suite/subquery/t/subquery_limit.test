@@ -1,0 +1,23 @@
+# tags: optimizer
+
+--disable_warnings
+drop table if exists t;
+--enable_warnings
+--disable_abort_on_error
+# init env
+
+create table t (c1 int primary key);
+insert into t values (1), (2);
+
+--explain_protocol 0
+--result_format 4
+
+# start tests
+set ob_enable_transformation='off';
+(select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum(c1) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t);
+
+set ob_enable_transformation='on';
+(select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum((select sum(c1) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t)) from t);
+
+# clean env
+drop table t;

@@ -1,0 +1,81 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: px, for update
+--result_format 4
+
+# 1.非分区表单表查询
+#  1-1.并行度为1
+#  1-2.并行度大于1 
+# 2.分区表单表查询
+#  2-1.不带where条件
+#  2-2.带where条件指定多分区，不指定并行度
+#  2-3.带where条件指定单分区，不指定并行度
+#  2-4.带where条件指定单分区，指定并行度大于1
+# 3.分区表与非分区表之间join
+# 4.分区表与分区表之间join
+#  4-1.partition wise
+#  4-2.非partition wise
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1 (c1 int, c2 int) partition by hash(c1) partitions 4;
+create table t2 (c1 int, c2 float) partition by hash(c1) partitions 4;
+create table t3 (c1 float);
+
+insert into t1 values(0,0);
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+insert into t1 values(3,3);
+
+insert into t2 values(0,0);
+insert into t2 values(2,2);
+insert into t2 values(4,4);
+insert into t2 values(6,6);
+
+insert into t3 values(0);
+insert into t3 values(3);
+insert into t3 values(6);
+insert into t3 values(9);
+
+# 1.非分区表单表查询
+#  1-1.并行度为1
+--sorted_result
+select * from t3 for update;
+
+#  1-2.并行度大于1 
+--sorted_result
+select /*+parallel(1000)*/ * from t3 for update;
+
+# 2.分区表单表查询
+#  2-1.不带where条件
+--sorted_result
+select * from t1 for update;
+
+#  2-2.带where条件指定多分区，不指定并行度
+--sorted_result
+select * from t1 where t1.c1>0 for update;
+
+#  2-3.带where条件指定单分区，不指定并行度
+--sorted_result
+select * from t1 where t1.c1=0 and t1.c1=1 for update;
+
+--sorted_result
+select /*+parallel(1000)*/ * from t1 where t1.c1=0 and t1.c1=1 for update;
+
+# 3.分区表与非分区表之间join
+--sorted_result
+select * from t1 join t3 on t1.c1=t3.c1 for update;
+
+# 4.分区表与分区表之间join
+#  4-1.partition wise
+--sorted_result
+select * from t1 join t2 on t1.c1=t2.c1 for update;
+
+#  4-2.非partition wise
+--sorted_result
+select * from t1 join t2 on t1.c1=t2.c2 for update;
+
+drop table if exists t1, t2, t3;

@@ -1,0 +1,43 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+# description: 测试hash join左表为空时避免对右表的扫描
+
+--disable_warnings
+DROP DATABASE IF EXISTS HJ_LEFT_EMPTY;
+--enable_warnings
+CREATE DATABASE HJ_LEFT_EMPTY;
+USE HJ_LEFT_EMPTY;
+
+create table T1 (c1 int, c2 int);
+create table T2 (d1 int, d2 int);
+
+--disable_query_log
+--let $count=0
+--let $prefix=0001
+while($count < 100)
+{
+  --let $batch=0
+  --let $id=$count$prefix
+  --let $stmt=INSERT INTO T2 VALUES($count*1000+$batch, $count*1000+$batch)
+  --let $batch=1
+  while($batch < 1000)
+  {
+    --let $value=,($count*10000+$batch, $count*10000+$batch)
+    --let $stmt=$stmt$value
+    inc $batch;
+    inc $id;
+  }
+  eval $stmt;
+  inc $count;
+}
+--enable_query_log
+
+explain basic select /*+ use_hash(T1 T2) leading(T1 T2) */ * from T1, T2 where T1.c1 = T2.d1; 
+
+select /*+ use_hash(T1 T2) leading(T1 T2) */ * from T1, T2 where T1.c1 = T2.d1; 
+
+insert into T1 values (12345678, 12345678);
+
+select /*+ use_hash(T1 T2) leading(T1 T2) */ * from T1, T2 where T1.c1 = T2.d1; 

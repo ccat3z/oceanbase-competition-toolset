@@ -1,0 +1,81 @@
+drop table if exists t1,t2;
+CREATE TABLE t1 (a int primary key, b int, c int, d int, unique key uniq_idx_b_c(b,c));
+CREATE TABLE t2 (a int, b int, c int);
+INSERT/*insert_trace*/ INTO t1 VALUES (1,1,0,1);
+INSERT/*insert_trace*/ INTO t1 VALUES (2,2,0,1);
+INSERT/*insert_trace*/ INTO t1 VALUES (3,2,3,1);
+INSERT/*insert_trace*/ INTO t1 VALUES (4,4,5,1);
+INSERT/*insert_trace*/ INTO t1 VALUES (5,4,6,1);
+INSERT/*insert_trace*/ INTO t1 VALUES (6,5,6,1);
+INSERT/*insert_trace*/ INTO t2 VALUES (1,3,0);
+INSERT/*insert_trace*/ INTO t2 VALUES (1,2,0);
+INSERT/*insert_trace*/ INTO t2 VALUES (2,2,0);
+INSERT/*insert_trace*/ INTO t2 VALUES (2,3,1);
+INSERT/*insert_trace*/ INTO t2 VALUES (3,4,2);
+INSERT/*insert_trace*/ INTO t2 VALUES (5,4,6);
+INSERT/*insert_trace*/ INTO t2 VALUES (5,4,6);
+INSERT/*insert_trace*/ INTO t2 VALUES (5,5,0);
+INSERT/*insert_trace*/ INTO t2 VALUES (6,6,0);
+INSERT/*insert_trace*/ INTO t2 VALUES (7,6,0);
+INSERT/*insert_trace*/ INTO t2 VALUES (7,7,0);
+explain basic select /*+use_merge(t1, t2) leading(t1,t2) */* from t1, t2 where t1.a = t2.a;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |MERGE JOIN  |    |
+|1 | TABLE SCAN |t1  |
+|2 | SORT       |    |
+|3 |  TABLE SCAN|t2  |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.a], [t1.b], [t1.c], [t1.d], [t2.a], [t2.b], [t2.c]), filter(nil), 
+      equal_conds([t1.a = t2.a]), other_conds(nil)
+  1 - output([t1.a], [t1.b], [t1.c], [t1.d]), filter(nil), 
+      access([t1.a], [t1.b], [t1.c], [t1.d]), partitions(p0)
+  2 - output([t2.a], [t2.b], [t2.c]), filter(nil), sort_keys([t2.a, ASC])
+  3 - output([t2.a], [t2.b], [t2.c]), filter(nil), 
+      access([t2.a], [t2.b], [t2.c]), partitions(p0)
+
+select /*+use_merge(t1, t2) leading(t1,t2) */* from t1, t2 where t1.a = t2.a;
+a	b	c	d	a	b	c
+1	1	0	1	1	3	0
+1	1	0	1	1	2	0
+2	2	0	1	2	2	0
+2	2	0	1	2	3	1
+3	2	3	1	3	4	2
+5	4	6	1	5	4	6
+5	4	6	1	5	4	6
+5	4	6	1	5	5	0
+6	5	6	1	6	6	0
+explain basic select /*+use_merge(t1, t2) leading(t1,t2) index(t1 uniq_idx_b_c)*/* from t1, t2 where t1.b = t2.b and t1.c = t2.c;
+Query Plan
+==================================
+|ID|OPERATOR    |NAME            |
+----------------------------------
+|0 |MERGE JOIN  |                |
+|1 | TABLE SCAN |t1(uniq_idx_b_c)|
+|2 | SORT       |                |
+|3 |  TABLE SCAN|t2              |
+==================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.a], [t1.b], [t1.c], [t1.d], [t2.a], [t2.b], [t2.c]), filter(nil), 
+      equal_conds([t1.b = t2.b], [t1.c = t2.c]), other_conds(nil)
+  1 - output([t1.b], [t1.c], [t1.a], [t1.d]), filter(nil), 
+      access([t1.b], [t1.c], [t1.a], [t1.d]), partitions(p0)
+  2 - output([t2.a], [t2.b], [t2.c]), filter(nil), sort_keys([t2.b, ASC], [t2.c, ASC])
+  3 - output([t2.b], [t2.c], [t2.a]), filter(nil), 
+      access([t2.b], [t2.c], [t2.a]), partitions(p0)
+
+select /*+use_merge(t1, t2) leading(t1,t2) index(t1 uniq_idx_b_c)*/* from t1, t2 where t1.b = t2.b and t1.c = t2.c;
+a	b	c	d	a	b	c
+2	2	0	1	1	2	0
+2	2	0	1	2	2	0
+5	4	6	1	5	4	6
+5	4	6	1	5	4	6
+drop table t1;
+drop table t2;

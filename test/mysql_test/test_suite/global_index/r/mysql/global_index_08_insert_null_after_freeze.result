@@ -1,0 +1,39 @@
+create table t1(c1 int, c2 char(255), c3 int, c4 varchar(1024), primary key(c1,c2));
+create index i1 on t1(c3) partition by hash(c3) partitions 2;
+create index i2 on t1(c3,c4) partition by hash(c3) partitions 2;
+insert into t1 values(1,'a',1,'a');
+insert into t1 values(2,'b',null,null);
+insert into t1 values(3,'c',null,'c');
+insert into t1 values(4,'d',4,null);
+insert into t1 values(5,'ll',5,'e');
+insert into t1 values(6,'null',6,'f');
+insert into t1 values(7,'ull',7,'g');
+select * from t1;
+c1	c2	c3	c4
+1	a	1	a
+2	b	NULL	NULL
+3	c	NULL	c
+4	d	4	NULL
+5	ll	5	e
+6	null	6	f
+7	ull	7	g
+table_name	index_status
+index_name	2
+index_name	2
+c1	c2	c3
+2	b	NULL
+3	c	NULL
+4	d	4
+6	null	6
+1	a	1
+5	ll	5
+7	ull	7
+c1	c2	c3	c4
+2	b	NULL	NULL
+3	c	NULL	c
+4	d	4	NULL
+6	null	6	f
+1	a	1	a
+5	ll	5	e
+7	ull	7	g
+drop table t1;

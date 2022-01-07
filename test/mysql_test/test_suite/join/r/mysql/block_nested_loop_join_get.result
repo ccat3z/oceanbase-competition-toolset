@@ -1,0 +1,56 @@
+drop table if exists t1,t2;
+create table t1(c1 int primary key, c2 int);
+insert into t1 values (1,1),(2,2),(3,3),(4,2),(5,7);
+create table t2(c1 int primary key, c2 int);
+insert into t2 values (1,1),(2,4),(5,6),(4,1);
+explain basic select /*+use_bnl(t1,t2)*/* from t1, t2 where t1.c1 = t2.c1;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|t1  |
+|2 | TABLE SCAN|t2  |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.c1], [t1.c2], [t2.c1], [t2.c2]), filter(nil), 
+      equal_conds([t1.c1 = t2.c1]), other_conds(nil)
+  1 - output([t1.c1], [t1.c2]), filter(nil), 
+      access([t1.c1], [t1.c2]), partitions(p0)
+  2 - output([t2.c1], [t2.c2]), filter(nil), 
+      access([t2.c1], [t2.c2]), partitions(p0)
+
+explain basic select /*+use_bnl(t1,t2)*/* from t1, t2 where t1.c1 = t2.c1 + t2.c2;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |MERGE JOIN  |    |
+|1 | TABLE SCAN |t1  |
+|2 | SORT       |    |
+|3 |  TABLE SCAN|t2  |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.c1], [t1.c2], [t2.c1], [t2.c2]), filter(nil), 
+      equal_conds([t1.c1 = t2.c1 + t2.c2]), other_conds(nil)
+  1 - output([t1.c1], [t1.c2]), filter(nil), 
+      access([t1.c1], [t1.c2]), partitions(p0)
+  2 - output([t2.c1], [t2.c2], [t2.c1 + t2.c2]), filter(nil), sort_keys([t2.c1 + t2.c2, ASC])
+  3 - output([t2.c1], [t2.c2], [t2.c1 + t2.c2]), filter(nil), 
+      access([t2.c1], [t2.c2]), partitions(p0)
+
+select /*+use_bnl(t1,t2)*/* from t1, t2 where t1.c1 = t2.c1;
+c1	c2	c1	c2
+1	1	1	1
+2	2	2	4
+4	2	4	1
+5	7	5	6
+select /*+use_bnl(t1,t2)*/* from t1, t2 where t1.c1 = t2.c1 + t2.c2;
+c1	c2	c1	c2
+2	2	1	1
+5	7	4	1
+drop table t1, t2;

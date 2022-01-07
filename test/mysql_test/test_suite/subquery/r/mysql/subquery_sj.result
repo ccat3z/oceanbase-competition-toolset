@@ -1,0 +1,1925 @@
+drop table if exists t0, t1, t2, t3, t4, t10, t11, t12, t, v, it1, it2, it3, ot1, ot2, ot3;
+create table t1 (a int not null, b int, primary key (a));
+create table t2 (a int not null, primary key (a));
+create table t3 (a int not null, b int, primary key (a));
+insert into t1 values (1,10), (2,20), (3,30),  (4,40);
+insert into t2 values (2), (3), (4), (5);
+insert into t3 values (10,3), (20,4), (30,5);
+select * from t2 where t2.a in (select a from t1);
+a
+2
+3
+4
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+a
+2
+4
+select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+a
+2
+3
+drop table t1, t2, t3;
+create table t1 (a int, b int, index a (a,b));
+create table t2 (a int, index a (a));
+create table t3 (a int, b int, index a (a));
+insert into t1 values (1,10), (2,20), (3,30), (4,40);
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+insert into t2 values (2), (3), (4), (5);
+insert into t3 values (10,3), (20,4), (30,5);
+select * from t2 where t2.a in (select a from t1);
+a
+2
+3
+4
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+a
+2
+4
+select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+a
+2
+3
+insert into t1 values (3,31);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+a
+2
+3
+4
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30 and t1.b <> 31);
+a
+2
+4
+drop table t0, t1, t2, t3;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int, b int);
+insert into t1 values (0,0),(1,1),(2,2);
+create table t2 like t1;
+insert into t2 values (0,0),(1,1),(2,2);
+create table t11(a int, b int);
+create table t10 (pk int, a int, primary key(pk));
+insert into t10 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),(5, 5),(6, 6),(7, 7),(8, 8),(9, 9);
+create table t12 like t10;
+insert into t12 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),(5, 5),(6, 6),(7, 7),(8, 8),(9, 9);
+Flattened because of dependency, t10=func(t1)
+select * from t1 where a in (select pk from t10);
+a	b
+0	0
+1	1
+2	2
+A confluent case of dependency
+select * from t1 where a in (select a from t10 where pk=12);
+a	b
+select * from t1 where a in (select a from t10 where pk=9);
+a	b
+An empty table inside
+select * from t1 where a in (select a from t11);
+a	b
+select * from t1 where a in (select pk from t10) and b in (select pk from t10);
+a	b
+0	0
+1	1
+2	2
+flattening a nested subquery
+select * from t1 where a in (select pk from t10 where t10.a in (select pk from t12));
+a	b
+0	0
+1	1
+2	2
+flattening subquery w/ several tables
+drop table t0, t1, t2;
+drop table t10, t11, t12;
+#
+# Check that subqueries with outer joins or  work for
+# different permutations of const and non-const tables.  (Ref. Bug#46692)
+#
+CREATE TABLE t1 (i INTEGER);
+CREATE TABLE t2 (i INTEGER);
+CREATE TABLE t3 (i INTEGER);
+set @@ob_enable_plan_cache=false;
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	0	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	0	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	0	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	1	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	1	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	1	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	2	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	2	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+0	2	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (0);
+DELETE FROM t2;
+INSERT INTO t1 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	0	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	0	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	0	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	1	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	1	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	1	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	2	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	2	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+1	2	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (0);
+DELETE FROM t2;
+INSERT INTO t1 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	0	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	0	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	0	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+1
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	1	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	1	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	1	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+1
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+1
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	2	0
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (2);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	2	1
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (1);
+SELECT (SELECT COUNT(*) from t1) AS c1,
+(SELECT COUNT(*) from t2) AS c2,
+(SELECT COUNT(*) from t3) AS c3;
+c1	c2	c3
+2	2	2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+i
+1
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+1
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+1
+2
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+1
+2
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+i
+SELECT * FROM t1 WHERE (11) IN
+(SELECT t3.i FROM t2 JOIN t3);
+i
+INSERT INTO t3 VALUES (0);
+DELETE FROM t3;
+INSERT INTO t2 VALUES (0);
+DELETE FROM t2;
+INSERT INTO t1 VALUES (0);
+set @@ob_enable_plan_cache=true;
+DROP TABLE t1, t2, t3;
+create table x1(k int primary key, d1 int, d2 int);
+create table x2(k int primary key, d1 int, d2 int);
+insert into x1 values
+(10,   10,   10),
+(20,   20,   20),
+(21,   20,   null),
+(30,   null, 30),
+(40,   40,   40);
+insert into x2 values
+(10,   10,   10),
+(20,   20,   20),
+(21,   20,   null),
+(30,   null, 30);
+select *
+from x1
+where (d1, d2) in (select d1, d2
+from x2);
+k	d1	d2
+10	10	10
+20	20	20
+select *
+from x1
+where (d1, d2) in (select d1, d2
+from x2) is true;
+k	d1	d2
+10	10	10
+20	20	20
+select *
+from x1
+where (d1, d2) in (select d1, d2
+from x2) is false;
+k	d1	d2
+40	40	40
+select *
+from x1
+where (d1, d2) in (select d1, d2
+from x2) is unknown;
+k	d1	d2
+21	20	NULL
+30	NULL	30
+select *
+from x1
+where d1 in (select d1
+from x2
+where x1.d2=x2.d2);
+k	d1	d2
+10	10	10
+20	20	20
+select *
+from x1
+where d1 in (select d1
+from x2
+where x1.d2=x2.d2) is true;
+k	d1	d2
+10	10	10
+20	20	20
+select *
+from x1
+where d1 in (select d1
+from x2
+where x1.d2=x2.d2) is false;
+k	d1	d2
+21	20	NULL
+40	40	40
+select *
+from x1
+where d1 in (select d1
+from x2
+where x1.d2=x2.d2) is unknown;
+k	d1	d2
+30	NULL	30
+select *
+from x1
+where 1 in (select 1
+from x2
+where x1.d1=x2.d1 and x1.d2=x2.d2);
+k	d1	d2
+10	10	10
+20	20	20
+select *
+from x1
+where 1 in (select 1
+from x2
+where x1.d1=x2.d1 and x1.d2=x2.d2) is true;
+k	d1	d2
+10	10	10
+20	20	20
+select *
+from x1
+where 1 in (select 1
+from x2
+where x1.d1=x2.d1 and x1.d2=x2.d2) is false;
+k	d1	d2
+21	20	NULL
+30	NULL	30
+40	40	40
+select *
+from x1
+where 1 in (select 1
+from x2
+where x1.d1=x2.d1 and x1.d2=x2.d2) is unknown;
+k	d1	d2
+select *
+from x1
+where exists (select *
+from x2
+where x1.d1=x2.d1 and x1.d2=x2.d2);
+k	d1	d2
+10	10	10
+20	20	20
+drop table x1;
+drop table x2;
+CREATE TABLE t1 (
+a int(11) NOT NULL,
+b int(11) NOT NULL,
+c datetime default NULL,
+PRIMARY KEY  (a),
+KEY idx_bc (b,c)
+);
+INSERT INTO t1 VALUES
+(406989,67,'2006-02-23 17:08:46'), (150078,67,'2005-10-26 11:17:45'),
+(406993,67,'2006-02-27 11:20:57'), (245655,67,'2005-12-08 15:59:08'),
+(406994,67,'2006-02-27 11:26:46'), (256,67,NULL),
+(398341,67,'2006-02-20 04:48:44'), (254,67,NULL),(1120,67,NULL),
+(406988,67,'2006-02-23 17:07:22'), (255,67,NULL),
+(398340,67,'2006-02-20 04:38:53'),(406631,67,'2006-02-23 10:49:42'),
+(245653,67,'2005-12-08 15:59:07'),(406992,67,'2006-02-24 16:47:18'),
+(245654,67,'2005-12-08 15:59:08'),(406995,67,'2006-02-28 11:55:00'),
+(127261,67,'2005-10-13 12:17:58'),(406991,67,'2006-02-24 16:42:32'),
+(245652,67,'2005-12-08 15:58:27'),(398545,67,'2006-02-20 04:53:13'),
+(154504,67,'2005-10-28 11:53:01'),(9199,67,NULL),(1,67,'2006-02-23 15:01:35'),
+(223456,67,NULL),(4101,67,NULL),(1133,67,NULL),
+(406990,67,'2006-02-23 18:01:45'),(148815,67,'2005-10-25 15:34:17'),
+(148812,67,'2005-10-25 15:30:01'),(245651,67,'2005-12-08 15:58:27'),
+(154503,67,'2005-10-28 11:52:38');
+drop table if exists t11, t12, t21, t22;
+create table t11 like t1;
+create table t12 like t1;
+create table t21 like t1;
+create table t22 like t1;
+update t22 set c = '2005-12-08 15:58:27' where a = 255;
+select t21.* from t21,t22 where t21.a = t22.a and
+t22.a in (select t12.a from t11, t12 where t11.a in(255,256) and t11.a = t12.a and t11.c is null) and t22.c is null order by t21.a;
+a	b	c
+drop table t1, t11, t12, t21, t22;
+create table t1(a int);
+insert into t1 values (0),(1);
+select (select max(Y.a) from t1 Y where a in (select a from t1 Z) and a < X.a) as subq from t1 X;
+subq
+0
+NULL
+drop table t1;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 like t0;
+insert into t1 select * from t0;
+insert into t1 select a+10 from t0;
+insert into t0 values(2);
+select * from t1 where 2 in (select a from t0);
+a
+0
+1
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+2
+3
+4
+5
+6
+7
+8
+9
+drop table t0, t1;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (kp1 int, kp2 int, c int, filler char(100), key(kp1, kp2));
+insert into t1 select A.a+10*(B.a+10*C.a), 0, 0, 'filler' from t0 A, t0 B, t0 C;
+insert into t1 select * from t1 where kp1 < 20;
+create table t3 (a int);
+insert into t3 select A.a + 10*B.a from t0 A, t0 B;
+select * from t3 where a in (select kp1 from t1 where kp1<20);
+a
+0
+1
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+2
+3
+4
+5
+6
+7
+8
+9
+select * from t3 where a in (select kp1 from t1 where kp1<20) and a<20;
+a
+0
+1
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+2
+3
+4
+5
+6
+7
+8
+9
+create table t4 (pk int primary key);
+insert into t4 select a from t3;
+select * from t3 where a in
+(select t1.kp1 from t1,t4 where kp1<20 and t4.pk=t1.c);
+a
+0
+1
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+2
+3
+4
+5
+6
+7
+8
+9
+drop table t1, t3, t4;
+create table t1 (a int);
+insert into t1 values (0),(0),(0),(1),(1),(1),(2),(2),(2),(3),(3),(3);
+# Attempt to make one test that overflows the heap table when a
+# non-duplicate row is inserted and one test that overflows the
+# heap table when a duplicate record is inserted. Debugging showed
+# that these situations occurred with max_heap_table_size=16384
+# and optimizer_join_cache_level equals 1 and 0, respectively.
+# Finally execute a test that does not overflow the heap table.
+select count(*) from t0 A, t0 B, t0 C
+where C.a in (select a from t1 D);
+count(*)
+400
+show status like 'Created_tmp_disk_tables';
+Variable_name	Value
+select count(*) from t0 A, t0 B, t0 C
+where C.a in (select a from t1 D);
+count(*)
+400
+show status like 'Created_tmp_disk_tables';
+Variable_name	Value
+drop table t0, t1;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 values (1),(2);
+create table t3 ( a int , filler char(100), key(a));
+insert into t3 select A.a + 10*B.a, 'filler' from t0 A, t0 B;
+select * from t3 where a in (select a from t2);
+a	filler
+1	filler
+2	filler
+drop table t0, t2, t3;
+create table t1 (a date);
+insert into t1 values ('2008-01-01'),('2008-01-01'),('2008-02-01'),('2008-02-01');
+create table t2 (a int);
+insert into t2 values (1),(2);
+create table t3 (a char(10));
+insert into t3 select * from t1;
+insert into t3 values (1),(2);
+drop table t1, t2, t3;
+create table t1 (a decimal);
+insert into t1 values (1),(2);
+drop table t1;
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 like t1;
+insert into t2 select * from t1;
+create table t3 (a int, b int, filler char(100), key(a));
+insert into t3 select A.a + 10*B.a, A.a + 10*B.a, 'filler' from t1 A, t1 B, t1 C;
+create table t0 (a int, b int);
+insert into t0 values(1,1);
+create table t4(x int, y int);
+insert into t4 select a as x, a as y from t1;
+drop table t0,t1,t2,t3,t4;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, filler char(100), key(a,b));
+insert into t1 select A.a, B.a, 'filler' from t0 A, t0 B;
+create table t2 like t1;
+insert into t2 select * from t1;
+drop table t1,t2;
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+create table t2 (a int, b int);
+insert into t2 select A.a + 10*B.a, A.a + 10*B.a from t0 A, t0 B;
+drop table t0, t1, t2;
+create table t0 (a decimal(4,2));
+insert into t0 values (10.24), (22.11);
+create table t1 like t0;
+insert into t1 select * from t0;
+insert into t1 select * from t0;
+select * from t0 where a in (select a from t1);
+a
+10.24
+22.11
+drop table t0, t1;
+create table t0(a date);
+insert into t0 values ('2008-01-01'),('2008-02-02');
+create table t1 like t0;
+insert into t1 select * from t0;
+insert into t1 select * from t0;
+select * from t0 where a in (select a from t1);
+a
+2008-01-01
+2008-02-02
+drop table t0, t1;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int, b int, c int);
+insert into t1 select a as a, a as b, a as c from t0 where a < 3;
+create table t2(a int, b int);
+insert into t2 select a as a, a as b from t0 where a < 3;
+insert into t2 select * from t2;
+drop table t0,t1,t2;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, filler1 binary(200), filler2 binary(200));
+insert into t1 select a, 'filler123456', 'filler123456' from t0;
+insert into t1 select a+10, 'filler123456', 'filler123456' from t0;
+create table t2 like t1;
+insert into t2 select * from t1;
+insert into t1 select a+20, 'filler123456', 'filler123456' from t0;
+insert into t1 values (2, 'duplicate ok', 'duplicate ok');
+insert into t1 values (18, 'duplicate ok', 'duplicate ok');
+insert into t2 values (3, 'duplicate ok', 'duplicate ok');
+insert into t2 values (19, 'duplicate ok', 'duplicate ok');
+drop table t1, t2;
+create table t1 (a int, b int, key(a));
+create table t2 (a int, b int, key(a));
+create table t3 (a int, b int, key(a));
+insert into t1 select a,a from t0;
+insert into t2 select a,a from t0;
+insert into t3 select a,a from t0;
+t2 and t3 must be use 'ref', not 'ALL':
+drop table t0, t1,t2,t3;
+
+Test that neither MaterializeLookup strategy for semijoin,
+nor subquery materialization is used when BLOBs are involved
+(except when arguments of some functions).
+
+#
+# WL#5561: Enable semi join transformation with outer join.
+#
+CREATE TABLE ot1(a INT);
+CREATE TABLE ot2(a INT);
+CREATE TABLE ot3(a INT);
+CREATE TABLE it1(a INT);
+CREATE TABLE it2(a INT);
+CREATE TABLE it3(a INT);
+INSERT INTO ot1 VALUES(0),(1),(2),(3),(4),(5),(6),(7);
+INSERT INTO ot2 VALUES(0),(2),(4),(6);
+INSERT INTO ot3 VALUES(0),(3),(6);
+INSERT INTO it1 VALUES(0),(1),(2),(3),(4),(5),(6),(7);
+INSERT INTO it2 VALUES(0),(2),(4),(6);
+INSERT INTO it3 VALUES(0),(3),(6);
+# Test cases, Subquery Pattern 1
+# Example SQ1.1:
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE ot1.a IN (SELECT a FROM it3);
+a	a
+0	0
+3	NULL
+6	6
+# Example SQ1.2:
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+a	a
+0	0
+1	NULL
+3	NULL
+5	NULL
+6	6
+7	NULL
+# Example SQ1.3:
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE (ot1.a,ot2.a) IN (SELECT a, a FROM it3);
+a	a
+0	0
+6	6
+# More test cases
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE ot1.a IN (SELECT a FROM it3);
+a	a
+0	0
+3	NULL
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE ot1.a IN (SELECT a+0 FROM it3);
+a	a
+0	0
+3	NULL
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+a	a
+0	0
+1	NULL
+3	NULL
+5	NULL
+6	6
+7	NULL
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a+0 FROM it3);
+a	a
+0	0
+1	NULL
+3	NULL
+5	NULL
+6	6
+7	NULL
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE (ot1.a,ot2.a) IN (SELECT a, a FROM it3);
+a	a
+0	0
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot1.a=ot3.a
+WHERE ot1.a IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+3	NULL	3
+6	6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot1.a=ot3.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+1	NULL	NULL
+3	NULL	3
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot1.a=ot3.a
+WHERE COALESCE(ot3.a,0) IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	2	NULL
+3	NULL	3
+4	4	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot2.a=ot3.a
+WHERE ot1.a IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+3	NULL	NULL
+6	6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot2.a=ot3.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+1	NULL	NULL
+3	NULL	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot2.a=ot3.a
+WHERE COALESCE(ot3.a,0) IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	2	NULL
+3	NULL	NULL
+4	4	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+# Test cases, Subquery Pattern 2
+# Example SQ2.1:
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a FROM it3);
+a	a
+0	0
+6	6
+# Example SQ2.2:
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a FROM it2)
+AND ot2.a IN (SELECT a FROM it3);
+a	a
+0	0
+6	6
+# More test cases
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a+0 AND ot1.a IN (SELECT a FROM it3);
+a	a
+0	0
+6	6
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a+0 FROM it3);
+a	a
+0	0
+6	6
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a+0 AND ot2.a IN (SELECT a FROM it3);
+a	a
+0	0
+6	6
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot2.a IN (SELECT a+0 FROM it3);
+a	a
+0	0
+6	6
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a+0 FROM it2)
+AND ot2.a IN (SELECT a+0 FROM it3);
+a	a
+0	0
+6	6
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a FROM it3)
+JOIN ot3 ON ot2.a=ot3.a AND ot3.a IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+6	6	6
+# Test cases, Subquery Pattern 3
+# Example SQ3.1:
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot1.a IN (SELECT a FROM it3);
+a	a
+0	0
+3	NULL
+6	6
+# Example SQ3.2:
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot2.a IN (SELECT a FROM it2);
+a	a
+0	0
+2	2
+4	4
+6	6
+# Example SQ3.3
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot1.a IN (SELECT a FROM it1)
+AND ot2.a IN (SELECT a FROM it2);
+a	a
+0	0
+2	2
+4	4
+6	6
+# Example SQ3.4
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where
+(ot1.a, ot2.a) IN (SELECT it1.a, it2.a
+FROM it1 JOIN it2 ON it1.a=it2.a);
+a	a
+0	0
+2	2
+4	4
+6	6
+# More test cases
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where ot1.a IN (SELECT a FROM it3);
+a	a
+0	0
+3	NULL
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot1.a IN (SELECT a+0 FROM it3);
+a	a
+0	0
+3	NULL
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where ot2.a IN (SELECT a FROM it2);
+a	a
+0	0
+2	2
+4	4
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot2.a IN (SELECT a+0 FROM it2);
+a	a
+0	0
+2	2
+4	4
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where ot1.a IN (SELECT a+0 FROM it1)
+AND ot2.a IN (SELECT a+0 FROM it2);
+a	a
+0	0
+2	2
+4	4
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where
+(ot1.a, ot2.a) IN (SELECT it1.a+0, it2.a+0
+FROM it1 JOIN it2 ON it1.a=it2.a);
+a	a
+0	0
+2	2
+4	4
+6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+LEFT JOIN ot3 ON ot2.a=ot3.a where ot1.a IN (SELECT a FROM it3) AND
+ot3.a IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+6	6	6
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+LEFT JOIN ot3 ON ot2.a=ot3.a+0 WHERE ot1.a IN (SELECT a FROM it3)
+AND ot3.a IN (SELECT a FROM it3);
+a	a	a
+0	0	0
+6	6	6
+# Test cases, Subquery Pattern 4
+# Example SQ4.1:
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	NULL	NULL
+3	NULL	NULL
+4	NULL	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+# Example SQ4.2:
+SELECT *
+FROM   ot1
+JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+6	6	6
+# Example SQ4.3:
+SELECT *
+FROM   ot1
+JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+2	2	NULL
+4	4	NULL
+6	6	6
+# Example SQ4.4:
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	2	NULL
+3	NULL	NULL
+4	4	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+# More test cases
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a+0)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	NULL	NULL
+3	NULL	NULL
+4	NULL	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	NULL	NULL
+3	NULL	NULL
+4	NULL	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	NULL	NULL
+3	NULL	NULL
+4	NULL	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM   ot1
+JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a+0)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+6	6	6
+SELECT *
+FROM   ot1
+JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+6	6	6
+SELECT *
+FROM   ot1
+JOIN
+(ot2 JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+a	a	a
+0	0	0
+6	6	6
+SELECT *
+FROM   ot1
+JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a+0)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+2	2	NULL
+4	4	NULL
+6	6	6
+SELECT *
+FROM   ot1
+JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+2	2	NULL
+4	4	NULL
+6	6	6
+SELECT *
+FROM   ot1
+JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+a	a	a
+0	0	0
+2	2	NULL
+4	4	NULL
+6	6	6
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a+0)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	2	NULL
+3	NULL	NULL
+4	4	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	2	NULL
+3	NULL	NULL
+4	4	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+a	a	a
+0	0	0
+1	NULL	NULL
+2	2	NULL
+3	NULL	NULL
+4	4	NULL
+5	NULL	NULL
+6	6	6
+7	NULL	NULL
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+ON ot1.a=ot2.a
+LEFT JOIN
+ot1 AS ot4
+ON ot2.a=ot4.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a	a
+0	0	0	0
+1	NULL	NULL	NULL
+2	2	NULL	2
+3	NULL	NULL	NULL
+4	4	NULL	4
+5	NULL	NULL	NULL
+6	6	6	6
+7	NULL	NULL	NULL
+SELECT *
+FROM   ot1
+LEFT JOIN
+(ot2 LEFT JOIN ot3 ON ot2.a=ot3.a
+LEFT JOIN ot1 AS ot4 ON ot3.a=ot4.a)
+ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+a	a	a	a
+0	0	0	0
+1	NULL	NULL	NULL
+2	2	NULL	NULL
+3	NULL	NULL	NULL
+4	4	NULL	NULL
+5	NULL	NULL	NULL
+6	6	6	6
+7	NULL	NULL	NULL
+DROP TABLE ot1,ot2,ot3,it1,it2,it3;
+CREATE TABLE t (
+a INTEGER DEFAULT NULL
+) ;
+INSERT INTO t VALUES (1);
+CREATE TABLE t2 (
+a INTEGER DEFAULT NULL
+) ;
+INSERT INTO t2 VALUES (1),(1);
+CREATE TABLE t4 (
+a INTEGER DEFAULT NULL
+) ;
+INSERT INTO t4 VALUES (1),(1);
+CREATE TABLE v (
+a INTEGER DEFAULT NULL
+) ;
+INSERT INTO v VALUES (1),(1);
+DROP TABLE t,t2,t4,v;
+# End of WL#5561
+#
+# Bug#48868: Left outer join in subquery causes segmentation fault in
+#            make_join_select.
+#
+CREATE TABLE t1 (i INTEGER);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+CREATE TABLE t2 (i INTEGER);
+INSERT INTO t2 VALUES(1);
+CREATE TABLE t3 (i INTEGER);
+INSERT INTO t3 VALUES (1);
+INSERT INTO t3 VALUES (2);
+SELECT * FROM t1 WHERE (t1.i) IN
+(SELECT t2.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+i
+1
+DROP TABLE t1, t2, t3;
+
+Bug#37899: Wrongly checked optimization prerequisite caused failed
+assertion.
+
+CREATE TABLE t1 (
+`pk` int(11),
+`varchar_nokey` varchar(5)
+);
+INSERT INTO t1 VALUES
+(1,'qk'),(2,'j'),(3,'aew');
+SELECT *
+FROM t1
+WHERE varchar_nokey IN (
+SELECT
+varchar_nokey
+FROM
+t1
+);
+pk	varchar_nokey
+1	qk
+2	j
+3	aew
+drop table t1;

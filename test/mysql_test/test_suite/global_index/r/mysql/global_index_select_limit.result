@@ -1,0 +1,535 @@
+result_format: 4
+explain_protocol: 0
++----------+
+| count(1) |
++----------+
+|      256 |
++----------+
++----------+
+| count(1) |
++----------+
+|      261 |
++----------+
+select /*+index(t1 i1)*/ count(1) from t1;
++----------+
+| count(1) |
++----------+
+|      262 |
++----------+
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 100) t;
++----------+
+| count(1) |
++----------+
+|      100 |
++----------+
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 100, 200) t;
++----------+
+| count(1) |
++----------+
+|      162 |
++----------+
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 200 offset 100) t;
++----------+
+| count(1) |
++----------+
+|      162 |
++----------+
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 256) t;
++----------+
+| count(1) |
++----------+
+|      256 |
++----------+
+select count(1) from (select /*+index(t1 i1)*/ * from t1 limit 256 offset 256) t;
++----------+
+| count(1) |
++----------+
+|        6 |
++----------+
+select /*+index(t1 i1)*/ b, c from t1 where c > 'ab' order by a;
++------+-------+
+| b    | c     |
++------+-------+
+|    4 | abcd  |
+|    5 | ab c  |
+|    6 | abc   |
+|    7 | abcd  |
+|    8 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    9 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    9 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    9 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    9 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    8 | abcd  |
+|    9 | ab c  |
+|   10 | abc   |
+|   11 | abcd  |
+|   12 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    9 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    8 | abcd  |
+|    9 | ab c  |
+|   10 | abc   |
+|   11 | abcd  |
+|   12 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|    9 | abcd  |
+|   10 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    8 | abcd  |
+|    9 | ab c  |
+|   10 | abc   |
+|   11 | abcd  |
+|   12 | abcde |
+|    7 | abcd  |
+|    8 | ab c  |
+|    9 | abc   |
+|   10 | abcd  |
+|   11 | abcde |
+|    8 | abcd  |
+|    9 | ab c  |
+|   10 | abc   |
+|   11 | abcd  |
+|   12 | abcde |
+|    8 | abcd  |
+|    9 | ab c  |
+|   10 | abc   |
+|   11 | abcd  |
+|   12 | abcde |
+|    9 | abcd  |
+|   10 | ab c  |
+|   11 | abc   |
+|   12 | abcd  |
+|   13 | abcde |
+|    9 | ab c  |
++------+-------+
+select b, c from (select /*+index(t1 i1)*/ * from t1 where c>'ab' limit 100) t order by a;
++------+-------+
+| b    | c     |
++------+-------+
+|    4 | abcd  |
+|    5 | ab c  |
+|    6 | abc   |
+|    8 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    5 | abcd  |
+|    6 | ab c  |
+|    7 | abc   |
+|    8 | abcd  |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | abcd  |
+|   10 | abc   |
+|   12 | abcde |
+|    5 | abcd  |
+|    6 | ab c  |
+|    8 | abcd  |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | abcd  |
+|   10 | abc   |
+|   12 | abcde |
+|    6 | abcd  |
+|    7 | ab c  |
+|    8 | abc   |
+|   10 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | abcd  |
+|   10 | abc   |
+|   12 | abcde |
+|    8 | ab c  |
+|   10 | abcd  |
+|    8 | abcd  |
+|   10 | abc   |
+|   12 | abcde |
+|    8 | abcd  |
+|   10 | abc   |
+|   12 | abcde |
+|   10 | ab c  |
+|   12 | abcd  |
++------+-------+
+select b, c from (select /*+index(t1 i1)*/ * from t1 where c>'ab' limit 100, 200) t order by a;
++------+-------+
+| b    | c     |
++------+-------+
+|    7 | abcd  |
+|    9 | abcde |
+|    9 | abcde |
+|    9 | abcd  |
+|    9 | abcde |
+|    9 | abcd  |
+|    9 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | abcde |
+|    9 | abcd  |
+|    9 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | ab c  |
+|   11 | abcd  |
+|    7 | abc   |
+|    9 | abcde |
+|    9 | abcd  |
+|    9 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | ab c  |
+|   11 | abcd  |
+|    9 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | ab c  |
+|   11 | abcd  |
+|    7 | abcd  |
+|    9 | abc   |
+|   11 | abcde |
+|    9 | ab c  |
+|   11 | abcd  |
+|    9 | ab c  |
+|   11 | abcd  |
+|    9 | abcd  |
+|   11 | abc   |
+|   13 | abcde |
+|    9 | ab c  |
++------+-------+
+select b, c from (select /*+index(t1 i1)*/ * from t1 where c>'ab' limit 256, 256) t order by a;
++------+------+
+| b    | c    |
++------+------+
++------+------+
+select /*+index(t1 i1)*/ sum(b), avg(b*1.5) from t1 where c > 'ab';
++--------+------------+
+| sum(b) | avg(b*1.5) |
++--------+------------+
+|   1369 |   12.75466 |
++--------+------------+
+select /*+index(t1 i1)*/ b, c from t1 where c <= 'ab' order by a;
++------+------+
+| b    | c    |
++------+------+
+|    1 | a    |
+|    2 | ab   |
+|    3 | ab   |
+|    2 | a    |
+|    3 | ab   |
+|    4 | ab   |
+|    2 | a    |
+|    3 | ab   |
+|    4 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    2 | a    |
+|    3 | ab   |
+|    4 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    2 | a    |
+|    3 | ab   |
+|    4 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    5 | a    |
+|    6 | ab   |
+|    7 | ab   |
+|    2 | a    |
+|    3 | ab   |
+|    4 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    5 | a    |
+|    6 | ab   |
+|    7 | ab   |
+|    3 | a    |
+|    4 | ab   |
+|    5 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    5 | a    |
+|    6 | ab   |
+|    7 | ab   |
+|    4 | a    |
+|    5 | ab   |
+|    6 | ab   |
+|    5 | a    |
+|    6 | ab   |
+|    7 | ab   |
+|    5 | a    |
+|    6 | ab   |
+|    7 | ab   |
+|    6 | a    |
+|    7 | ab   |
+|    8 | ab   |
+|    5 | ab   |
+|    4 | ab   |
+|    3 | ab   |
+|    2 | ab   |
+|    1 | ab   |
++------+------+
+drop table t1;
+create table t1(a int primary key, b int);
+create index i1 on t1(b) partition by hash(b) partitions 2;
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+select /*+index(t1 i1)*/ * from t1 limit 1, 2;
++---+------+
+| a | b    |
++---+------+
+| 4 |    4 |
+| 1 |    1 |
++---+------+
+select /*+index(t1 i1)*/ * from t1 limit 2, 2;
++---+------+
+| a | b    |
++---+------+
+| 1 |    1 |
+| 3 |    3 |
++---+------+
+select /*+index(t1 i1)*/ * from t1 limit 2;
++---+------+
+| a | b    |
++---+------+
+| 2 |    2 |
+| 4 |    4 |
++---+------+
+select /*+index(t1 i1)*/ * from t1 limit 2, 5;
++---+------+
+| a | b    |
++---+------+
+| 1 |    1 |
+| 3 |    3 |
++---+------+
+drop table t1;

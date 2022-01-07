@@ -1,0 +1,29 @@
+DROP DATABASE IF EXISTS HJ_LEFT_EMPTY;
+CREATE DATABASE HJ_LEFT_EMPTY;
+USE HJ_LEFT_EMPTY;
+create table T1 (c1 int, c2 int);
+create table T2 (d1 int, d2 int);
+explain basic select /*+ use_hash(T1 T2) leading(T1 T2) */ * from T1, T2 where T1.c1 = T2.d1;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|t1  |
+|2 | TABLE SCAN|t2  |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.c1], [t1.c2], [t2.d1], [t2.d2]), filter(nil), 
+      equal_conds([t1.c1 = t2.d1]), other_conds(nil)
+  1 - output([t1.c1], [t1.c2]), filter(nil), 
+      access([t1.c1], [t1.c2]), partitions(p0)
+  2 - output([t2.d1], [t2.d2]), filter(nil), 
+      access([t2.d1], [t2.d2]), partitions(p0)
+
+select /*+ use_hash(T1 T2) leading(T1 T2) */ * from T1, T2 where T1.c1 = T2.d1;
+c1	c2	d1	d2
+insert into T1 values (12345678, 12345678);
+select /*+ use_hash(T1 T2) leading(T1 T2) */ * from T1, T2 where T1.c1 = T2.d1;
+c1	c2	d1	d2

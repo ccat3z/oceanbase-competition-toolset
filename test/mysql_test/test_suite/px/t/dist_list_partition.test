@@ -1,0 +1,1338 @@
+
+set @@session.explicit_defaults_for_timestamp=off;
+
+# tags: optimizer
+--result_format 4
+
+--disable_warnings
+drop database if exists muhangtest;
+drop table if exists t1;
+drop table if exists t2;
+--enable_warnings
+
+create database muhangtest;
+use muhangtest;
+
+set _ob_use_parallel_execution = true;
+
+##    关于计划，所有生成重分区plan的逻辑是一样的，在计划上的开关也是一起的。
+##    不必反复测试重分区生成计划的case。
+##    关于类型，由于shuffle的接口与插入的时候使用的是同一套接口，所以肯定不
+##    会出现同样的类型同样的值算到不同的分区。
+##    1. list分区有一个default分区，这是一个要测试的点
+##    2. list columns分区可以有多个列，(c1,c2)，这个现在执行支持了，要测。注意list column不支持里面含有表达式
+##       (c2, c3+1)这种是不支持的。
+##    3. range column也可以有多个列，(c1,c2) 之前是不支持的，这个要测。
+##       key也是有多个列的，(c1,c2)之前是不支持的，这个后续要测 TODO 。放在其他文件吧。优化器暂时没有打开。
+##       注意key和range column中的是不支持表达式的，类似(c1+1,c2)是不支持的。
+##    4. 从代码来看，list分区要支持一行miss分区，比如list没有5这个值，但是重分区的表有这个值，要skip掉。
+
+
+##    (1)一张表未分区，一张表一级list分区，分区条件是一个普通列。
+##    (1.1)一张表未分区，一张表一级list分区，分区条件是一个普通列，加入特殊的default分区，看看结果是否正确。顺带加入了NULL值
+##    (1.2)一张表未分区，一张表一级list分区，分区条件是一个普通表达式，感觉都不会生成重分区的计划。
+##    (1.3) 一张表未分区，一张表是一级list分区，分区条件是两个列。这个测试的点是新加的特性，之前类似的range column是不支持(c1,c2)
+##    (2.1)两张表都是一级list分区，分区的是两个列，分区方式完全相同。结果是wise join。
+##    (2.2)一张表是hash分区，一张表是 一级list分区，分区条件是一个表达式。
+##    (3.1.1)(a)一张表是一级hash二级list分区，另一张表未分区，分区条件是一个普通列。
+##    (3.1.1)(b)一张表是一级hash二级list columns多列，另一张表未分区，分区条件是一个普通列。
+##    (3.1.2)(a)一张表是一级key二级list分区，另一张表未分区，分区条件是一个普通列。
+##    (3.1.2)(b)一张表是一级key二级list columns分区，另一张表未分区，分区条件是两个普通列。
+##    (3.1.3)(a) 一张表是一级range二级list分区，另一张表未分区，分区条件是一个普通列。
+##    (3.1.3)(b) 一张表是一级range二级list columns分区，另一张表未分区，分区条件是一个普通列。 TODO range + list column还有问题，暂时跑不了。
+##    (3.1.4)(a)一张表是一级list (单列表达式＋多列) 二级key分区，另一张表未分区。
+##    (3.1.4)(b)一张表是一级list (单列表达式＋多列) 二级key分区，另一张表未分区。
+##    (3.1.5)(a)一张表是一级list (单列表达式＋多列) 二级range分区，另一张表未分区。
+##    (3.1.5)(b)一张表是一级list (单列表达式＋多列) 二级range分区，另一张表未分区。
+##    (3.1.6)(a)一张表是一级list (单列表达式＋多列) 二级hash分区，另一张表未分区。
+##    (3.1.6)(b)一张表是一级list (单列表达式＋多列) 二级hash分区，另一张表未分区。
+##    (3.2)两张表都是一级hash二级list分区，分区条件都是一个普通列。
+##    (3.3)一张表都是一级hash二级list分区，分区条件都是一个普。另一张表是一级range column二级key。
+##    (3.4)一张表都是一级hash二级list分区，分区条件都是一个普通列。list分区是一个表达式。c1+1 另一张表是一级range column二级key。
+##    (3.5)一张表都是一级hash二级list分区，分区条件都是一个普通列。list分区是多列。另一张表是一级range column二级key。
+##    (3.6)一张表都是一级hash二级list分区，分区条件都是一个普通列。list columns 分区是多列，其中一级分区是表达式。另一张表是一级range column二级key。
+
+
+##    (1)一张表未分区，一张表一级list分区，分区条件是一个普通列。
+create table t1 (c1 int, c2 int) partition by list columns(c1) (partition p0 values in (1,4,5,6,7,8,9,10), partition p1 values in (2,3), partition p2 values in (11,12,13,14,15,16,17,18), partition p3 values in(19,20));
+create table t2(c1 int, c2 int);
+
+
+insert into t1 values(1,2);
+insert into t1 values(2,3);
+insert into t1 values(3,3);
+insert into t1 values(4,3);
+insert into t1 values(5,3);
+insert into t1 values(6,3);
+insert into t1 values(7,3);
+insert into t1 values(8,3);
+insert into t1 values(9,3);
+insert into t1 values(10,3);
+insert into t1 values(11,3);
+insert into t1 values(12,3);
+insert into t1 values(13,3);
+insert into t1 values(14,3);
+insert into t1 values(15,3);
+insert into t1 values(16,3);
+insert into t1 values(17,3);
+insert into t1 values(18,3);
+insert into t1 values(19,3);
+
+insert into t2 values(1,11);
+insert into t2 values(2,11);
+insert into t2 values(3,11);
+insert into t2 values(4,11);
+insert into t2 values(5,11);
+insert into t2 values(6,11);
+insert into t2 values(7,11);
+insert into t2 values(8,11);
+insert into t2 values(9,11);
+insert into t2 values(10,11);
+insert into t2 values(11,11);
+insert into t2 values(12,11);
+insert into t2 values(13,11);
+insert into t2 values(14,11);
+insert into t2 values(15,11);
+insert into t2 values(16,11);
+insert into t2 values(17,11);
+insert into t2 values(18,11);
+insert into t2 values(19,11);
+insert into t2 values(20,11);
+--sleep 1
+
+
+--sorted_result
+select * from t1 join t2 on t1.c2 = t2.c1;
+--sorted_result
+select * from t1 join t2 on t1.c1 = t2.c1;
+--sorted_result
+select * from t1 join t2 on t1.c1 = t2.c2;
+
+drop table t1;
+drop table t2;
+
+##    (1.1)一张表未分区，一张表一级list分区，分区条件是一个普通列，加入特殊的default分区，看看结果是否正确。顺带加入了NULL值
+create table t1 (c1 int, c2 int) partition by list(c1) (partition p0 values in (1,4,5,6,7,8,9,10), partition p1 values in (2,3), partition p2 values in (11,12,13,14,15,16,17,18), partition p3 values in(default));
+create table t2(c1 int, c2 int);
+
+
+insert into t1 values(1,2);
+insert into t1 values(2,3);
+insert into t1 values(3,3);
+insert into t1 values(4,3);
+insert into t1 values(5,3);
+insert into t1 values(6,3);
+insert into t1 values(7,3);
+insert into t1 values(8,3);
+insert into t1 values(9,3);
+insert into t1 values(10,3);
+insert into t1 values(11,3);
+insert into t1 values(12,3);
+insert into t1 values(13,3);
+insert into t1 values(14,3);
+insert into t1 values(15,3);
+insert into t1 values(16,3);
+insert into t1 values(17,3);
+insert into t1 values(18,3);
+insert into t1 values(19,41);
+insert into t1 values(20,41);
+insert into t1 values(21,41);
+insert into t1 values(22,41);
+insert into t1 values(23,41);
+insert into t1 values(24,41);
+insert into t1 values(NULL,41);
+
+insert into t2 values(1,11);
+insert into t2 values(2,11);
+insert into t2 values(3,11);
+insert into t2 values(4,11);
+insert into t2 values(5,11);
+insert into t2 values(6,11);
+insert into t2 values(7,11);
+insert into t2 values(8,11);
+insert into t2 values(9,11);
+insert into t2 values(10,11);
+insert into t2 values(11,11);
+insert into t2 values(12,11);
+insert into t2 values(13,11);
+insert into t2 values(14,11);
+insert into t2 values(15,11);
+insert into t2 values(16,11);
+insert into t2 values(17,11);
+insert into t2 values(18,11);
+insert into t2 values(19,11);
+insert into t2 values(20,11);
+insert into t2 values(21,24);
+insert into t2 values(22,24);
+insert into t2 values(23,24);
+insert into t2 values(24,24);
+insert into t2 values(NULL,24);
+--sleep 1
+
+
+--sorted_result
+select * from t1 join t2 on t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+##    (1.2)一张表未分区，一张表一级list分区，分区条件是一个普通表达式，感觉都不会生成重分区的计划。
+create table t1 (c1 int, c2 int) partition by list(c1 + 1) (partition p0 values in (1,4,5,6,7,8,9,10), partition p1 values in (2,3), partition p2 values in (11,12,13,14,15,16,17,18), partition p3 values in(19,20));
+create table t2(c1 int, c2 int);
+
+
+insert into t1 values(1,2);
+insert into t1 values(2,3);
+insert into t1 values(3,3);
+insert into t1 values(4,3);
+insert into t1 values(5,3);
+insert into t1 values(6,3);
+insert into t1 values(7,3);
+insert into t1 values(8,3);
+insert into t1 values(9,3);
+insert into t1 values(10,3);
+insert into t1 values(11,3);
+insert into t1 values(12,3);
+insert into t1 values(13,3);
+insert into t1 values(14,3);
+insert into t1 values(15,3);
+insert into t1 values(16,3);
+insert into t1 values(17,3);
+insert into t1 values(18,3);
+insert into t1 values(19,3);
+
+insert into t2 values(1,11);
+insert into t2 values(2,11);
+insert into t2 values(3,11);
+insert into t2 values(4,11);
+insert into t2 values(5,11);
+insert into t2 values(6,11);
+insert into t2 values(7,11);
+insert into t2 values(8,11);
+insert into t2 values(9,11);
+insert into t2 values(10,11);
+insert into t2 values(11,11);
+insert into t2 values(12,11);
+insert into t2 values(13,11);
+insert into t2 values(14,11);
+insert into t2 values(15,11);
+insert into t2 values(16,11);
+insert into t2 values(17,11);
+insert into t2 values(18,11);
+insert into t2 values(19,11);
+insert into t2 values(20,11);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c1;
+--sorted_result
+select /*+leading(t1 t2)*/* from t1 join t2 on t1.c1 = t2.c1;
+--sorted_result
+select /*+leading(t1 t2)*/* from t1 join t2 on t1.c1 = t2.c2;
+--sorted_result
+select /*+leading(t1 t2)*/* from t1 join t2 on t1.c1 + 1 = t2.c2;
+
+drop table t1;
+drop table t2;
+
+##    (1.3) 一张表未分区，一张表是一级list分区，分区条件是两个列。这个测试的点是新加的特性，之前类似的range column是不支持(c1,c2)
+create table t1 (c1 int, c2 int, c3 int) partition by list columns(c1,c2) (partition p0 values in ((1,1),(2,2)), partition p1 values in ((3,3),(4,4)), partition p2 values in ((5,5),(6,6)));
+create table t2 (c1 int, c2 int, c3 int);
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,2);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,5);
+insert into t1 values(6,6,6);
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,2);
+insert into t2 values(3,3,3);
+insert into t2 values(4,4,4);
+insert into t2 values(5,5,5);
+insert into t2 values(6,6,6);
+--sleep 1
+
+
+--sorted_result
+select * from t1 join t2 on t1.c1 = t2.c1 and t1.c2 = t2.c2;
+
+##    这个根本不会生成重分区的计划～ TODO
+--sorted_result
+select * from t1 join t2 on (t1.c1, t1.c2) = (t2.c1, t2.c2);
+
+drop table t2;
+
+##    (2.1)两张表都是一级list分区，分区的是两个列，分区方式完全相同。结果是wise join。
+create table t2 (c1 int, c2 int, c3 int) partition by list columns(c1,c2) (partition p0 values in ((1,1),(2,2)), partition p1 values in ((3,3),(4,4)), partition p2 values in ((5,5),(6,6)));
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,2);
+insert into t2 values(3,3,3);
+insert into t2 values(4,4,4);
+insert into t2 values(5,5,5);
+insert into t2 values(6,6,6);
+--sleep 1
+
+
+--sorted_result
+select * from t1 join t2 on t1.c1 = t2.c1 and t1.c2 = t2.c2;
+
+drop table t2;
+drop table t1;
+
+##    (2.2)一张表是hash分区，一张表是 一级list分区，分区条件是一个表达式。
+create table t1 (c1 int, c2 int) partition by list(c1+1) (partition p0 values in (1,4,5,6,7,8,9,10), partition p1 values in (2,3), partition p2 values in (11,12,13,14,15,16,17,18), partition p3 values in(19,20));
+create table t2(c1 int, c2 int) partition by hash(c1) partitions 4;
+
+insert into t1 values(1,2);
+insert into t1 values(2,3);
+insert into t1 values(3,3);
+insert into t1 values(4,3);
+insert into t1 values(5,3);
+insert into t1 values(6,3);
+insert into t1 values(7,3);
+insert into t1 values(8,3);
+insert into t1 values(9,3);
+insert into t1 values(10,3);
+insert into t1 values(11,3);
+insert into t1 values(12,3);
+insert into t1 values(13,3);
+insert into t1 values(14,3);
+insert into t1 values(15,3);
+insert into t1 values(16,3);
+insert into t1 values(17,3);
+insert into t1 values(18,3);
+insert into t1 values(19,3);
+
+insert into t2 values(1,11);
+insert into t2 values(2,11);
+insert into t2 values(3,11);
+insert into t2 values(4,11);
+insert into t2 values(5,11);
+insert into t2 values(6,11);
+insert into t2 values(7,11);
+insert into t2 values(8,11);
+insert into t2 values(9,11);
+insert into t2 values(10,11);
+insert into t2 values(11,11);
+insert into t2 values(12,11);
+insert into t2 values(13,11);
+insert into t2 values(14,11);
+insert into t2 values(15,11);
+insert into t2 values(16,11);
+insert into t2 values(17,11);
+insert into t2 values(18,11);
+insert into t2 values(19,11);
+insert into t2 values(20,11);
+--sleep 1
+
+
+##    强行让t2按照t1去做重分区
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+##    (3.1.1)(a)一张表是一级hash二级list分区，另一张表未分区，分区条件是一个普通列。
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list(c2+1) subpartition template(subpartition p0 values in (1,2,3), subpartition p1 values in (default)) partitions 3;
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+##    未生成重分区的计划  ?
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.1)(b)一张表是一级hash二级list columns多列，另一张表未分区，分区条件是一个普通列。
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list columns(c2,c3) subpartition template(subpartition p0 values in ((1,1), (2,2), (3,3), (5,5)), subpartition p1 values in (default)) partitions 3;
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+##    生成重分区的计划
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+
+
+##    (3.1.2)(a)一张表是一级key二级list分区，另一张表未分区，分区条件是一个普通列。
+create table t1 (c1 int, c2 int, c3 int) partition by key(c1) subpartition by list(c2) subpartition template(subpartition p0 values in (1,2,3), subpartition p1 values in (default)) partitions 3;
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+##    生成重分区的计划
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.2)(b)一张表是一级key二级list columns分区，另一张表未分区，分区条件是两个普通列。
+create table t1 (c1 int, c2 int, c3 int) partition by key(c1) subpartition by list columns(c2, c3) subpartition template(subpartition p0 values in ((4,4), (5,5), (9,9)), subpartition p1 values in (default)) partitions 3;
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+##    生成重分区的计划
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.3)(a) 一张表是一级range二级list分区，另一张表未分区，分区条件是单列计算的表达式。
+create table t1 (c1 int, c2 int, c3 int) partition by range(c1) subpartition by list(c2+1) subpartition template (subpartition p0 values in (1,2,3), subpartition p1 values in (default)) (partition p0 values less than (5), partition p1 values less than(10), partition p3 values less than (MAXVALUE));
+create table t2 (c1 int, c2 int, c3 int);
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.3)(b) 一张表是一级range二级list分区，另一张表未分区，分区条件是一个普通列。 TODO range + list column还有问题，暂时跑不了。
+#create table t1 (c1 int, c2 int, c3 int) partition by range(c1) subpartition by list columns(c2, c3) subpartition template (subpartition p0 values in ((1,1),(2,2),(3,3)), subpartition p1 values in (default)) (partition p0 values less than (5), partition p1 values less than(10), partition p3 values less than (MAXVALUE));
+#create table t2 (c1 int, c2 int, c3 int);
+
+##    (3.1.4)(a)一张表是一级list (单列表达式＋多列) 二级key分区，另一张表未分区。
+create table t1 (c1 int, c2 int, c3 int) partition by list(c1+1) subpartition by key(c2) subpartitions 3 (partition p0 values in (1,2,3), partition p1 values in (default));
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.4)(b)一张表是一级list (单列表达式＋多列) 二级key分区，另一张表未分区。
+create table t1 (c1 int, c2 int, c3 int) partition by list columns(c1,c2) subpartition by key(c3) subpartitions 3 (partition p0 values in ((1,1),(2,2),(7,8)), partition p1 values in ((5,5), (6,6)), partition p2 values in (default));
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.5)(a)一张表是一级list (单列表达式＋多列) 二级range分区，另一张表未分区。
+create table t1 (c1 int, c2 int, c3 int) partition by list(c1) subpartition by range(c2+1) subpartition template 
+(subpartition p0 values less than (5), subpartition p1 values less than(10), subpartition p3 values less than (MAXVALUE))
+(partition p0 values in (1,2), partition p1 values in (default));
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.5)(b)一张表是一级list (单列表达式＋多列) 二级range分区，另一张表未分区。
+##create table t1 (c1 int, c2 int, c3 int) partition by list columns(c1, c2) subpartition by range(c3+1) subpartition template 
+##(subpartition p0 values less than (5), subpartition p1 values less than(10), subpartition p3 values less than (MAXVALUE))
+##(partition p0 values in ((1,1),(2,2),(4,4),(5,5),(9,10)), partition p1 values in (default));
+##create table t2 (c1 int, c2 int, c3 int);
+
+
+##    (3.1.6)(a)一张表是一级list (单列表达式＋多列) 二级hash分区，另一张表未分区。
+create table t1 (c1 int, c2 int, c3 int) partition by list columns(c1, c2) subpartition by hash(c3+1) subpartitions 4
+(partition p0 values in ((1,1),(2,2),(4,4),(5,5),(9,10)), partition p1 values in (default));
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+##    (3.1.6)(b)一张表是一级list (单列表达式＋多列) 二级hash分区，另一张表未分区。
+create table t1 (c1 int, c2 int, c3 int) partition by list(c1) subpartition by hash(c3+1) subpartitions 3
+(partition p0 values in (1,2,4,5,9,10), partition p1 values in (default));
+create table t2 (c1 int, c2 int, c3 int);
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select /*+leading(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+##    (3.2)两张表都是一级hash二级list分区，分区条件都是一个普通列。
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list(c2) subpartition template(subpartition p0 values in (1,2,3), subpartition p1 values in (default)) partitions 3;
+create table t2 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list(c2) subpartition template(subpartition p0 values in (1,2,3), subpartition p1 values in (default)) partitions 3;
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+##    生成wise join
+--sorted_result
+select * from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+drop table t1;
+drop table t2;
+
+##    (3.3)一张表都是一级hash二级list分区，分区条件都是一个普通列。
+##         另一张表是一级range column二级key。
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list(c2) subpartition template
+(subpartition p0 values in (1,2,3), subpartition p1 values in (4,5,6), subpartition p2 values in (default))
+ partitions 3;
+create table t2 (c1 int, c2 int, c3 int not null, primary key (c1, c2, c3)) partition by range columns(c1) subpartition by key(c2) subpartitions 3
+(
+partition p201707 values less than (10),
+partition p201808 values less than (26)
+);
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select * /*+lead(t1 t2)*/ from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+--sorted_result
+select * /*+lead(t2 t1)*/ from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+
+drop table t1;
+drop table t2;
+
+##    (3.4)一张表都是一级hash二级list分区，分区条件都是一个普通列。list分区是一个表达式。c1+1
+##         另一张表是一级range column二级key。
+
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list(c2 + 1) subpartition template
+(subpartition p0 values in (1,2,3), subpartition p1 values in (4,5,6), subpartition p2 values in (default))
+ partitions 3;
+create table t2 (c1 int, c2 int, c3 int not null, primary key (c1, c2, c3)) partition by range columns(c1) subpartition by key(c2) subpartitions 3
+(
+partition p201707 values less than (10),
+partition p201808 values less than (26)
+);
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select * /*+lead(t1 t2)*/ from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+--sorted_result
+select * /*+lead(t2 t1)*/ from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1;
+
+
+drop table t1;
+drop table t2;
+
+##    (3.5)一张表都是一级hash二级list分区，分区条件都是一个普通列。list分区是多列。
+##         另一张表是一级range column二级key。
+
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1) subpartition by list columns(c2, c3) subpartition template
+(subpartition p0 values in ((1,1),(2,2),(3,3)), subpartition p1 values in ((4,4),(5,5),(6,6)), subpartition p2 values in (default))
+ partitions 3;
+create table t2 (c1 int, c2 int, c3 int not null, primary key (c1, c2, c3)) partition by range columns(c1) subpartition by key(c2) subpartitions 3
+(
+partition p201707 values less than (10),
+partition p201808 values less than (26)
+);
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select * /*+lead(t1 t2)*/ from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+
+##    (3.6)一张表都是一级hash二级list分区，分区条件都是一个普通列。list columns 分区是多列，其中一级分区是表达式。
+##         另一张表是一级range column二级key。
+
+create table t1 (c1 int, c2 int, c3 int) partition by hash(c1+1) subpartition by list columns(c2, c3) subpartition template
+(subpartition p0 values in ((1,0),(2,1),(3,2)), subpartition p1 values in ((4,3),(5,5),(6,6)), subpartition p2 values in (default))
+ partitions 3;
+create table t2 (c1 int, c2 int, c3 int not null, primary key (c1, c2, c3)) partition by range columns(c1) subpartition by key(c2) subpartitions 3
+(
+partition p201707 values less than (10),
+partition p201808 values less than (26)
+);
+#create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,1);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,4);
+insert into t1 values(6,6,4);
+insert into t1 values(7,7,4);
+insert into t1 values(8,8,4);
+insert into t1 values(9,9,4);
+insert into t1 values(10,10,4);
+insert into t1 values(11,11,4);
+insert into t1 values(12,12,4);
+insert into t1 values(13,13,4);
+insert into t1 values(14,14,4);
+insert into t1 values(15,15,4);
+insert into t1 values(16,16,4);
+insert into t1 values(17,17,4);
+insert into t1 values(18,18,4);
+insert into t1 values(19,19,4);
+insert into t1 values(19,20,5);
+insert into t1 values(19,21,6);
+insert into t1 values(19,22,7);
+
+insert into t2 values(1,1,1);
+insert into t2 values(2,2,32);
+insert into t2 values(3,3,33);
+insert into t2 values(4,4,34);
+insert into t2 values(5,5,35);
+insert into t2 values(6,6,36);
+insert into t2 values(7,7,37);
+insert into t2 values(8,8,38);
+insert into t2 values(9,9,9);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(24,24,54);
+insert into t2 values(25,25,55);
+--sleep 1
+
+
+--sorted_result
+select * /*+lead(t1 t2)*/ from t1 join t2 on t1.c2 = t2.c2 and t1.c1 = t2.c1 and t1.c3 = t2.c3;
+
+drop table t1;
+drop table t2;
+

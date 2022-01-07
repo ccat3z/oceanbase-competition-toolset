@@ -1,0 +1,259 @@
+# tags: optimizer
+# description: 测试 natural join 的正确性
+
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# SCHEMA
+--disable_warnings
+--disable_query_log
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, v1;
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+--enable_query_log
+
+CREATE TABLE t1 (c1 INT NOT NULL);
+CREATE TABLE t2 (c1 INT NOT NULL);
+CREATE TABLE t3 (c1 INT NOT NULL);
+CREATE TABLE t4 (c1 INT NOT NULL);
+CREATE TABLE t5 (c1 INT NOT NULL);
+CREATE TABLE t6 (c1 INT NOT NULL);
+INSERT INTO t1 (c1) VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO t2 (c1) VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO t3 (c1) VALUES(1),(3),(5),(7),(9);
+INSERT INTO t4 (c1) VALUES(10);
+INSERT INTO t5 (c1) VALUES(10),(11),(12),(13),(14);
+
+CREATE TABLE t7 (c1 int, c2 int, c3 int);
+CREATE TABLE t8 (c2 int, c3 int, c4 int);
+CREATE TABLE t9 (c3 int, c4 int, c5 int);
+
+insert into t7 values (0, 1, 2);
+insert into t7 values (1, 2, 3);
+insert into t7 values (2, 3, 4);
+insert into t7 values (4, 5, 6);
+insert into t7 values (5, 6, 7);
+insert into t7 values (6, 7, 8);
+insert into t7 values (7, 8, 9);
+
+insert into t8 values (0, 1, 2);
+insert into t8 values (1, 2, 3);
+insert into t8 values (2, 3, 4);
+insert into t8 values (3, 4, 5);
+insert into t8 values (5, 6, 7);
+insert into t8 values (6, 7, 8);
+insert into t8 values (7, 8, 9);
+
+insert into t9 values (0, 1, 2);
+insert into t9 values (1, 2, 3);
+insert into t9 values (2, 3, 4);
+insert into t9 values (3, 4, 5);
+insert into t9 values (4, 5, 6);
+insert into t9 values (6, 7, 8);
+insert into t9 values (7, 8, 9);
+
+create table t10 (
+    c1 int,
+    c2 int AS (c1 + 1),
+    c3 int AS (c1 + 2)
+);
+
+insert into t10(c1) values (0);
+insert into t10(c1) values (1);
+insert into t10(c1) values (2);
+insert into t10(c1) values (3);
+insert into t10(c1) values (4);
+insert into t10(c1) values (5);
+insert into t10(c1) values (6);
+insert into t10(c1) values (7);
+
+# TEST
+## basic test
+explain basic select * from t1 a natural join t3 b order by a.c1, b.c1;
+select * from t1 a natural join t3 b order by a.c1, b.c1;
+explain basic select a.c1, b.c1 from t1 a natural join t3 b order by a.c1, b.c1;
+select a.c1, b.c1 from t1 a natural join t3 b order by a.c1, b.c1;
+
+select * from t1 natural join t7;
+
+-- error 1060
+select * from (select a.c1, b.c1 from t1 a natural join t3 b order by a.c1, b.c1);
+
+### with generated column
+explain basic select * from t10 natural join t7;
+select * from t10 natural join t7;
+
+## test with joined table
+explain basic select * from t1 a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+select * from t1 a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+explain basic select * from t1 a join t2 b using(c1) natural join t3 c order by a.c1, b.c1, c.c1;
+select * from t1 a join t2 b using(c1) natural join t3 c order by a.c1, b.c1, c.c1;
+
+explain basic select * from t7 natural join t8 natural join t9;
+select * from t7 natural join t8 natural join t9;
+
+-- error 1052
+select * from t7 a left join t8 b on a.c2 = b.c2 natural join t9 c;
+
+-- error 1052
+select * from t7 a full join t8 b using (c2) natural join t9 c;
+-- error 1052
+select * from t7 a left join t8 b using (c2) natural join t9 c;
+-- error 1052
+select * from t7 a right join t8 b using (c2) natural join t9 c;
+
+explain basic select * from t7 a full join t8 b using (c2, c3) natural join t9 c;
+select * from t7 a full join t8 b using (c2, c3) natural join t9 c;
+explain basic select * from t7 a left join t8 b using (c2, c3) natural join t9 c;
+select * from t7 a left join t8 b using (c2, c3) natural join t9 c;
+explain basic select * from t7 a right join t8 b using (c2, c3) natural join t9 c;
+select * from t7 a right join t8 b using (c2, c3) natural join t9 c;
+
+explain basic select * from t7 a natural full join t8 b natural join t9 c;
+select * from t7 a natural full join t8 b natural join t9 c;
+explain basic select * from t7 a natural left join t8 b natural join t9 c;
+select * from t7 a natural left join t8 b natural join t9 c;
+explain basic select * from t7 a natural right join t8 b natural join t9 c;
+select * from t7 a natural right join t8 b natural join t9 c;
+
+### 4 table with inner join
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a inner join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+select * from (t7 a inner join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a inner join t8 b using (c2, c3)) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+select * from (t7 a inner join t8 b using (c2, c3)) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+select * from (t7 a natural join t8 b) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) inner join (t8 c inner join t9 d using (c3, c4)) using (c2, c3, c4);
+select * from (t7 a natural join t8 b) inner join (t8 c inner join t9 d using (c3, c4)) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+
+### 4 table with left join
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a left join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+select * from (t7 a left join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a left join t8 b using (c2, c3)) left join (t8 c natural join t9 d) using (c2, c3, c4);
+select * from (t7 a left join t8 b using (c2, c3)) left join (t8 c natural join t9 d) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) left join (t8 c natural join t9 d) using (c2, c3, c4);
+select * from (t7 a natural join t8 b) left join (t8 c natural join t9 d) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) left join (t8 c left join t9 d using (c3, c4)) using (c2, c3, c4);
+select * from (t7 a natural join t8 b) left join (t8 c left join t9 d using (c3, c4)) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c left join t9 d using (c3, c4));
+select * from (t7 a natural join t8 b) natural join (t8 c left join t9 d using (c3, c4));
+
+### 4 table with full join
+explain basic select * from (t7 a full join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+select * from (t7 a full join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a full join t8 b using (c2, c3)) full join (t8 c natural join t9 d) using (c2, c3, c4);
+select * from (t7 a full join t8 b using (c2, c3)) full join (t8 c natural join t9 d) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) full join (t8 c natural join t9 d) using (c2, c3, c4);
+select * from (t7 a natural join t8 b) full join (t8 c natural join t9 d) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) full join (t8 c full join t9 d using (c3, c4)) using (c2, c3, c4);
+select * from (t7 a natural join t8 b) full join (t8 c full join t9 d using (c3, c4)) using (c2, c3, c4);
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c full join t9 d using (c3, c4));
+select * from (t7 a natural join t8 b) natural join (t8 c full join t9 d using (c3, c4));
+
+### 4 table with natural natural inner join
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural inner join t8 b ) natural join (t8 c natural join t9 d);
+select * from (t7 a natural inner join t8 b ) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural inner join t8 b ) natural inner join (t8 c natural join t9 d) ;
+select * from (t7 a natural inner join t8 b ) natural inner join (t8 c natural join t9 d) ;
+explain basic select * from (t7 a natural join t8 b) natural inner join (t8 c natural join t9 d) ;
+select * from (t7 a natural join t8 b) natural inner join (t8 c natural join t9 d) ;
+explain basic select * from (t7 a natural join t8 b) natural inner join (t8 c natural inner join t9 d ) ;
+select * from (t7 a natural join t8 b) natural inner join (t8 c natural inner join t9 d ) ;
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+
+### 4 table with natural left join
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural left join t8 b ) natural join (t8 c natural join t9 d);
+select * from (t7 a natural left join t8 b ) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural left join t8 b ) natural left join (t8 c natural join t9 d) ;
+select * from (t7 a natural left join t8 b ) natural left join (t8 c natural join t9 d) ;
+explain basic select * from (t7 a natural join t8 b) natural left join (t8 c natural join t9 d) ;
+select * from (t7 a natural join t8 b) natural left join (t8 c natural join t9 d) ;
+explain basic select * from (t7 a natural join t8 b) natural left join (t8 c natural left join t9 d ) ;
+select * from (t7 a natural join t8 b) natural left join (t8 c natural left join t9 d ) ;
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural left join t9 d );
+select * from (t7 a natural join t8 b) natural join (t8 c natural left join t9 d );
+
+### 4 table with natural full join
+explain basic select * from (t7 a natural full join t8 b ) natural join (t8 c natural join t9 d);
+select * from (t7 a natural full join t8 b ) natural join (t8 c natural join t9 d);
+explain basic select * from (t7 a natural full join t8 b ) natural full join (t8 c natural join t9 d) ;
+select * from (t7 a natural full join t8 b ) natural full join (t8 c natural join t9 d) ;
+explain basic select * from (t7 a natural join t8 b) natural full join (t8 c natural join t9 d) ;
+select * from (t7 a natural join t8 b) natural full join (t8 c natural join t9 d) ;
+explain basic select * from (t7 a natural join t8 b) natural full join (t8 c natural full join t9 d ) ;
+select * from (t7 a natural join t8 b) natural full join (t8 c natural full join t9 d ) ;
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+
+### with generated column
+explain basic select * from t10 natural join t7 natural join t8 natural join t9;
+select * from t10 natural join t7 natural join t8 natural join t9;
+
+### with ambiguous
+-- error 1052
+select * from t1 a join t2 b natural join t3 c;
+
+## test with generated table(subquery)
+explain basic select * from (select c1 from t1) a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+select * from (select c1 from t1) a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+explain basic select * from (select c1 from t1) a join t2 b using (c1) natural join t3 c order by a.c1, b.c1, c.c1;
+select * from (select c1 from t1) a join t2 b using (c1) natural join t3 c order by a.c1, b.c1, c.c1;
+
+### with ambiguous
+-- error 1060
+select * from (select -1 as c1, * from t1) a natural join t2 b natural join t3 c;
+
+## test with generated table(view)
+-- disable_query_log
+-- disable_warnings
+drop table if exists v1;
+drop view if exists v1;
+-- enable_query_log
+-- enable_warnings
+
+### normal view
+create view v1 as select c1 from t1;
+explain basic select * from v1 a natural join t3 b order by a.c1, b.c1;
+select * from v1 a natural join t3 b order by a.c1, b.c1;
+drop view v1;
+
+# ### with ambiguous
+# expected error 1060, but success.
+# create view v1 as select c1, t1.* from t1;
+# select * from v1 a natural join t3 b order by a.c1, b.c1;
+# drop view v1;
+
+## test with cte table(test in oracle compat)
+# WITH cte(n)
+# AS     (SELECT 1 AS n
+#         FROM dual-- anchor member
+#         UNION ALL
+#         SELECT n + 1 -- recursive member
+#         FROM (select 5 n from dual) natural join cte
+#         WHERE  n < 50 -- terminator
+#        )
+# SELECT *
+# FROM cte;
+
+# CLEAN SCHEMA
+--disable_query_log
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, v1;
+DROP VIEW IF EXISTS v1;
+--enable_warnings

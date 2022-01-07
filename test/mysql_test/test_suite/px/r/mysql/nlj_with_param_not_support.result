@@ -1,0 +1,28 @@
+drop table if exists t1;
+drop table if exists t2;
+create table t1(a int, b int, primary key (a)) partition by hash(a) partitions 2;
+create table t2(a int, b int, primary key (a)) partition by hash(a) partitions 2;
+result_format: 4
+explain_protocol: 0
+select /*+use_nl(t1 t2)*/ * from t1 left join t2 on t1.a = t2.a and t1.a = 5 and t2.a = 5 order by t1.a;
++----+------+---+------+
+| a  | b    | a | b    |
++----+------+---+------+
+|  0 |    0 | NULL | NULL |
+|  1 |    1 | NULL | NULL |
+|  2 |    2 | NULL | NULL |
+|  3 |    3 | NULL | NULL |
+|  4 |    4 | NULL | NULL |
+|  5 |    5 | 5 |    5 |
+|  6 |    6 | NULL | NULL |
+|  7 |    7 | NULL | NULL |
+|  8 |    8 | NULL | NULL |
+|  9 |    9 | NULL | NULL |
+| 10 |   10 | NULL | NULL |
+| 11 |   11 | NULL | NULL |
+| 12 |   12 | NULL | NULL |
+| 13 |   13 | NULL | NULL |
+| 14 |   14 | NULL | NULL |
+| 15 |   15 | NULL | NULL |
++----+------+---+------+
+

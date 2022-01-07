@@ -1,0 +1,38 @@
+## description: RQG 错误case 迁移到mysql
+--disable_warnings
+ DROP TABLE IF EXISTS J;
+ DROP TABLE IF EXISTS L;
+# 10:33:49 # Creating Dummy table schema.J .
+ CREATE TABLE J (
+col_varchar_10_key varchar(10),
+col_datetime_key datetime,
+col_int int,
+col_varchar_10 varchar(10),
+pk int,
+col_int_key int,
+col_date_key date,
+col_varchar_20 varchar(20),
+col_datetime datetime,
+col_date date,
+col_varchar_20_key varchar(20),
+/*Indices*/
+primary key (pk))  ;
+ INSERT INTO J VALUES  ('VGUCR', '2008-02-27 19:13:42', NULL, 'EPPRA', 1, NULL, '2000-06-26 12:35:20', 'uxn', '2000-09-22 02:21:46', '2004-05-01 05:08:43', 'get') ,  ('hey', '2001-01-12 03:04:26', NULL, 't', 2, -1218969600, '2007-09-18 16:26:39', 'h', '2005-05-04 06:55:10', '2007-04-26 05:35:51', 'hey') ,  ('p', '2006-07-13 05:24:57', 1037893632, 'TRYUS', 3, 856031232, '2004-05-09 00:39:39', 'mpuxnt', '2006-05-01 18:44:24', '2007-02-03 04:32:27', 'xmpux') ,  ('HUAZD', '2007-10-25 14:09:52', -379453440, 'there', 4, 2, '2003-03-25 04:44:30', 'him', '2007-08-16 17:26:41', '2006-11-12 09:29:44', 'hx') ,  ('to', '2001-07-19 00:02:27', 5, 't', 5, -2147418112, '2001-04-07 06:30:54', 'JCKHH', '2000-08-04 16:10:45', '2004-04-28 19:13:05', 'FXIBY') ,  ('e', '2004-01-27 03:16:25', 6, 'DQNNE', 6, NULL, '2002-08-26 11:47:49', 'TEXJJ', '2001-02-20 13:30:46', '2009-03-25 19:09:28', 'sethx') ,  ('j', '2000-04-20 02:57:15', -2066219008, 'her', 7, 1977810944, '2009-12-16 08:08:47', 'isethxmpux', '2007-02-05 21:02:04', '2008-07-26 15:51:13', 'UGFBV') ,  ('h', '2009-04-06 08:42:13', 7, 'j', 8, 787087360, '2008-06-12 08:32:46', 'SNJXN', '2005-01-24 20:06:48', '2007-05-16 17:11:29', 'have') ,  ('n', '2005-02-05 05:35:27', -1390280704, 'that\'s', 9, 1, '2000-06-19 20:49:29', 'hey', '2008-12-02 19:16:27', '2001-09-08 14:22:11', 'd') ,  ('t', '2009-03-06 21:01:20', -2055340032, 'see', 10, 9, '2006-03-18 09:07:59', 'a', '2005-11-04 16:16:42', '2007-09-23 05:45:13', 'RMOAP') ;
+# 10:33:49 # Creating Dummy table schema.L .
+ CREATE TABLE L (
+col_datetime datetime,
+col_int int,
+col_varchar_20_key varchar(20),
+col_datetime_key datetime,
+pk int,
+col_varchar_10_key varchar(10),
+col_date_key date,
+col_date date,
+col_varchar_20 varchar(20),
+col_int_key int,
+col_varchar_10 varchar(10),
+/*Indices*/
+primary key (pk))  ;
+INSERT INTO L VALUES  ('2005-02-20 06:21:58', NULL, 'QMLWA', '2008-09-27 12:36:12', 1, 'jmlnb', '2001-12-01 23:27:14', '2003-08-02 09:50:19', 'her', -1838481408, 'bjmlnbdkoc') ,  ('2007-11-01 13:09:33', 8, 'this', '2004-09-18 00:42:31', 2, 'AHSAB', '2001-10-10 15:34:17', '2005-02-02 22:39:30', 'g', -123076608, 'WHHIT') ,  ('2005-03-01 23:44:22', -963903488, 'going', '2008-05-13 03:35:27', 3, 'r', '2000-01-22 19:52:35', '2001-08-01 18:10:15', 'be', NULL, 'b') ,  ('2006-06-14 05:27:26', -223477760, 'qbjml', '2004-11-12 15:39:00', 4, 'bqbjm', '2001-01-28 18:36:42', '2003-04-15 09:14:54', 'ebqbj', 1570897920, 'sebq') ,  ('2002-09-24 00:13:40', NULL, 'I\'m', '2007-03-10 00:19:52', 5, 'csebqbjml', '2009-10-20 10:31:40', '2009-03-06 17:03:36', 'HQNSD', 1332019200, 'ZTAUK') ,  ('2007-01-16 02:06:12', NULL, 'p', '2009-08-21 00:20:57', 6, 'w', '2000-03-19 08:33:02', '2005-05-25 19:00:09', 'BSUDH', 0, 'qcse') ,  ('2006-04-15 10:48:22', 1, 'wqcsebqbj', '2009-01-20 15:49:11', 7, 'LEEBR', '2005-12-24 18:37:53', '2007-02-14 13:10:26', 'WROWW', 4, 'VOPHR') ,  ('2008-03-03 15:54:52', 7, 'o', '2009-04-12 22:19:34', 8, 'were', '2005-02-20 05:50:56', '2007-11-21 21:30:14', 'f', 155713536, 't') ,  ('2008-07-19 08:05:10', 1991835648, 'a', '2009-09-15 14:49:16', 9, 'CZEAT', '2007-07-13 14:45:50', '2006-02-26 20:32:23', 'y', NULL, 'lfw') ,  ('2006-08-15 21:53:28', 1201864704, 'v', '2007-10-04 00:46:33', 10, 'nlfwqc', '2006-08-01 13:04:03', '2001-03-04 17:45:34', 'but', 5, 'what') ,  ('2003-12-07 15:15:29', 0, 'when', '2005-12-27 23:59:43', 11, 'h', '2005-05-13 15:52:06', '2004-12-12 05:31:31', 'I\'ll', NULL, 'yeah') ,  ('2004-11-11 15:26:51', 355794944, 'how', '2007-10-18 03:58:29', 12, 'z', '2005-06-19 13:29:57', '2006-03-03 05:32:26', 'then', NULL, 'really') ;
+SELECT  GRANDPARENT1 . col_int AS G1 FROM L AS GRANDPARENT1 LEFT JOIN J AS GRANDPARENT2 ON ( GRANDPARENT2 . `col_date_key` <> GRANDPARENT1 . `col_datetime` ) WHERE GRANDPARENT1 . `pk` IN ( SELECT  PARENT1 . `pk` AS P1 FROM L AS PARENT1   ) AND ( ( GRANDPARENT1 . `col_int_key` > 1 OR GRANDPARENT1 . `col_datetime` BETWEEN '2005-04-01' AND '2004-04-27' ) AND GRANDPARENT1 . `col_int_key` > 3 ) GROUP BY GRANDPARENT1 . col_int HAVING G1 < '2007-07-06 06:12:45' ORDER BY GRANDPARENT1 . col_int LIMIT 9;
+--enable_warnings

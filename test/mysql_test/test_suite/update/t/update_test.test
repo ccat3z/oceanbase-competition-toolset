@@ -1,0 +1,97 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description: foobar
+####TITLE:单行事务和多行事务同时更新走索引的查询列,查询索引表、数据表，回表
+####
+--disable_query_log
+--source mysql_test/include/index_quick_major.inc
+--real_sleep 1
+--enable_query_log
+
+--source mysql_test/include/check_all_idx_ok.inc
+
+connect (conn1,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connect (conn2,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connect (conn3,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+
+--disable_query_log
+--disable_warnings
+drop table if exists t1, test;
+--enable_warnings
+--enable_query_log
+
+create table t1(pk int primary key, a int, b int);
+create index i1 on t1(b);
+
+####CASE:单行事务和多行事务同时更新，事务均提交,事务1读
+insert into t1(pk, a, b) values(1,1,1),(2,1,1);
+select * from t1;
+
+connection conn2;
+set autocommit=0;
+update t1 set a=10, b=10 where pk=1;
+delete from t1 where pk=2;
+commit;
+
+connection conn3;
+insert into t1(pk,a ,b) values(3,1,1);
+
+
+####CASE:多行事务提交,单行事务回滚,查询数据表、索引表、回表
+connection conn2;
+set autocommit=0;
+select * from t1 where pk=3;
+update t1 set a=30, b=30 where pk=3;
+insert into t1 values(4,1,1);
+select * from t1;
+commit;
+select * from t1;
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(c1 timestamp(6) primary key);
+insert into t1 values('2018-06-15 01:00:00.000003');
+--error 1062
+insert into t1 values('2018-06-15 01:00:00.000003');
+insert into t1 values('2018-06-16 01:00:00.000003');
+--error 1062
+update t1 set c1 = '2018-06-15 01:00:00.000003';
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1 (a TIME(6));
+--error 1292
+INSERT INTO t1 VALUES (8385959.1e0);
+INSERT INTO t1 VALUES (83859.1);
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+use test;
+create table t1(a int);
+select * from t1 for update wait 0.000001;
+--error 1210
+select * from t1 for update wait 0.0000001;
+--error 1210
+select * from t1 for update wait 0.0000010;
+
+select * from t1 for update wait 10.000001;
+--error 1210
+select * from t1 for update wait 10.0000001;
+--disable_warnings
+drop table if exists t2;
+--enable_warnings
+create table t2(a decimal);
+insert into t2 value(0.000001);
+insert into t2 value(0.0000001);
+insert into t2 value(10.0000001);
+
+create table test(c1 int primary key , c2 int, c3 int, c4 char, c5 char);
+insert into test values(1,2,3,'d','f') on duplicate key update c1 = 1, c2 = 3, c3 = 4, c5 = 'e', c5 = 'a';
+select * from test;
+insert into test values(1,2,3,'d','f') on duplicate key update c1 = 1, c2 = 3, c3 = 4, c5 = 'e', c5 = 'a';
+select * from test;
+drop table test;

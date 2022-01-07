@@ -1,0 +1,175 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: groupby, optimizer
+# description: fix bug about rollup when has exchange.
+#
+
+--disable_warnings
+drop table if exists test_rollup;
+drop table if exists t1;
+drop table if exists t2;
+--enable_warnings
+
+create table test_rollup(user_id int,user_name varchar(32),user_dept_id char(4),user_age int,comments varchar(32) not null default 'N/A') partition by hash (user_id) partitions 15;
+
+--disable_query_log
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (0, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (1, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (2, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (3, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (4, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (5, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (6, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (7, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (8, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (9, 'user 1', '0000', 30);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (10, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (11, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (12, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (13, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (14, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (15, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (16, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (17, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (18, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (19, 'user 1', '0001', 35);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (20, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (21, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (22, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (23, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (24, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (25, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (26, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (27, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (28, 'user 1', '0002', 55);
+insert into test_rollup (user_id, user_name, user_dept_id, user_age) values (29, 'user 1', '0002', 55);
+--enable_query_log
+create table t1(c1 int, c2 int, c3 int, c4 int, primary key(c1,c2)) partition by hash(c1+c2) partitions 2;
+create table t2(c1 int, c2 int, c3 int, c4 int, primary key(c1,c2));
+--disable_query_log
+insert into t1 values (1,1,1,1);
+insert into t1 values (2,1,1,2);
+insert into t1 values (3,1,1,1);
+insert into t1 values (4,1,2,1);
+insert into t1 values (5,1,2,2);
+insert into t1 values (6,2,3,1);
+insert into t1 values (7,2,3,4);
+insert into t1 values (8,2,3,3);
+insert into t1 values (9,2,3,4);
+insert into t2 values(1,1,1,1);
+insert into t2 values(2,2,2,2);
+--enable_query_log
+
+--disable_query_log
+--disable_result_log
+select * from test_rollup;
+select * from t1;
+select * from t2;
+--enable_query_log
+--enable_result_log
+
+--explain_protocol 0
+
+#https://work.aone.alibaba-inc.com/issue/22222754
+select /*+use_px, parallel(2)*/user_dept_id, count(*), avg(user_age) from test_rollup group by user_dept_id with rollup;
+select /*+no_use_px*/user_dept_id, count(*), avg(user_age) from test_rollup group by user_dept_id with rollup;
+
+##没有distinct的处理
+select /*+use_px, parallel(2)*/sum(c4) from t1; # 测试scala aggregate下推
+select /*+no_use_px*/sum(c4) from t1; # 测试scala aggregate下推
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2; # exchange下需要merge sort.
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2; # exchange下需要merge sort.
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2; # group by键为分区键
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2; # group by键为分区键
+select /*+use_px, parallel(2)*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 order by c2; # group by键为非分区键
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 order by c2; # group by键为非分区键
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+select /*+use_px, parallel(2)*/c2,count(*) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2,count(*) from t1 group by c2 with rollup order by c2;
+select /*+use_px, parallel(2)*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c2 with rollup order by c2;
+
+#处理含有distinct的情况
+select /*+use_px, parallel(2)*/sum(distinct c4) from t1;
+select /*+no_use_px*/sum(distinct c4) from t1;
+select /*+use_px, parallel(2)*/c1,c2,sum(distinct c4) from t1 group by c1,c2 order by c1,c2;
+select /*+no_use_px*/c1,c2,sum(distinct c4) from t1 group by c1,c2 order by c1,c2;
+select /*+use_px, parallel(2)*/c1,c2,sum(distinct c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2,sum(distinct c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2,sum(distinct c4) from t1 group by c2 order by c2;
+select /*+no_use_px*/c2,sum(distinct c4) from t1 group by c2 order by c2;
+select /*+use_px, parallel(2)*/c2,sum(distinct c4) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2,sum(distinct c4) from t1 group by c2 with rollup order by c2;
+
+#rollup作为generated table子查询的情况
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c2,count(*) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c2,count(*) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c2,avg(c4) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c2,avg(c4) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c1,c2,avg(c4) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c1,c2,avg(c4) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+
+#处理满足参数默认下推的情况
+set _groupby_nopushdown_cut_ratio=1;
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 order by c2;
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 order by c2;
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 order by c2;
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 order by c2;
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+select /*+use_px, parallel(2)*/c1,c2,count(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+no_use_px*/c1,c2,count(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+use_px, parallel(2)*/c1,c2,count(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2,count(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2,count(c4) from t1 group by c2 order by c2;
+select /*+no_use_px*/c2,count(c4) from t1 group by c2 order by c2;
+select /*+use_px, parallel(2)*/c2,count(c4) from t1 group by c2 with rollup order by c2;
+select /*+no_use_px*/c2,count(c4) from t1 group by c2 with rollup order by c2;
+select /*+use_px, parallel(2)*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+no_use_px*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 order by c1,c2;
+select /*+use_px, parallel(2)*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+no_use_px*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+select /*+use_px, parallel(2)*/c2,c3,sum(c4) from t1 group by c2,c3 order by c2,c3;
+select /*+no_use_px*/c2,c3,sum(c4) from t1 group by c2,c3 order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,sum(distinct c4) from t1 group by c2,c3 order by c2,c3;
+select /*+no_use_px*/c2,c3,sum(distinct c4) from t1 group by c2,c3 order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,sum(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+no_use_px*/c2,c3,sum(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,sum(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+no_use_px*/c2,c3,sum(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,count(c4) from t1 group by c2,c3 order by c2,c3;
+select /*+no_use_px*/c2,c3,count(c4) from t1 group by c2,c3 order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,count(distinct c4) from t1 group by c2,c3 order by c2,c3;
+select /*+no_use_px*/c2,c3,count(distinct c4) from t1 group by c2,c3 order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,count(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+no_use_px*/c2,c3,count(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3,count(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+no_use_px*/c2,c3,count(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 order by c2,c3;
+select /*+no_use_px*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 order by c2,c3;
+select /*+use_px, parallel(2)*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+select /*+no_use_px*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+set _groupby_nopushdown_cut_ratio=3;
+
+drop table test_rollup;
+drop table t1;
+drop table t2;
+

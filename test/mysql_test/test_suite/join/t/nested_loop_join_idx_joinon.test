@@ -1,0 +1,252 @@
+# tags: optimizer
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+connect (conn1,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection conn1;
+--disable_query_log
+--source mysql_test/include/index_quick_major.inc
+--real_sleep 1
+--enable_query_log
+--echo merge happens
+##test index for nested loop join
+--disable_warnings
+drop table if exists tbl1,tbl2;
+--enable_warnings
+create table tbl1 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i3));
+create table tbl2 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i3));
+create index idx1 on tbl1(i1);
+create index idx2 on tbl2(i1);
+--source mysql_test/include/check_all_idx_ok.inc
+insert into tbl1 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl1 values(2,'now','haha2',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl1 values(3,'now','haha3',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl2 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl2 values(2,'now1','haha2',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl2 values(3,'now2','haha3',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl2 values(1,'now3','haha4',1.6256,'2014-05-04 12:00:00',1.677);
+explain basic select count(*) from tbl1;
+explain basic select count(*) from tbl1 group by v2;
+explain basic select count(*) from tbl1 where i1<=3;
+explain basic select sum(i1) from tbl1;
+explain basic select sum(i1) from tbl1 group by v2;
+explain basic select sum(i1) from tbl1 where i1<=3;
+explain basic select avg(i1) from tbl1;
+--sorted_result
+explain basic select avg(i1) from tbl1 group by v2;
+explain basic select avg(i1) from tbl1 where i1<=3;
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+ select * from tbl2,tbl1 where tbl2.v2=tbl1.v2 and tbl1.i1>2;
+explain basic select * from tbl2,tbl1 where tbl2.v2=tbl1.v2 and tbl1.i1>2;
+--echo  test alias 
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 and a.i1>2;
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 and a.i1>2; 
+select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 join tbl2 b on  tbl1.i1=b.i1 and tbl1.i1>2;
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2; 
+select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 join tbl2 b on  tbl1.i1=b.i1 and tbl1.i1>2;
+explain basic select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 join tbl2 b on tbl1.i1=b.i1 and tbl1.i1>2;
+--echo  test join with self 
+select * from tbl1 as i00 join tbl1 on tbl1.i1=i00.i1 and tbl1.i1>2;
+explain basic select * from tbl1 as i00 join tbl1  on  tbl1.i1=i00.i1 and tbl1.i1>2;
+select * from tbl1 as i00 join tbl1  on  tbl1.v2=i00.v2 and tbl1.i1>2;
+explain basic select * from tbl1 as i00 join tbl1  on  tbl1.v2=i00.v2 and tbl1.i1>2;
+--echo  test null in  join condition 
+insert into tbl1 values(null,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl2 values(null,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1 is null and tbl1.i1>2;
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1 is null and tbl1.i1>2;
+ explain basic select * from tbl1 join tbl2 on (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+--echo  test index condition in where order 
+explain basic select * from tbl1 join tbl2 on tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain basic select count(*) from tbl1 join tbl2 on tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain basic select * from tbl1 join tbl2 on (tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now') and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain basic select * from tbl1 join tbl2 on tbl1.v2=tbl2.v2 and (tbl1.i1=2 and tbl1.v2='now' and  tbl1.i1=tbl2.i1) and tbl1.i1>2;
+--echo  use column alias 
+select tbl1.i1 as col1 from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select tbl1.i1  from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+--echo  test join in ps'
+#prepare st from select   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1=? and tbl1.i1>2;
+#set @a=1;
+#execute st using @a;
+--echo  test union,except,... 
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2 union select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2;
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2 union select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2;
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2 except select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2;
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2 except select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2;
+--echo  test hint,condition use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb2 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb1 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb2 idx2) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  and a.i1>2;
+--echo  test hint,use not exist index 
+select /*+ INDEX(t1 idx3) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.v2=b.v2 and a.i1>2;
+explain basic select /*+ INDEX(t1 idx3) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.v2=b.v2 and a.i1>2;
+explain basic select /*+ INDEX(t1 idx3) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 and a.i1>2;
+--echo test when index is invalid 
+--disable_warnings
+drop table if exists tbl10,tbl20;
+--enable_warnings
+create table tbl10 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i3));
+create table tbl20 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i3));
+create index idx10 on tbl10(i1);
+create index idx20 on tbl20(i1);
+insert into tbl10 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl10 values(2,'now','haha2',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl10 values(3,'now','haha3',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl20 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl20 values(2,'now','haha2',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl20 values(3,'now2','haha3',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl20 values(1,'now3','haha4',1.6256,'2014-05-04 12:00:00',1.677);
+select * from tbl10,tbl20 where tbl10.i1=tbl20.i1 and tbl10.i1>2;
+explain basic select * from tbl10,tbl20 where tbl10.i1=tbl20.i1 and tbl10.i1>2;
+select a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on a.i1=b.i1 and a.i1>2;
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on a.i1=b.i1 and a.i1>2;
+select tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 ,tbl20 b where tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 ,tbl20 b where tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select /*+ INDEX(tb1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb2 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb1 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb2 idx2) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on a.i1=b.i1  and a.i1>2;
+--source mysql_test/include/check_all_idx_ok.inc
+select * from tbl10 join tbl20 on tbl10.i1=tbl20.i1 and tbl10.i1>2;
+explain basic select * from tbl10 join tbl20 on  tbl10.i1=tbl20.i1 and tbl10.i1>2;
+select a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on  a.i1=b.i1 and a.i1>2;
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on  a.i1=b.i1 and a.i1>2;
+select tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 join tbl20 b on  tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10  join tbl20 b on  tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select /*+ INDEX(tb1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a join tbl20 b on  a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb2 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb1 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1  and a.i1>2;
+explain basic select /*+ INDEX(tb2 idx2) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1  and a.i1>2;
+--echo  test muti columns index 
+--disable_warnings
+drop table if exists tbl3,tbl4;
+--enable_warnings
+create table tbl3 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1));
+create table tbl4 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1));
+create index idx1 on tbl3(i1,v2,i3,d4);
+create index idx2 on tbl4(i1,v2,i3,d4);
+--source mysql_test/include/check_all_idx_ok.inc
+insert into tbl3 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl3 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl3 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl4 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl4 values(2,'now','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl4 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl4 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',-1.45);
+--echo  where condition hava first column of index,not have all index columns 
+select * from tbl3 join tbl4 on  tbl3.i1=tbl4.i1 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on  tbl3.i1=tbl4.i1 and tbl3.i1>2 and tbl3.i4>1.25;
+select * from tbl3 join tbl4 on  tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on  tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2 and tbl3.i4>1.25;
+select * from tbl3 join tbl4 on  tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on  tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i3>2 and tbl3.i4>1.25;
+--echo  have frist column of pk,but where condition is disorder 
+select * from tbl3 join tbl4 on   tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1  and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on   tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and tbl3.i1>2 and tbl3.i4>1.25;
+select * from tbl3 join tbl4 on   tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1)  and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on   tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and tbl3.i1>2 and tbl3.i4>1.25;
+--echo  where condition not hava first column of index,but have other column of  index key 
+select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2 and tbl3.i4>1.25;
+--echo  where condition not hava  index,but have primary 
+select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  tbl3.i5=tbl4.i5 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  tbl3.i5=tbl4.i5 and tbl3.i1>2 and tbl3.i4>1.25;
+--echo  test hint,condition use primary 
+select /*+ INDEX(t3 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl3 a join tbl4 b on  a.i1=b.i1  and a.i1>2 and a.i4>1.25;
+explain basic select /*+ INDEX(t3 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl3 a join tbl4 b on  a.i1=b.i1  and a.i1>2 and a.i4>1.25;
+--echo  test hint,condition not use primary 
+select /*+ INDEX(t3 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl3 a join tbl4 b on  a.v2=b.v2 and a.i1>2 and a.i4>1.25;
+explain basic select /*+ INDEX(t3 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl3 a join tbl4 b on  a.v2=b.v2 and a.i1>2 and a.i4>1.25;
+--echo  test muti indexes 
+--disable_warnings
+drop table if exists tbl5,tbl6;
+--enable_warnings
+create table tbl5 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1));
+create table tbl6 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1));
+create index i51 on tbl5(i1);
+create index i52 on tbl5(v2);
+create index i53 on tbl5(i3);
+create index i61 on tbl5(i1);
+create index i62 on tbl5(v2);
+create index i63 on tbl5(i3);
+--source mysql_test/include/check_all_idx_ok.inc
+insert into tbl5 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl5 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl5 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl6 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl6 values(2,'now','haha',1.6251,'2014-05-04 12:00:00',-0.25);
+insert into tbl6 values(3,'now2','haha',-1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl6 values(4,'now3','haha',2.6256,'2014-05-04 12:00:00',-1.45);
+--echo  where condition hava first column of primay,not have all primary columns 
+select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.v2=tbl6.v2 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i3=tbl6.i3 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i4=tbl6.i4 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i5=tbl6.i5 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and  tbl5.v2=tbl6.v2 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and  tbl5.i5=tbl6.i5 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and  tbl5.v2=tbl6.v2 and tbl5.i4>1.25;
+select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and  tbl5.v2=tbl6.v2 and  tbl5.i4=tbl6.i4 and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on  tbl5.i1=tbl6.i1 and  tbl5.v2=tbl6.v2 and  tbl5.i4=tbl6.i4 and tbl5.i4>1.25;
+--echo  have frist column of pk,but where condition is disorder 
+select * from tbl5 join tbl6 on   tbl5.v2=tbl6.v2 and  tbl5.i4=tbl6.i4 and tbl5.i1=tbl6.i1  and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on   tbl5.v2=tbl6.v2 and  tbl5.i4=tbl6.i4 and tbl5.i1=tbl6.i1 and tbl5.i4>1.25;
+select * from tbl5 join tbl6 on   tbl5.v2=tbl6.v2 and  (tbl5.i4=tbl6.i4 and tbl5.i1=tbl6.i1)  and tbl5.i4>1.25;
+explain basic select * from tbl5 join tbl6 on   tbl5.v2=tbl6.v2 and  (tbl5.i4=tbl6.i4 and tbl5.i1=tbl6.i1) and tbl5.i4>1.25;
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+create table t1 (id int , i2 int,i3 int primary key);
+create table t2 (id int , i2 int,i3 int primary key);
+create index idx1 on t1(id);
+create index idx2 on t2(id);
+--source mysql_test/include/check_all_idx_ok.inc
+insert into t1 values (75,1,2);
+insert into t1 values (79,3,4);
+insert into t1 values (78,5,6);
+insert into t1 values (77,7,8);
+insert into t1 values (104,9,10);
+insert into t1 values (103,11,12);
+insert into t1 values (102,13,14);
+insert into t1 values (101,15,16);
+insert into t1 values (105,17,18);
+insert into t1 values (106,19,20);
+insert into t1 values (107,21,22);
+insert into t2 values (107,22,23),(75,24,25),(1000,26,27);
+select t1.id, t2.id from t1 join  t2 on t2.id = t1.id and t1.i2>10;
+select t1.id, t2.id from t1 join  t2 on t2.id = t1.id and t1.i2>length('agagfagfg');
+#use nested loop join
+explain basic select t1.id, t2.id from t1 join  t2 on t2.id = t1.id and t1.i2>10;
+#use merge join
+explain basic select t1.id, t2.id from t1 join  t2 on t2.i2 = t1.i2 and t1.i2>10;
+explain basic select t1.id, count(t2.id) from t1,t2 where t2.id = t1.id and t1.i2>10 group by t1.id order by t1.id;
+--echo  use with limit 
+select * from t1 join  t2 on t2.id = t1.id and t1.i2>10 limit 3;
+select * from t1 join  t2 on t2.id = t1.id and t1.i2>cast('10' as signed int) limit 3;
+select * from t1 join  t2 on t2.id = t1.id and t1.i2>10 limit 1,5;
+explain basic select * from t1 join  t2 on t2.id = t1.id and t1.i2>10 limit 3;
+explain basic select * from t1 join  t2 on t2.id = t1.id and t1.i2>10 limit 1,5;
+--echo  2.from select join normal table 
+--disable_warnings
+drop table if exists t,b;
+--enable_warnings
+create table t(x int , c int, c1 int primary key);
+create table b(x int , c int,c1 int primary key);
+create index idx3 on t(x);
+create index idx4 on b(x);
+--source mysql_test/include/check_all_idx_ok.inc
+insert into t values(1,2,1),(2,2,2),(3,3,3);
+insert into b values(1,99,1),(2,98,2),(3,97,3);
+--sorted_result
+select a.c1 as a_c, b.c as b_c from b join (select c, sum(c1) as c1 from t group by c) a  on  a.c = b.x and a.c>2;
+explain basic select a.c1 as a_c, b.c as b_c from b join (select c, sum(c1) as c1 from t group by c) a  on a.c = b.x and a.c>2;
+--sorted_result
+select a.c1 as a_c, b.c as b_c from b join (select c, sum(c1) as c1 from t group by c) a  on  a.c = b.x and a.c>2;
+--sorted_result
+explain basic select a.c1 as a_c, b.c as b_c from b join  (select c, sum(c1) as c1 from t group by c) a  on a.c = b.x and a.c>2;

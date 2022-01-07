@@ -1,0 +1,1430 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+--result_format 4
+--explain_protocol 0
+
+# tags: optimizer
+# description: 从mysql中迁移过来的基础subquery_all.test测试集第二部分
+# subquery_all.test由于太大，分拆成三部分，另外两部分是subquery_all2.test以及subquery_all3.test
+# Basic subquery tests
+
+--disable_warnings
+drop table if exists t, t0, t1, t2, t3, t4, t5, t1s, t2s, m, o, integers;
+drop view if exists v1, v2, v3, v4;
+--enable_warnings
+
+--echo #
+--echo # BUG#48177 - SELECTs with NOT IN subqueries containing NULL
+--echo #             values return too many records
+--echo #
+
+CREATE TABLE t1 (
+  i1 int DEFAULT NULL,
+  i2 int DEFAULT NULL
+) ;
+
+INSERT/*insert trace*/ INTO t1 VALUES (1,    NULL);
+INSERT/*insert trace*/ INTO t1 VALUES (2,    3);
+INSERT/*insert trace*/ INTO t1 VALUES (4,    NULL);
+INSERT/*insert trace*/ INTO t1 VALUES (4,    0);
+INSERT/*insert trace*/ INTO t1 VALUES (NULL, NULL);
+
+CREATE TABLE t2 (
+  i1 int DEFAULT NULL,
+  i2 int DEFAULT NULL
+) ;
+
+INSERT/*insert trace*/ INTO t2 VALUES (4, NULL);
+INSERT/*insert trace*/ INTO t2 VALUES (5, 0);
+
+--echo
+--echo Data in t1
+SELECT i1, i2 FROM t1;
+
+--echo
+--echo Data in subquery (should be filtered out)
+SELECT i1, i2 FROM t2 ORDER BY i1;
+
+--echo
+SELECT i1, i2
+FROM t1
+WHERE (i1, i2)
+      NOT IN (SELECT i1, i2 FROM t2);
+
+--echo
+--echo # Check that the subquery only has to be evaluated once
+--echo # for all-NULL values even though there are two (NULL,NULL) records
+--echo # Baseline:
+SHOW STATUS LIKE '%Handler_read_rnd_next';
+
+--echo
+INSERT/*insert trace*/ INTO t1 VALUES (NULL, NULL);
+
+--echo
+SELECT i1, i2
+FROM t1
+WHERE (i1, i2)
+      NOT IN (SELECT i1, i2 FROM t2);
+
+--echo
+--echo # Handler_read_rnd_next should be one more than baseline
+--echo # (read record from t1, but do not read from t2)
+SHOW STATUS LIKE '%Handler_read_rnd_next';
+
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug#54568: create view cause Assertion failed: 0,
+--echo # file .\item_subselect.cc, line 836
+--echo #
+SELECT 1 LIKE ( 1 IN ( SELECT 1 ) );
+#DESCRIBE SELECT 1 LIKE ( 1 IN ( SELECT 1 ) );
+--echo # None of the below should crash
+CREATE VIEW v1 AS SELECT 1 LIKE ( 1 IN ( SELECT 1 ) );
+CREATE VIEW v2 AS SELECT 1 LIKE '%' ESCAPE ( 1 IN ( SELECT 1 ) );
+DROP VIEW v1, v2;
+
+#
+# Bug #47904 Incorrect results w/ table subquery, derived SQs, and LEFT JOIN on index
+#
+
+--echo Set up test tables.
+CREATE TABLE t1 (
+	t1_id INT UNSIGNED,
+
+	PRIMARY KEY(t1_id)
+) ;
+
+INSERT/*insert trace*/ INTO t1 (t1_id) VALUES (1), (2), (3), (4), (5);
+
+CREATE TABLE t2 like t1;
+
+INSERT/*insert trace*/ INTO t2 (t1_id) VALUES (1), (2), (3), (4), (5);
+
+CREATE TABLE t3 (
+	t3_id INT UNSIGNED AUTO_INCREMENT,
+	t1_id INT UNSIGNED,
+	amount DECIMAL(16,2),
+
+	PRIMARY KEY(t3_id),
+	KEY(t1_id)
+) ;
+
+INSERT/*insert trace*/ INTO t3 (t1_id, t3_id, amount)
+        VALUES (1, 1, 100.00), (2, 2, 200.00), (4, 4, 400.00);
+
+--echo This is the 'inner query' running by itself.
+--echo Produces correct results.
+--sorted_result
+SELECT
+	t1.t1_id,
+	IFNULL((SELECT SUM(amount) FROM t3 WHERE t3.t1_id=t1.t1_id), 0) AS total_amount
+FROM
+	t1
+	LEFT JOIN t2 ON t2.t1_id=t1.t1_id
+GROUP BY
+	t1.t1_id
+;
+
+--echo SELECT * FROM (the same inner query)
+--echo Produces correct results.
+--sorted_result
+SELECT * FROM (
+SELECT
+	t1.t1_id,
+	IFNULL((SELECT SUM(amount) FROM t3 WHERE t3.t1_id=t1.t1_id), 0) AS total_amount
+FROM
+	t1
+	LEFT JOIN t2 ON t2.t1_id=t1.t1_id
+GROUP BY
+	t1.t1_id
+) AS t;
+
+--echo Now make t2.t1_id part of a key.
+#ALTER TABLE t2 ADD PRIMARY KEY(t1_id);
+
+--echo Same inner query by itself.
+--echo Still correct results.
+--sorted_result
+SELECT
+	t1.t1_id,
+	IFNULL((SELECT SUM(amount) FROM t3 WHERE t3.t1_id=t1.t1_id), 0) AS total_amount
+FROM
+	t1
+	LEFT JOIN t2 ON t2.t1_id=t1.t1_id
+GROUP BY
+	t1.t1_id;
+
+--echo SELECT * FROM (the same inner query), now with indexes on the LEFT JOIN
+--sorted_result
+SELECT * FROM (
+SELECT
+	t1.t1_id,
+	IFNULL((SELECT SUM(amount) FROM t3 WHERE t3.t1_id=t1.t1_id), 0) AS total_amount
+FROM
+	t1
+	LEFT JOIN t2 ON t2.t1_id=t1.t1_id
+GROUP BY
+	t1.t1_id
+) AS t;
+
+
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+#
+# BUG#36135 "void Diagnostics_area::set_eof_status(THD*): Assertion `!is_set()' failed."
+#
+create table t0 (a int);
+INSERT/*insert trace*/ into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  a int(11) default null,
+  b int(11) default null,
+  key (a)
+);
+# produce numbers 0..999
+#INSERT/*insert trace*/ into t1 select A.a+10*(B.a+10*C.a),A.a+10*(B.a+10*C.a) from t0 A, t0 B, t0 C;
+
+create table t2 (a int(11) default null);
+INSERT/*insert trace*/ into t2 values (0),(1);
+
+create table t3 (a int(11) default null);
+INSERT/*insert trace*/ into t3 values (0),(1);
+
+create table t4 (a int(11) default null);
+INSERT/*insert trace*/ into t4 values (0),(1);
+
+create table t5 (a int(11) default null);
+INSERT/*insert trace*/ into t5 values (0),(1),(0),(1);
+
+# this must not fail assertion
+--error 1242
+select * from t2, t3
+where
+    t2.a < 10 and
+    t3.a+1 = 2 and
+    t3.a in (select t1.b from t1
+                 where t1.a+1=t1.a+1 and
+                       t1.a < (select t4.a+10
+                                  from t4, t5 limit 2));
+
+drop table t0, t1, t2, t3, t4, t5;
+
+--echo #
+--echo # BUG#48177 - SELECTs with NOT IN subqueries containing NULL
+--echo #             values return too many records
+--echo #
+
+CREATE TABLE t1 (
+  i1 int DEFAULT NULL,
+  i2 int DEFAULT NULL
+) ;
+
+INSERT/*insert trace*/ INTO t1 VALUES (1,    NULL);
+INSERT/*insert trace*/ INTO t1 VALUES (2,    3);
+INSERT/*insert trace*/ INTO t1 VALUES (4,    NULL);
+INSERT/*insert trace*/ INTO t1 VALUES (4,    0);
+INSERT/*insert trace*/ INTO t1 VALUES (NULL, NULL);
+
+CREATE TABLE t2 (
+  i1 int DEFAULT NULL,
+  i2 int DEFAULT NULL
+) ;
+
+INSERT/*insert trace*/ INTO t2 VALUES (4, NULL);
+INSERT/*insert trace*/ INTO t2 VALUES (5, 0);
+
+--echo
+--echo Data in t1
+SELECT i1, i2 FROM t1;
+
+--echo
+--echo Data in subquery (should be filtered out)
+SELECT i1, i2 FROM t2 ORDER BY i1;
+
+--echo
+SELECT i1, i2
+FROM t1
+WHERE (i1, i2)
+      NOT IN (SELECT i1, i2 FROM t2);
+
+--echo
+--echo # Check that the subquery only has to be evaluated once
+--echo # for all-NULL values even though there are two (NULL,NULL) records
+--echo # Baseline:
+SHOW STATUS LIKE '%Handler_read_rnd_next';
+
+--echo
+INSERT/*insert trace*/ INTO t1 VALUES (NULL, NULL);
+
+--echo
+SELECT i1, i2
+FROM t1
+WHERE (i1, i2)
+      NOT IN (SELECT i1, i2 FROM t2);
+
+--echo
+--echo # Handler_read_rnd_next should be one more than baseline
+--echo # (read record from t1, but do not read from t2)
+SHOW STATUS LIKE '%Handler_read_rnd_next';
+DROP TABLE t1,t2;
+
+
+
+--echo #
+--echo # Bug #52711: Segfault when doing EXPLAIN BASIC SELECT with
+--echo #  union...order by (select... where...)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10), KEY a (a));
+INSERT/*insert trace*/ INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT/*insert trace*/ INTO t2 VALUES (1),(2);
+
+--echo # Should not crash
+--disable_result_log
+#EXPLAIN BASIC
+#SELECT * FROM t2 UNION SELECT * FROM t2
+#  ORDER BY (SELECT * FROM t1 WHERE MATCH(a) AGAINST ('+abc' IN BOOLEAN MODE));
+
+--echo # Should not crash
+#SELECT * FROM t2 UNION SELECT * FROM t2
+#  ORDER BY (SELECT * FROM t1 WHERE MATCH(a) AGAINST ('+abc' IN BOOLEAN MODE));
+DROP TABLE t1,t2;
+--enable_result_log
+
+--echo #
+--echo # Bug #58818: Incorrect result for IN/ANY subquery
+--echo # with HAVING condition
+--echo #
+
+CREATE TABLE t1(i INT);
+INSERT/*insert trace*/ INTO t1 VALUES (1), (2), (3);
+CREATE TABLE t1s(i INT);
+INSERT/*insert trace*/ INTO t1s VALUES (10), (20), (30);
+CREATE TABLE t2s(i INT);
+INSERT/*insert trace*/ INTO t2s VALUES (100), (200), (300);
+
+SELECT * FROM t1
+WHERE t1.i NOT IN
+(
+  SELECT  t2s.i
+  FROM
+  t1s LEFT OUTER JOIN t2s ON t2s.i = t1s.i
+  HAVING t2s.i = 999
+);
+
+SELECT * FROM t1
+WHERE t1.I IN
+(
+  SELECT  t2s.i
+  FROM
+  t1s LEFT OUTER JOIN t2s ON t2s.i = t1s.i
+  HAVING t2s.i = 999
+) IS UNKNOWN;
+
+SELECT * FROM t1
+WHERE NOT t1.I = ANY
+(
+  SELECT  t2s.i
+  FROM
+  t1s LEFT OUTER JOIN t2s ON t2s.i = t1s.i
+  HAVING t2s.i = 999
+);
+
+SELECT * FROM t1
+ WHERE t1.i = ANY (
+  SELECT  t2s.i
+  FROM
+  t1s LEFT OUTER JOIN t2s ON t2s.i = t1s.i
+  HAVING t2s.i = 999
+ ) IS UNKNOWN;
+
+DROP TABLE t1,t1s,t2s;
+
+--echo #
+--echo # Bug #56690  Wrong results with subquery with
+--echo # GROUP BY inside < ANY clause
+--echo #
+
+CREATE TABLE t1 (
+ pk INT NOT NULL PRIMARY KEY,
+ number INT,
+ KEY key_number (number)
+);
+INSERT/*insert trace*/ INTO t1 VALUES (8,8);
+
+CREATE TABLE t2 (
+ pk INT NOT NULL PRIMARY KEY,
+ number INT,
+ KEY key_number (number)
+);
+
+INSERT/*insert trace*/ INTO t2 VALUES (1,2);
+INSERT/*insert trace*/ INTO t2 VALUES (2,8);
+INSERT/*insert trace*/ INTO t2 VALUES (3,NULL);
+INSERT/*insert trace*/ INTO t2 VALUES (4,166);
+
+SELECT * FROM t1 WHERE t1.number < ANY(SELECT number FROM t2 GROUP BY number);
+SELECT * FROM t1 WHERE t1.number < ANY(SELECT number FROM t2);
+
+DROP TABLE t1,t2;
+
+--echo End of 5.1 tests
+
+--echo #
+--echo # BUG#50257: Missing info in REF column of the EXPLAIN BASIC
+--echo #            lines for subselects
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, INDEX (a));
+INSERT/*insert trace*/ INTO t1 VALUES (3, 10), (2, 20), (7, 10), (5, 20);
+
+--echo
+SELECT * FROM (SELECT * FROM t1 WHERE a=7) t;
+--echo
+SELECT * FROM t1 WHERE EXISTS (SELECT * FROM t1 WHERE a=7);
+
+--echo
+DROP TABLE t1;
+
+
+--echo #
+--echo # BUG#52317: Assertion failing in Field_varstring::store()
+--echo # 	    at field.cc:6833
+--echo #
+
+CREATE TABLE t1 (i INTEGER);
+INSERT/*insert trace*/ INTO t1 VALUES (1);
+CREATE TABLE t2 (i INTEGER, KEY k(i));
+INSERT/*insert trace*/ INTO t2 VALUES (1), (2);
+
+SELECT i FROM t1 WHERE (1) NOT IN (SELECT i FROM t2);
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug #11765713 58705:
+--echo # OPTIMIZER LET ENGINE DEPEND ON UNINITIALIZED VALUES
+--echo # CREATED BY OPT_SUM_QUERY
+--echo #
+
+CREATE TABLE t1(a INT NOT NULL, KEY (a));
+INSERT/*insert trace*/ INTO t1 VALUES (0), (1);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 as foo FROM t1 WHERE a < SOME
+  (SELECT a FROM t1 WHERE a <=>
+    (SELECT a FROM t1)
+  );
+
+#SELECT 1 as foo FROM t1 WHERE a < SOME
+#  (SELECT a FROM t1 WHERE a <=>
+#    (SELECT a FROM t1 where a is null)
+#  );
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #57704: Cleanup code dies with void TABLE::set_keyread(bool):
+--echo #             Assertion `file' failed.
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--error ER_OPERAND_COLUMNS
+SELECT 1 FROM
+  (SELECT ROW(
+    (SELECT 1 FROM t1 RIGHT JOIN
+      (SELECT 1 FROM t1, t1 t2) AS d ON 1),
+    1) FROM t1) AS e;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#11764086: Null left operand to NOT IN in WHERE clause
+--echo # behaves differently than real NULL
+--echo #
+
+
+--disable_warnings
+CREATE TABLE parent (id int);
+--enable_warnings
+
+INSERT/*insert trace*/ INTO parent VALUES (1), (2);
+
+CREATE TABLE child (parent_id int, other int);
+INSERT/*insert trace*/ INTO child VALUES (1,NULL);
+
+--echo # Offending query (c.parent_id is NULL for null-complemented rows only)
+
+SELECT    p.id, c.parent_id
+FROM      parent p
+LEFT JOIN child  c
+ON        p.id = c.parent_id
+WHERE     c.parent_id NOT IN (
+              SELECT parent_id
+              FROM   child
+              WHERE  parent_id = 3
+          );
+
+--echo # Some syntactic variations with IS FALSE and IS NOT TRUE
+
+SELECT    p.id, c.parent_id
+FROM      parent p
+LEFT JOIN child  c
+ON        p.id = c.parent_id
+WHERE     c.parent_id IN (
+              SELECT parent_id
+              FROM   child
+              WHERE  parent_id = 3
+          ) IS NOT TRUE;
+
+SELECT    p.id, c.parent_id
+FROM      parent p
+LEFT JOIN child  c
+ON        p.id = c.parent_id
+WHERE     c.parent_id IN (
+              SELECT parent_id
+              FROM   child
+              WHERE  parent_id = 3
+          ) IS FALSE;
+
+DROP TABLE parent, child;
+
+--echo # End of test for bug#11764086.
+
+--echo End of 5.5 tests.
+
+--echo #
+--echo # BUG#48920: COUNT DISTINCT returns 1 for NULL values when in a subquery
+--echo #            in the select list
+--echo #
+
+--echo
+CREATE TABLE t1 (
+  i int(11) DEFAULT NULL,
+  v varchar(1) DEFAULT NULL
+);
+
+--echo
+INSERT/*insert trace*/ INTO t1 VALUES (8,'v');
+INSERT/*insert trace*/ INTO t1 VALUES (9,'r');
+INSERT/*insert trace*/ INTO t1 VALUES (NULL,'y');
+
+--echo
+CREATE TABLE t2 (
+  i int(11) DEFAULT NULL,
+  v varchar(1) DEFAULT NULL,
+  KEY i_key (i)
+);
+
+--echo
+INSERT/*insert trace*/ INTO t2 VALUES (NULL,'r');
+INSERT/*insert trace*/ INTO t2 VALUES (0,'c');
+INSERT/*insert trace*/ INTO t2 VALUES (0,'o');
+INSERT/*insert trace*/ INTO t2 VALUES (2,'v');
+INSERT/*insert trace*/ INTO t2 VALUES (7,'c');
+
+--echo
+SELECT i, v, (SELECT COUNT(DISTINCT i)
+              FROM t1
+              WHERE v  = t2.v) as subsel
+FROM t2;
+
+--echo
+SELECT i, v, (SELECT COUNT(DISTINCT i)
+              FROM t1
+              WHERE v  = t2.v) as subsel
+FROM t2;
+
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # BUG#50257: Missing info in REF column of the EXPLAIN BASIC
+--echo #            lines for subselects
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, INDEX (a));
+INSERT/*insert trace*/ INTO t1 VALUES (3, 10), (2, 20), (7, 10), (5, 20);
+
+--echo
+SELECT * FROM (SELECT * FROM t1 WHERE a=7) t;
+--echo
+SELECT * FROM t1 WHERE EXISTS (SELECT * FROM t1 WHERE a=7);
+
+--echo
+DROP TABLE t1;
+
+--echo #
+--echo # BUG#58561: Server Crash with correlated subquery and MyISAM tables
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS bb, b, cc, c;
+--enable_warnings
+
+CREATE TABLE cc (
+  pk INT,
+  col_int_key INT,
+  col_varchar_key VARCHAR(1),
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT/*insert trace*/ INTO cc VALUES (10,7,'v');
+INSERT/*insert trace*/ INTO cc VALUES (11,1,'r');
+
+CREATE TABLE bb (
+  pk INT,
+  col_date_key DATE,
+  PRIMARY KEY (pk),
+  KEY col_date_key (col_date_key)
+) ;
+INSERT/*insert trace*/ INTO bb VALUES (10,'2002-02-21');
+
+CREATE TABLE c (
+  pk INT,
+  col_int_key INT,
+  col_varchar_key VARCHAR(1),
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT/*insert trace*/ INTO c VALUES (1,NULL,'w');
+INSERT/*insert trace*/ INTO c VALUES (19,NULL,'f');
+
+CREATE TABLE b (
+  pk INT,
+  col_int_key INT,
+  col_varchar_key VARCHAR(1),
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+INSERT/*insert trace*/ INTO b VALUES (1,7,'f');
+
+SELECT col_int_key
+FROM b granparent1
+WHERE (col_int_key, col_int_key) IN (
+    SELECT parent1.pk, parent1.pk
+    FROM bb parent1 JOIN cc parent2
+                    ON parent2.col_varchar_key = parent2.col_varchar_key
+    WHERE granparent1.col_varchar_key IN (
+        SELECT col_varchar_key
+        FROM c)
+      AND parent1.pk = granparent1.col_int_key
+    ORDER BY parent1.col_date_key
+);
+
+DROP TABLE bb, b, cc, c;
+
+--echo End of 5.6 tests
+
+--echo #
+--echo # BUG#46743 "Azalea processing correlated, aggregate SELECT
+--echo # subqueries incorrectly"
+--echo #
+# To see the bug, one would have to undo both the fix for BUG#46743
+# and the one for BUG#47123.
+CREATE TABLE t1 (c int);
+INSERT/*insert trace*/ INTO t1 VALUES (NULL);
+CREATE TABLE t2 (d int , KEY (d)); # index is needed for bug
+INSERT/*insert trace*/ INTO t2 VALUES (NULL),(NULL); # two rows needed for bug
+# we see that subquery returns 0 rows
+--echo 0 rows in subquery
+SELECT 1 AS RESULT FROM t2,t1 WHERE d = c;
+# so here it ends up as NULL
+--echo base query
+SELECT (SELECT 1 FROM t2 WHERE d = c) AS RESULT FROM t1 ;
+--echo first equivalent variant
+--sorted_result
+SELECT (SELECT 1 FROM t2 WHERE d = IFNULL(c,NULL)) AS RESULT FROM t1 GROUP BY c;
+--echo second equivalent variant
+# used to fail with 1242: Subquery returns more than 1 row
+--sorted_result
+SELECT (SELECT 1 FROM t2 WHERE d = c) AS RESULT FROM t1 GROUP BY c ;
+
+DROP TABLE t1,t2;
+
+--echo
+--echo BUG#37842: Assertion in DsMrr_impl::dsmrr_init, at handler.cc:4307
+--echo
+CREATE TABLE t1 (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `int_key` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `int_key` (`int_key`)
+) ;
+
+INSERT/*insert trace*/ INTO t1 VALUES (1,9),(2,3),(3,8),(4,6),(5,9),(6,5),(7,5),(8,9),(9,1),(10,10);
+
+SELECT `pk` FROM t1 AS OUTR WHERE `int_key` = ALL (
+ SELECT `int_key` FROM t1 AS INNR WHERE INNR . `pk` >= 9
+);
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#53236 Segfault in DTCollation::set(DTCollation&)
+--echo #
+
+CREATE TABLE t1 (
+  pk INTEGER AUTO_INCREMENT,
+  col_varchar VARCHAR(1),
+  PRIMARY KEY (pk)
+)
+;
+
+INSERT/*insert trace*/ INTO t1 (col_varchar)
+VALUES
+('w'),
+('m')
+;
+
+SELECT  table1.pk
+FROM ( t1 AS table1 JOIN t1 AS table2 ON (table1.col_varchar =
+                                          table2.col_varchar) )
+WHERE ( 1, 2 ) IN ( SELECT SUBQUERY1_t1.pk AS SUBQUERY1_field1,
+                           SUBQUERY1_t1.pk AS SUBQUERY1_field2
+                    FROM ( t1 AS SUBQUERY1_t1 JOIN t1 AS SUBQUERY1_t2
+                           ON (SUBQUERY1_t2.col_varchar =
+                               SUBQUERY1_t1.col_varchar) ) )
+;
+
+drop table t1;
+--echo #
+--echo # Bug#58207: invalid memory reads when using default column value and
+--echo # tmptable needed
+--echo #
+CREATE TABLE t(a VARCHAR(245) DEFAULT
+'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT/*insert trace*/ INTO t VALUES (''),(''),(''),(''),(''),(''),(''),(''),(''),(''),('');
+--sorted_result
+SELECT * FROM (SELECT default(a) FROM t GROUP BY a) d;
+DROP TABLE t;
+
+--echo #
+--echo # Bug 11765699 - 58690: !TABLE || (!TABLE->READ_SET ||
+--echo #                BITMAP_IS_SET(TABLE->READ_SET, FIELD_INDEX
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT/*insert trace*/ INTO t1 VALUES (0), (1);
+
+CREATE TABLE t2(
+  b VARCHAR(200),
+  c INT,
+  PRIMARY KEY (b)
+);
+INSERT/*insert trace*/ INTO t2 VALUES ('a', 2), ('b', 3);
+
+SELECT 1 FROM t1 WHERE a =
+ (SELECT 1 FROM t2 WHERE b =
+  (SELECT 1 FROM t1 t11 WHERE c = 1 OR t1.a = 1 AND 1 = 2)
+   ORDER BY b
+ );
+
+--sorted_result
+SELECT 1 FROM t1 WHERE a =
+ (SELECT 1 FROM t2 WHERE b =
+  (SELECT 1 FROM t1 t11 WHERE c = 1 OR t1.a = 1 AND 1 = 2)
+   GROUP BY b
+ );
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # BUG#12616253 - WRONG RESULT WITH EXISTS(SUBQUERY) (MISSING ROWS)
+--echo #
+
+CREATE TABLE t1 (f1 varchar(1));
+INSERT/*insert trace*/ INTO t1 VALUES ('v'),('s');
+
+CREATE TABLE t2 (f1_key varchar(1), KEY (f1_key));
+INSERT/*insert trace*/ INTO t2 VALUES ('j'),('v'),('c'),('m'),('d'),
+('d'),('y'),('t'),('d'),('s');
+
+#let $query=SELECT table1.f1, table2.f1_key
+#FROM t1 AS table1, t2 AS table2
+#WHERE EXISTS
+#(
+#SELECT DISTINCT f1_key
+#FROM t2
+#WHERE f1_key != table2.f1_key AND f1_key >= table1.f1 );
+#
+#eval $query;
+#eval EXPLAIN BASIC $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # BUG#12616477 - 0 VS NULL DIFFERENCES WITH OUTER JOIN, SUBQUERY
+--echo #
+
+CREATE TABLE t1 (
+col_int_key int,
+col_varchar_key varchar(1),
+col_varchar_nokey varchar(1),
+KEY (col_int_key)
+);
+INSERT/*insert trace*/ INTO t1 VALUES (224,'p','p'),(9,'e','e');
+
+CREATE TABLE t3 (
+col_int_key int,
+col_varchar_key varchar(1),
+KEY col_int_key (col_int_key),
+KEY col_varchar_key (col_varchar_key,col_int_key))
+;
+INSERT/*insert trace*/ INTO t3 VALUES (4,'p'),(8,'e'),(10,'a');
+
+# At jcl>=1, if join buffering is on t1 bug doesn't happen, so we
+# force join order so that join buffering is rather on t3.
+# Reverse join order if you want to see bug at jcl=0.
+
+#let $query=SELECT t1f.*,t3f.*,(
+#SELECT MIN(t3s.col_int_key)
+#FROM t3 AS t3s JOIN
+#t1 AS t1s ON t1s.col_int_key = 9 and
+#t1s.col_varchar_key = 'e'
+#WHERE 'e' <> t1f.col_varchar_nokey )
+#FROM
+#t1 AS t1f  t3 AS t3f;
+#
+#eval $query;
+#eval EXPLAIN BASIC $query;
+
+DROP TABLE t1,t3;
+
+--echo #
+--echo # Bug#12795555: Missing rows with ALL/ANY subquery
+--echo #
+# Test the case when Item_maxmin_subselect is used
+CREATE TABLE t1 (f1 INT);
+INSERT/*insert trace*/ INTO t1 VAlUES (NULL),(1),(NULL),(2);
+SELECT f1 FROM t1 WHERE f1 < ALL (SELECT 1 FROM DUAL WHERE 0);
+DROP TABLE t1;
+# Test the case when Item_sum_[max|min] is used
+CREATE TABLE t1 (k VARCHAR(1), KEY k(k));
+INSERT/*insert trace*/ INTO t1 VALUES ('r'), (NULL), (NULL);
+
+CREATE TABLE t2 (c VARCHAR(1));
+INSERT/*insert trace*/ INTO t2 VALUES ('g'), (NULL);
+
+CREATE TABLE t3 (c VARCHAR(1));
+
+SELECT COUNT(*)
+FROM t1 JOIN t2
+WHERE t1.k < ALL(
+  SELECT c
+  FROM t3
+);
+
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # Bug#12838171: 51VS56: TRANSFORMED IN()+SUBQ QUERY
+--echo #               PRODUCES EMPTY RESULT ON 5.6, 1 ROW ON 5.1
+--echo #
+CREATE TABLE ot (
+  col_int_nokey int(11),
+  col_varchar_nokey varchar(1)
+) ;
+
+INSERT/*insert trace*/ INTO ot VALUES (1,'x');
+
+CREATE TABLE it (
+  col_int_key int(11),
+  col_varchar_key varchar(1),
+  KEY idx_cvk_cik (col_varchar_key,col_int_key)
+) ;
+
+INSERT/*insert trace*/ INTO it VALUES (NULL,'x'), (NULL,'f');
+
+--echo
+SELECT col_int_nokey
+FROM ot
+WHERE col_varchar_nokey IN
+   (SELECT col_varchar_key
+    FROM it
+    WHERE col_int_key IS NULL);
+
+--echo
+SELECT col_int_nokey
+FROM ot
+WHERE col_varchar_nokey IN
+   (SELECT col_varchar_key
+    FROM it
+    WHERE coalesce(col_int_nokey, 1) );
+
+DROP TABLE it;
+
+CREATE TABLE it (
+   col_int_key int(11),
+   col_varchar_key varchar(1),
+   col_varchar_key2 varchar(1),
+   KEY idx_cvk_cvk2_cik (col_varchar_key, col_varchar_key2, col_int_key),
+   KEY idx_cvk_cik (col_varchar_key, col_int_key)
+);
+
+INSERT/*insert trace*/ INTO it VALUES (NULL,'x','x'), (NULL,'f','f');
+
+SELECT col_int_nokey
+FROM ot
+WHERE (col_varchar_nokey, 'x') IN
+    (SELECT col_varchar_key, col_varchar_key2
+     FROM it
+     WHERE col_int_key IS NULL);
+
+--echo
+DROP TABLE it, ot;
+
+--echo #
+--echo # Bug #11829691: Pure virtual method called in Item_bool_func2::fix...()
+--echo #
+
+CREATE TABLE t1(a INTEGER);
+CREATE TABLE t2(b INTEGER);
+
+#PREPARE stmt FROM "
+#SELECT SUM(b) FROM t2 GROUP BY b HAVING b IN (SELECT b FROM t1)";
+#
+#EXECUTE stmt;
+#EXECUTE stmt;
+#
+#DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug #13595212 EXTRA ROWS RETURNED ON RIGHT JOIN WITH VIEW AND
+--echo # IN-SUBQUERY IN WHERE
+--echo #
+
+CREATE TABLE t1 (
+  pk int(11) NOT NULL AUTO_INCREMENT,
+  col_int_key int(11) NOT NULL,
+  col_varchar_key varchar(1) NOT NULL,
+  col_varchar_nokey varchar(1) NOT NULL,
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+);
+
+INSERT/*insert trace*/ INTO t1 VALUES (1,0,'j','j'),(2,8,'v','v'),
+(3,1,'c','c'),(4,8,'m','m'),(5,9,'d','d');
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+# RIGHT JOIN
+
+#let $query=
+#SELECT alias2.col_varchar_nokey
+#FROM v1 AS alias1
+#  RIGHT JOIN t1 AS alias2 ON 1
+#WHERE alias2.col_varchar_key IN (
+#  SELECT sq2_alias1.col_varchar_nokey
+#  FROM v1 AS sq2_alias1
+#    LEFT JOIN t1 AS sq2_alias2
+#    ON (sq2_alias2.col_int_key = sq2_alias1.pk)
+#  WHERE sq2_alias1.pk != alias1.col_int_key
+#    AND sq2_alias1.col_varchar_key > alias1.col_varchar_key
+#)
+#;
+#
+#eval EXPLAIN BASIC $query;
+#--sorted_result
+#eval $query;
+#
+## Same, but in view:
+#
+#eval CREATE VIEW v2 AS $query;
+#
+#EXPLAIN BASIC SELECT * FROM v2;
+#--sorted_result
+#SELECT * FROM v2;
+#
+## Same, with LEFT JOIN
+#
+#let $query=SELECT alias2.col_varchar_nokey
+#FROM t1 AS alias2
+#  LEFT JOIN v1 AS alias1 ON 1
+#WHERE alias2.col_varchar_key IN (
+#  SELECT sq2_alias1.col_varchar_nokey
+#  FROM v1 AS sq2_alias1
+#    LEFT JOIN t1 AS sq2_alias2
+#    ON (sq2_alias2.col_int_key = sq2_alias1.pk)
+#  WHERE sq2_alias1.pk != alias1.col_int_key
+#    AND sq2_alias1.col_varchar_key > alias1.col_varchar_key
+#);
+#
+#eval EXPLAIN BASIC $query;
+#--sorted_result
+#eval $query;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # Bug#13651009 WRONG RESULT FROM DERIVED TABLE IF THE SUBQUERY
+--echo # HAS AN EMPTY RESULT
+--echo #
+
+CREATE TABLE t1 (
+  pk int NOT NULL,
+  col_int_nokey int NOT NULL,
+  col_int_key int NOT NULL,
+  col_time_key time NOT NULL,
+  col_varchar_key varchar(1) NOT NULL,
+  col_varchar_nokey varchar(1) NOT NULL,
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_time_key (col_time_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+
+CREATE TABLE t2 (
+  pk int NOT NULL AUTO_INCREMENT,
+  col_int_nokey int NOT NULL,
+  col_int_key int NOT NULL,
+  col_time_key time NOT NULL,
+  col_varchar_key varchar(1) NOT NULL,
+  col_varchar_nokey varchar(1) NOT NULL,
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_time_key (col_time_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+
+INSERT/*insert trace*/ INTO t2 VALUES (1,4,4,'00:00:00','b','b');
+
+SET @var2:=4, @var3:=8;
+
+--echo
+--echo Testcase without inner subquery
+
+#let $subq=
+#SELECT @var3:=12, sq4_alias1.*
+#FROM t1 AS sq4_alias1
+#WHERE (sq4_alias1.col_varchar_key + NULL) IS NULL OR
+#      sq4_alias1.col_varchar_key = @var3;
+#
+#eval EXPLAIN BASIC $subq;
+#eval $subq;
+#SELECT @var3;
+#
+## Now as derived table:
+#eval EXPLAIN BASIC SELECT * FROM ( $subq ) AS alias3;
+#eval SELECT * FROM ( $subq ) AS alias3;
+#SELECT @var3;
+#
+#--echo
+#--echo Testcase with inner subquery; crashed WL#6095
+#SET @var3=8;
+#let $subq=
+#SELECT sq4_alias1.*
+#FROM t1 AS sq4_alias1
+#WHERE (sq4_alias1.col_varchar_key , sq4_alias1.col_varchar_nokey)
+#      NOT IN
+#      (SELECT c_sq1_alias1.col_varchar_key AS c_sq1_field1,
+#              c_sq1_alias1.col_varchar_nokey AS c_sq1_field2
+#       FROM t2 AS c_sq1_alias1
+#       WHERE (c_sq1_alias1.col_int_nokey != @var2
+#              OR c_sq1_alias1.pk != @var3));
+#
+#eval EXPLAIN BASIC $subq;
+#eval $subq;
+## Now as derived table:
+#eval EXPLAIN BASIC SELECT * FROM ( $subq ) AS alias3;
+#eval SELECT * FROM ( $subq ) AS alias3;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Test that indexsubquery_engine only does one lookup if
+--echo # the technique is unique_subquery: does not try to read the
+--echo # next row if the first row failed the subquery's WHERE
+--echo # condition (here: b=3).
+--echo #
+
+create table t1(a int);
+INSERT/*insert trace*/ into t1 values(1),(2);
+create table t2(a int primary key, b int);
+INSERT/*insert trace*/ into t2 values(1,10),(2,10);
+#let $query=select * from t1 where a in (select a from t2 where b=3);
+#eval EXPLAIN BASIC $query;
+#flush status;
+#eval $query;
+show status like "handler_read%";
+drop table t1,t2;
+
+--echo #
+--echo # Bug#13735980 Difference in number of rows when using subqueries
+--echo #
+
+CREATE TABLE m (c1 VARCHAR(1), c2 INTEGER, c3 INTEGER);
+INSERT/*insert trace*/ INTO m VALUES ('',6,8), ('',75,NULL);
+
+CREATE TABLE o (c1 VARCHAR(1));
+INSERT/*insert trace*/ INTO o VALUES ('S'), ('S'), ('S');
+
+CREATE VIEW v1 AS
+SELECT m.c1 AS c1,m.c2 AS c2,m.c3 AS c3 FROM m;
+
+CREATE VIEW v2 AS
+SELECT o.c1 AS c1 FROM o;
+
+SELECT t1.c3
+FROM v1 AS t1 JOIN v2 AS t2 ON t1.c1 < t2.c1
+WHERE t1.c3 BETWEEN 2 AND 6 OR
+      (t1.c3 IN(4) AND t1.c3 <> 2) OR t1.c2 >= 8;
+
+CREATE TABLE integers (i1 INTEGER);
+INSERT/*insert trace*/ INTO integers VALUES (2),(4),(6),(8);
+
+SELECT t1.c3
+FROM v1 AS t1 JOIN v2 AS t2 ON t1.c1 < t2.c1
+WHERE t1.c3 BETWEEN (SELECT i1 FROM integers WHERE i1 = 2) AND
+                    (SELECT i1 FROM integers WHERE i1 = 6)  OR
+      t1.c3 IN((SELECT i1 FROM integers WHERE i1 = 4)) AND
+      t1.c3 <>(SELECT i1 FROM integers WHERE i1 = 2) OR
+      t1.c2 >=(SELECT i1 FROM integers WHERE i1 = 8);
+
+# Outcome is unaffected when replacing views with tables:
+
+SELECT t1.c3
+FROM m AS t1 JOIN o AS t2 ON t1.c1 < t2.c1
+WHERE t1.c3 BETWEEN (SELECT i1 FROM integers WHERE i1 = 2) AND
+                    (SELECT i1 FROM integers WHERE i1 = 6)  OR
+      t1.c3 IN((SELECT i1 FROM integers WHERE i1 = 4)) AND
+      t1.c3 <>(SELECT i1 FROM integers WHERE i1 = 2) OR
+      t1.c2 >=(SELECT i1 FROM integers WHERE i1 = 8);
+
+DROP VIEW v1, v2;
+DROP TABLE m, o, integers;
+
+--echo #
+--echo # Bug#13721076 CRASH WITH TIME TYPE/TIMESTAMP() AND WARNINGS IN SUBQUERY
+--echo #
+
+CREATE TABLE t1(a TIME NOT NULL);
+INSERT/*insert trace*/ INTO t1 VALUES ('00:00:32');
+
+#SELECT 1 FROM t1 WHERE a >
+#(SELECT timestamp(a) AS a FROM t1);
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #13736664 RIGHT JOIN+WHERE QUERY GIVES DIFF RESULTS WHEN USING
+--echo # SELECT * SUBQ FOR TABLES
+--echo #
+
+CREATE TABLE t1(a INT, b CHAR(1));
+INSERT/*insert trace*/ INTO t1 VALUES (NULL, 'x');
+
+CREATE TABLE t2(c INT, d CHAR(1));
+INSERT/*insert trace*/ INTO t2 VALUES (NULL, 'y'), (9, 'z');
+
+SELECT d
+FROM t2 AS a2 RIGHT JOIN t1 AS a1 ON c = a
+WHERE d LIKE '_'
+ORDER BY d;
+
+SELECT d
+FROM (SELECT * FROM t2) AS a2 RIGHT JOIN (SELECT * FROM t1) AS a1 ON c = a
+WHERE d LIKE '_'
+ORDER BY d;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#13468414 Query shows different results when literals are selected
+--echo #              from separate table
+--echo #
+
+CREATE TABLE t1 (
+  col_varchar_key varchar(1) NOT NULL,
+  col_varchar_nokey varchar(1) NOT NULL,
+  KEY col_varchar_key (col_varchar_key)
+) ;
+
+INSERT/*insert trace*/ INTO t1 VALUES
+ ('v','v'), ('s','s'), ('l','l'), ('y','y'), ('c','c'),
+ ('i','i'), ('h','h'), ('q','q'), ('a','a'), ('v','v'),
+ ('u','u'), ('s','s'), ('y','y'), ('z','z'), ('h','h'),
+ ('p','p'), ('e','e'), ('i','i'), ('y','y'), ('w','w');
+
+CREATE TABLE t2 (
+  col_int_nokey INT NOT NULL,
+  col_varchar_nokey varchar(1) NOT NULL
+) ;
+
+INSERT/*insert trace*/ INTO t2 VALUES
+ (4,'j'), (6,'v'), (3,'c'), (5,'m'), (3,'d'), (246,'d'), (2,'y'), (9,'t'),
+ (3,'d'), (8,'s'), (1,'r'), (8,'m'), (8,'b'), (5,'x'), (7,'g'), (5,'p'),
+ (1,'q'), (6,'w'), (2,'d'), (9,'e');
+
+CREATE TABLE t0 (
+ i1 INTEGER NOT NULL PRIMARY KEY
+);
+INSERT/*insert trace*/ INTO t0 VALUES (7);
+
+#-- disable_query_log
+#-- disable_result_log
+#ANALYZE TABLE t0;
+#ANALYZE TABLE t1;
+#ANALYZE TABLE t2;
+#-- enable_result_log
+#-- enable_query_log
+
+SELECT col_varchar_nokey
+FROM t1
+WHERE (7) NOT IN
+ (SELECT it2.col_int_nokey
+  FROM t2 AS it2 LEFT JOIN t1 AS it1
+       ON it2.col_varchar_nokey = it1.col_varchar_key
+ );
+
+#let $query=
+#SELECT col_varchar_nokey
+#FROM t1
+#WHERE (SELECT i1 FROM t0 WHERE i1 = 7) NOT IN
+# (SELECT it2.col_int_nokey
+#  FROM t2 AS it2 LEFT JOIN t1 AS it1
+#       ON it2.col_varchar_nokey = it1.col_varchar_key
+# );
+#
+#eval $query;
+#eval EXPLAIN BASIC extended $query;
+
+DROP TABLE t0, t1, t2;
+
+--echo #
+--echo # Bug#13735704 Memory engine + NOT IN + subquery produces different
+--echo # result set
+--echo #
+
+CREATE TABLE t1(
+ col_varchar_key varchar(1),
+ KEY col_varchar_key(col_varchar_key)
+) ;
+INSERT/*insert trace*/ INTO t1 VALUES
+ ('v'), ('s'), ('y'), ('z'), ('h'), ('p');
+
+CREATE TABLE t2(
+ col_int_nokey int,
+ col_int_key int,
+ KEY col_int_key(col_int_key)
+) ;
+INSERT/*insert trace*/ INTO t2 VALUES
+ (4,4), (2,7), (2,5), (2,3), (197,188), (4,4), (6,2), (1,4),
+ (156,231), (2,1), (1,2), (80,194), (3,2), (8,3), (91,98), (6,3),
+ (7,1), (3,0), (161,189), (7,8), (7,3), (213,120), (248,25), (1,1),
+ (6,3), (6,1), (3,3), (140,153), (0,5), (7,9), (6,1), (1,2),
+ (1,7), (9,2), (0,1), (6,5);
+
+CREATE TABLE t0(i1 INTEGER NOT NULL PRIMARY KEY);
+INSERT/*insert trace*/ INTO t0 VALUES(7),(2);
+
+SELECT col_varchar_key
+FROM t1
+WHERE (7,2) NOT IN
+   (SELECT col_int_key,col_int_nokey FROM t2);
+
+#let $query=
+#SELECT col_varchar_key
+#FROM t1
+#WHERE ((SELECT i1 FROM t0 WHERE i1 = 7),
+#       (SELECT i1 FROM t0 WHERE i1 = 2)) NOT IN
+#    (SELECT col_int_key,col_int_nokey FROM t2);
+#
+#eval EXPLAIN BASIC extended $query;
+#eval $query;
+
+DROP TABLE t0, t1, t2;
+
+
+--echo #
+--echo # Bug #13639204 64111: CRASH ON SELECT SUBQUERY WITH NON UNIQUE
+--echo # INDEX
+--echo #
+CREATE TABLE t1 (
+id int
+) ;
+INSERT/*insert trace*/ INTO t1 (id) VALUES (11);
+
+CREATE TABLE t2 (
+t1_id int,
+position int,
+KEY t1_id (t1_id),
+KEY t1_id_position (t1_id,position)
+) ;
+
+#let $query=SELECT
+#(SELECT position FROM t2
+#WHERE t2.t1_id = t1.id
+#ORDER BY t2.t1_id , t2.position
+#LIMIT 10,1
+#) AS maxkey
+#FROM t1
+#LIMIT 1;
+#
+#eval EXPLAIN BASIC $query;
+#eval $query;
+
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # Bug#13731417 WRONG RESULT WITH NOT IN (SUBQUERY) AND
+--echo # COMPOSITE INDEX ON SUBQUERY'S TABLE
+--echo #
+
+CREATE TABLE t1 (a int, b int);
+CREATE TABLE t2 (a int, b int, KEY a_b (a,b));
+CREATE TABLE t4 (a int);
+INSERT/*insert trace*/ INTO t1 VALUES(0,1);
+INSERT/*insert trace*/ INTO t2 VALUES(NULL,1),(NULL,1);
+INSERT/*insert trace*/ INTO t4 VALUES(1);
+
+SELECT ((0,1) NOT IN (SELECT NULL,1)) IS NULL;
+
+#let $query=SELECT * FROM t1
+#WHERE ((a,b) NOT IN (SELECT t2.a,t2.b FROM
+#        t4  t2 WHERE t4.a=t2.b)) IS NULL;
+#
+#eval EXPLAIN BASIC $query;
+#eval $query;
+#
+#ALTER TABLE t2 DROP INDEX a_b;
+#
+#EVAL EXPLAIN BASIC $query;
+#eval $query;
+
+DROP TABLE t1,t2,t4;
+
+--echo #
+--echo # Bug#13725821 ASSERT NULL_REF_KEY == __NULL FAILED IN
+--echo # CREATE_REF_FOR_KEY() IN SQL_SELECT.CC
+--echo #
+
+CREATE TABLE t1 (
+  pk INT NOT NULL,
+  col_int_nokey INT,
+  col_int_key INT,
+  col_varchar_key VARCHAR(1),
+  col_varchar_nokey VARCHAR(1),
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key),
+  KEY col_varchar_key (col_varchar_key,col_int_key)
+) ;
+
+INSERT/*insert trace*/ INTO t1 VALUES (17,NULL,9,NULL,NULL),
+(18,2,2,'o','o'),(19,NULL,9,'w','w'),(20,6,2,'m','m'),(21,7,4,'q','q'),
+(22,2,0,NULL,NULL),(23,5,4,'d','d'),(24,7,8,'g','g'),(25,6,NULL,'x','x'),
+(26,6,NULL,'f','f'),(27,2,0,'p','p'),(28,9,NULL,'j','j'),(29,6,8,'c','c');
+
+#ALTER TABLE t1 DISABLE KEYS;
+#ALTER TABLE t1 ENABLE KEYS;
+
+#let $query=
+#SELECT table1.col_varchar_key AS field1,
+#       table1.col_int_nokey AS field2,
+#       table2.col_varchar_key AS field3,
+#       table1.col_int_nokey AS field4,
+#       table2.col_int_nokey AS field5,
+#       table1.col_varchar_nokey AS field6
+#FROM ( t1 AS table1
+#  INNER JOIN t1 AS table2
+#  ON (( table2.col_int_nokey = table1.col_int_key )
+#    AND ( table2.col_int_key = table1.col_int_key )
+#  ) )
+#WHERE ( table1.col_varchar_key = table2.col_varchar_key OR table1.pk = 154 )
+#  OR table1.pk != 201
+#  AND ( table1.col_varchar_key LIKE '%a%' OR table1.col_varchar_key LIKE
+#'%b%')
+#;
+#
+#eval CREATE TABLE t2 $query ;
+#
+#eval SELECT *
+#     FROM t2
+#     WHERE (field1, field2, field3, field4, field5, field6) NOT IN ( $query
+#);
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #13735712 SELECT W/ SUBQUERY PRODUCES MORE ROWS WHEN USING
+--echo # VARIABLES
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT/*insert trace*/ INTO t1 VALUES(9);
+CREATE TABLE t2(b INT);
+INSERT/*insert trace*/ INTO t2 VALUES(8);
+CREATE TABLE t3(c INT);
+INSERT/*insert trace*/ INTO t3 VALUES(3);
+
+SELECT *
+FROM t2 RIGHT JOIN t3 ON(c = b)
+WHERE b < ALL(SELECT a FROM t1 WHERE a <= 7);
+SET @var = 7;
+SELECT *
+FROM t2 RIGHT JOIN t3 ON(c = b)
+WHERE b < ALL(SELECT a FROM t1 WHERE a <= @var);
+
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # Bug #13330886 TOO MANY ROWS WITH ALL|ANY
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT/*insert trace*/ INTO t1 VALUES (NULL,8), (8,7);
+CREATE TABLE t2 (c INT);
+INSERT/*insert trace*/ INTO t2 VALUES (10);
+
+SELECT 1 FROM t2 WHERE c > ALL (SELECT a FROM t1 WHERE b >= 3);
+SET @var = 3;
+SELECT 1 FROM t2 WHERE c > ALL (SELECT a FROM t1 WHERE b >= @var);
+
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL);
+INSERT/*insert trace*/ INTO t1 VALUES (0,8), (8,7);
+CREATE TABLE t2 (c INT NOT NULL);
+INSERT/*insert trace*/ INTO t2 VALUES (10);
+
+SELECT 1 FROM t2 WHERE c > ANY (SELECT a FROM t1 WHERE b >= 3) IS TRUE;
+SELECT 1 FROM t2 WHERE c > ANY (SELECT a FROM t1 WHERE b >= 3) IS TRUE;
+
+DROP TABLE t1, t2;
+
+--echo # Bug #18014565 - WRONG RESULT COMPUTATION USING ALL() AND GROUP BY
+--echo #
+
+CREATE TABLE t1 (
+  f1 INTEGER,
+  f2 INTEGER
+);
+
+INSERT/*insert trace*/ INTO t1 VALUES (1,3),(1,6),(2,3),(2,6);
+
+--sorted_result
+SELECT f1, SUM(f2) AS sum FROM t1 GROUP BY f1 HAVING sum > ALL (SELECT 1);
+
+DROP TABLE t1;
+
+--echo # End of test for Bug#18014565
+
+#set @@optimizer_switch=@old_opt_switch;
+# New tests go here.

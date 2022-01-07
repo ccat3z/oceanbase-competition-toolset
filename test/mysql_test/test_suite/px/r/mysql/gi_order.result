@@ -1,0 +1,224 @@
+drop table if exists t1_sort;
+drop table if exists t2_sort;
+create table t1_sort(c1 int,c2 int, primary key(c1)) partition by range(c1)
+(partition p0 values less than(10),
+partition p1 values less than(100),
+partition p2 values less than(1000));
+create table t2_sort(c1 int,c2 int,primary key(c1))partition by range(c1)
+(partition p0 values less than(10),
+partition p1 values less than(100),
+partition p2 values less than(1000));
+insert into t1_sort values (1,1), (20,20), (300, 300);
+insert into t2_sort values (1,1), (20,20), (300, 300);
+commit;
+select /*+ use_px*/* from (select * from t1_sort order by c1) a join (select * from t2_sort order by c1) b on a.c1=b.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ no_use_px parallel(2)*/* from (select * from t1_sort order by c1) a join (select * from t2_sort order by c1) b on a.c1=b.c1 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ no_use_px */* from (select * from t1_sort order by c1) a join (select * from t2_sort order by c1) b on a.c1=b.c1 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select * from (select * from t1_sort order by c1) a join (select * from t2_sort order by c1) b on a.c1=b.c1 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ no_use_px */* from t1_sort order by c1;
+c1	c2
+1	1
+20	20
+300	300
+select /*+ use_px */* from t1_sort order by c1;
+c1	c2
+1	1
+20	20
+300	300
+select /*+ no_use_px */* from t1_sort order by c1 desc;
+c1	c2
+300	300
+20	20
+1	1
+select /*+ use_px */* from t1_sort order by c1 desc;
+c1	c2
+300	300
+20	20
+1	1
+select /*+ NO_REWRITE no_use_px */* from (select * from t1_sort)a order by c1;
+c1	c2
+1	1
+20	20
+300	300
+select /*+ NO_REWRITE use_px */* from (select * from t1_sort)a order by c1;
+c1	c2
+1	1
+20	20
+300	300
+select /*+ NO_REWRITE no_use_px */* from (select c1+1 c1, c2 from t1_sort )a order by c1;
+c1	c2
+2	1
+21	20
+301	300
+select /*+ NO_REWRITE use_px */* from (select c1+1 c1, c2 from t1_sort )a order by c1;
+c1	c2
+2	1
+21	20
+301	300
+select /*+ no_use_px */* from t1_sort order by c1 limit 10;
+c1	c2
+1	1
+20	20
+300	300
+select /*+ use_px */* from t1_sort order by c1 limit 10;
+c1	c2
+1	1
+20	20
+300	300
+select /*+ no_use_px */* from t1_sort a join t2_sort b on a.c1=b.c1 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ use_px */* from t1_sort a join t2_sort b on a.c1=b.c1 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ no_use_px */* from t1_sort a join t2_sort b on a.c1=b.c1 order by a.c1 desc;
+c1	c2	c1	c2
+300	300	300	300
+20	20	20	20
+1	1	1	1
+select /*+ use_px */* from t1_sort a join t2_sort b on a.c1=b.c1 order by a.c1 desc;
+c1	c2	c1	c2
+300	300	300	300
+20	20	20	20
+1	1	1	1
+select /*+ no_use_px */* from t1_sort a join t2_sort b on a.c1=b.c2 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ use_px */* from t1_sort a join t2_sort b on a.c1=b.c2 order by a.c1;
+c1	c2	c1	c2
+1	1	1	1
+20	20	20	20
+300	300	300	300
+select /*+ no_use_px */* from t1_sort a join t2_sort b on a.c1=b.c2 order by a.c1 desc;
+c1	c2	c1	c2
+300	300	300	300
+20	20	20	20
+1	1	1	1
+select /*+ use_px */* from t1_sort a join t2_sort b on a.c1=b.c2 order by a.c1 desc;
+c1	c2	c1	c2
+300	300	300	300
+20	20	20	20
+1	1	1	1
+select /*+ no_use_px */* from t1_sort union all select * from t1_sort order by c1;
+c1	c2
+1	1
+1	1
+20	20
+20	20
+300	300
+300	300
+drop table if exists t1;
+drop table if exists t2;
+create table t1 (a int primary key) partition by range columns(a) (partition p_100 values less than (100), partition p_max_value values less than (MAXVALUE));
+create table t2 (b int primary key) partition by range columns(b) (partition p_100 values less than (100), partition p_max_value values less than (MAXVALUE));
+insert into t1 values (1), (5), (38), (138), (188), (345);
+insert into t2 values (1), (9), (38), (67), (128), (188), (369);
+commit;
+select /*+ use_px */* from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+select /*+ no_use_px */* from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+drop table if exists t1;
+drop table if exists t2;
+create table t1 (a int primary key) partition by range columns(a) (partition p_100 values less than (100), partition p_200 values less than (200), partition p_max_value values less than (MAXVALUE));
+create table t2 (b int primary key) partition by range columns(b) (partition p_100 values less than (100), partition p_max_value values less than (MAXVALUE));
+insert into t1 values (1), (5), (38), (138), (188), (345);
+insert into t2 values (1), (9), (38), (67), (128), (188), (369);
+commit;
+select /*+ use_px use_merge(s2) */* from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+select /*+ no_use_px use_merge(s2) */* from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+select /*+ use_px use_merge(s2) PQ_DISTRIBUTE(s2 hash hash)*/* from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+drop table if exists t1;
+CREATE TABLE t1 (
+col_timestamp_6 timestamp(6) NULL DEFAULT NULL,
+pk bigint,
+col_bigint bigint,
+col_decimal_20_0 decimal(20,0),
+col_bigint_unsigned bigint ,
+col_char_20 char(20),
+col_decimal_20_0_signed decimal(20,0) ,
+col_decimal_20_0_unsigned decimal(20,0) ,
+col_bigint_signed bigint ,
+col_datetime datetime,
+primary key (pk))
+PARTITION BY range (pk) (partition p0 values less than (50000),partition p1 values less than (maxvalue));
+SELECT  CONCAT( CAST( 2000 + 2 AS CHAR(20) ) , '-12-28 01:00:00.000003') ,
+ROUND( SUM( t2.col_bigint_signed ) ) AS c1 from t1 AS t2, t1  t3 
+WHERE t2.pk = t3.pk ORDER BY 1, t2.pk , t3.pk LIMIT 4 ;
+CONCAT( CAST( 2000 + 2 AS CHAR(20) ) , '-12-28 01:00:00.000003')	c1
+2002-12-28 01:00:00.000003	NULL

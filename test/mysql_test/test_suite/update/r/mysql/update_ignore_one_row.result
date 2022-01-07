@@ -1,0 +1,56 @@
+drop table if exists test;
+create table test (c1 int primary key, c2 int unique key, c3 int, c4 char(3));
+insert into test values(1,2,3,4);
+insert into test values(3,3,3,3);
+insert into test values(4,4,4,4);
+select * from test;
+c1	c2	c3	c4
+1	2	3	4
+3	3	3	3
+4	4	4	4
+update test set c1 = 1  where c1 = 1;
+select * from test;
+c1	c2	c3	c4
+1	2	3	4
+3	3	3	3
+4	4	4	4
+update test set c1 = 1 where c1 = 3;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+update ignore test set c1 = 1 where c1 = 3;
+select * from test;
+c1	c2	c3	c4
+1	2	3	4
+3	3	3	3
+4	4	4	4
+update ignore test set c1 = c1 + 1, c2 = c1 + 1;
+select * from test;
+c1	c2	c3	c4
+1	2	3	4
+3	3	3	3
+5	6	4	4
+update test set c2 = 2 where c1 = 3;
+ERROR 23000: Duplicate entry '2' for key 'c2'
+update ignore test set c2 = 2 where c1 = 3;
+update ignore test set c2 = 2 where c2 = 3;
+select * from test;
+c1	c2	c3	c4
+1	2	3	4
+3	3	3	3
+5	6	4	4
+update test set c4 = 'abcdef';
+ERROR 22001: Data too long for column
+update ignore test set c4 = 'esefes';
+select * from test;
+c1	c2	c3	c4
+1	2	3	ese
+3	3	3	ese
+5	6	4	ese
+set sql_mode='';
+update ignore test set c4 = 'esdefes', c3 = 5;
+set sql_mode='strict_all_tables';
+select * from test;
+c1	c2	c3	c4
+1	2	5	esd
+3	3	5	esd
+5	6	5	esd
+drop table test;

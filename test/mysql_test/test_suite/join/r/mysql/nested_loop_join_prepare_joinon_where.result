@@ -1,0 +1,50 @@
+drop table if exists tbl1,tbl2;
+create table tbl1 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1));
+create table tbl2 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1));
+insert into tbl1 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl1 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl1 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl2 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl2 values(2,'now1','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl2 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl2 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',1.677);
+select * from tbl1;
+i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00	-10.235
+2	now	haha	-1.6256	2014-05-04 12:00:00	1.243
+3	now	haha	1.656	2014-05-04 12:00:00	-1.45
+select * from tbl2;
+i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00	3.45
+2	now1	haha	1.6256	2014-05-04 12:00:00	-0.25
+3	now2	haha	1.6256	2014-05-04 12:00:00	0.253
+4	now3	haha	1.6256	2014-05-04 12:00:00	1.677
+test join in ps
+prepare st from select   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1=?;
+prepare st2 from select   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1=?;
+set @a=1 ;
+execute st using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00	-10.235	1	now	haha	1.6256	2014-05-04 12:00:00	3.45
+execute st2 using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00	-10.235	1	now	haha	1.6256	2014-05-04 12:00:00	3.45
+execute st2 using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00	-10.235	1	now	haha	1.6256	2014-05-04 12:00:00	3.45
+execute st2 using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00	-10.235	1	now	haha	1.6256	2014-05-04 12:00:00	3.45
+set @a=2;
+execute st2 using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+2	now	haha	-1.6256	2014-05-04 12:00:00	1.243	2	now1	haha	1.6256	2014-05-04 12:00:00	-0.25
+execute st using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+2	now	haha	-1.6256	2014-05-04 12:00:00	1.243	2	now1	haha	1.6256	2014-05-04 12:00:00	-0.25
+execute st using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+2	now	haha	-1.6256	2014-05-04 12:00:00	1.243	2	now1	haha	1.6256	2014-05-04 12:00:00	-0.25
+execute st2 using @a;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+2	now	haha	-1.6256	2014-05-04 12:00:00	1.243	2	now1	haha	1.6256	2014-05-04 12:00:00	-0.25

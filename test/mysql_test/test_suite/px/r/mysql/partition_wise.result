@@ -1,0 +1,209 @@
+drop database if exists muhangtest;
+create database muhangtest;
+use muhangtest;
+result_format: 4
+create table lineitem(
+ l_orderkey           bigint NOT NULL ,
+ l_partkey            bigint NOT NULL ,
+ l_suppkey            bigint NOT NULL ,
+ l_linenumber         bigint NOT NULL ,
+ l_quantity           bigint NOT NULL ,
+ l_extendedprice      number(10,2) NOT NULL ,
+ l_discount           number(10,2) NOT NULL ,
+ l_tax                number(10,2) NOT NULL ,
+ l_returnflag         char(1) ,
+ l_linestatus         char(1) ,
+ l_shipdate           date ,
+ l_commitdate         date ,
+ l_receiptdate        date ,
+ l_shipinstruct       char(25) ,
+ l_shipmode           char(10) ,
+ l_comment            varchar(44),
+ primary key(L_ORDERKEY, L_LINENUMBER),
+ index
+ i_l_orderkey(l_orderkey)
+  local
+  ) partition by hash(L_ORDERKEY) partitions 5;
+
+create table part(
+ p_partkey            bigint NOT NULL ,
+ p_name               varchar(55) ,
+ p_mfgr               char(25) ,
+ p_brand              char(10) ,
+ p_type               varchar(25) ,
+ p_size               bigint ,
+ p_container          char(10) ,
+ p_retailprice        number(10,2) ,
+ p_comment            varchar(23) ,
+ primary key (P_PARTKEY)
+  ) partition by hash(P_PARTKEY) partitions 5;
+
+create table customer(
+ c_custkey            bigint NOT NULL ,
+ c_name               varchar(25) ,
+ c_address            varchar(40) ,
+ c_nationkey          bigint ,
+ c_phone              char(15) ,
+ c_acctbal            number(10,2) ,
+ c_mktsegment         char(10) ,
+ c_comment            varchar(117),
+ primary key(C_CUSTKEY),
+ unique index i_c_custkey(c_custkey) local
+  ) partition by hash(C_CUSTKEY) partitions 5;
+
+create table orders(
+ o_orderkey           bigint NOT NULL ,
+ o_custkey            bigint NOT NULL ,
+ o_orderstatus        char(1) ,
+ o_totalprice         number(10,2) ,
+ o_orderdate          date ,
+ o_orderpriority      char(15) ,
+ o_clerk              char(15) ,
+ o_shippriority       bigint ,
+ o_comment            varchar(79),
+ primary key(o_orderkey),
+ index(o_orderkey) local
+  ) partition by hash(o_orderkey) partitions 5;
+
+## from transformer_win_magic.test  tpch_17
+## tpch_sql_part.test
+
+## win_pushdown.test
+create table t1(a int primary key, b int, c varchar(20), d int) partition by hash(a) partitions 4;
+
+insert into t1 values(1, 1, "121", 4);
+insert into t1 values(2, -1, "3f1", 400);
+insert into t1 values(3, 4, "hh1", 19);
+insert into t1 values(4, 6, "c1", 4);
+insert into t1 values(5, 2, "c1", 23);
+insert into t1 values(6, -3, "a1", 4);
+insert into t1 values(7, 3, "21", 41);
+insert into t1 values(8, 8, "b1", 32);
+insert into t1 values(9, 3, "ha", 1);
+insert into t1 values(10, 19, "he", 3);
+create table t2(a int, b int, c varchar(20), d int, primary key(a,b)) partition by range columns(a, b) (partition p0 values less than(10, 20), partition p1 values less than(20, 30));
+
+drop table if exists t2;
+## other.test
+create table t2(a int primary key, b int) partition by hash(a) partitions 4;
+insert into t2 values(1, 1);
+insert into t2 values(2, -1);
+insert into t2 values(3, 4);
+insert into t2 values(4, 6);
+insert into t2 values(5, 2);
+insert into t2 values(6, -3);
+insert into t2 values(7, 3);
+insert into t2 values(8, 8);
+insert into t2 values(9, 3);
+insert into t2 values(10, 19);
+select count(1) over(partition by a) from t2 order by a;
++-------------------------------+
+| count(1) over(partition by a) |
++-------------------------------+
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
+|                             1 |
++-------------------------------+
+
+drop table if exists t1;
+drop table if exists t2;
+## mj_early_termination.test
+create table t1 (c1 int  primary key, c2 int) partition by hash(c1) partitions 8;
+create table t2 (c1 int  primary key, c2 int) partition by hash(c1) partitions 8;
+
+insert into t2 values (1, 1);
+insert into t2 values (2, 1);
+insert into t2 values (3, 1);
+insert into t2 values (4, 1);
+insert into t2 values (5, 1);
+insert into t2 values (6, 1);
+insert into t2 values (7, 1);
+insert into t2 values (8, 1);
+
+drop table if exists t1;
+
+create table t1(a int, b int, c int) partition by key(a) partitions 4;
+
+drop table if exists t7;
+drop table if exists t8;
+drop tablegroup if exists pw_union;
+create tablegroup pw_union partition by hash partitions 3;
+create table t7(a int, b int, c int, d int, primary key (a)) tablegroup = pw_union partition by hash(a) partitions 3;
+create table t8(a int, b int, c int, d int, primary key (a)) tablegroup = pw_union partition by hash(a) partitions 3;
+
+insert into t7 values ( 9, 9, 9, 9), (10,10,10,10), (11,11,11,11), (12,12,12,12),
+(13,13,13,13), (14,14,14,14), (15,15,15,15), (16,16,16,16),
+(17,17,17,17), (18,18,18,18), (19,19,19,19), (20,20,20,20),
+(21,21,21,21), (22,22,22,22), (23,23,23,23), (24,24,24,24),
+(25,25,25,25), (26,26,26,26), (27,27,27,27), (28,28,28,28);
+insert into t8 values ( 9, 9, 9, 9), (10,10,10,10), (11,11,11,11), (12,12,12,12),
+(13,13,13,13), (14,14,14,14), (15,15,15,15), (16,16,16,16),
+(17,17,17,17), (18,18,18,18), (19,19,19,19), (20,20,20,20),
+(21,21,21,21), (22,22,22,22), (23,23,23,23), (24,24,24,24),
+(25,25,25,25), (26,26,26,26), (27,27,27,27), (28,28,28,28);
+
+select /*+LEADING(A B C D) NO_REWRITE*/ * from t7 as A, t7 as B, t8 as C, t8 as D where A.a = B.a and B.b = C.a and C.a = D.a and D.a > 0;
++----+------+------+------+----+------+------+------+----+------+------+------+----+------+------+------+
+| a  | b    | c    | d    | a  | b    | c    | d    | a  | b    | c    | d    | a  | b    | c    | d    |
++----+------+------+------+----+------+------+------+----+------+------+------+----+------+------+------+
+|  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |
+| 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 |
+| 11 |   11 |   11 |   11 | 11 |   11 |   11 |   11 | 11 |   11 |   11 |   11 | 11 |   11 |   11 |   11 |
+| 12 |   12 |   12 |   12 | 12 |   12 |   12 |   12 | 12 |   12 |   12 |   12 | 12 |   12 |   12 |   12 |
+| 13 |   13 |   13 |   13 | 13 |   13 |   13 |   13 | 13 |   13 |   13 |   13 | 13 |   13 |   13 |   13 |
+| 14 |   14 |   14 |   14 | 14 |   14 |   14 |   14 | 14 |   14 |   14 |   14 | 14 |   14 |   14 |   14 |
+| 15 |   15 |   15 |   15 | 15 |   15 |   15 |   15 | 15 |   15 |   15 |   15 | 15 |   15 |   15 |   15 |
+| 16 |   16 |   16 |   16 | 16 |   16 |   16 |   16 | 16 |   16 |   16 |   16 | 16 |   16 |   16 |   16 |
+| 17 |   17 |   17 |   17 | 17 |   17 |   17 |   17 | 17 |   17 |   17 |   17 | 17 |   17 |   17 |   17 |
+| 18 |   18 |   18 |   18 | 18 |   18 |   18 |   18 | 18 |   18 |   18 |   18 | 18 |   18 |   18 |   18 |
+| 19 |   19 |   19 |   19 | 19 |   19 |   19 |   19 | 19 |   19 |   19 |   19 | 19 |   19 |   19 |   19 |
+| 20 |   20 |   20 |   20 | 20 |   20 |   20 |   20 | 20 |   20 |   20 |   20 | 20 |   20 |   20 |   20 |
+| 21 |   21 |   21 |   21 | 21 |   21 |   21 |   21 | 21 |   21 |   21 |   21 | 21 |   21 |   21 |   21 |
+| 22 |   22 |   22 |   22 | 22 |   22 |   22 |   22 | 22 |   22 |   22 |   22 | 22 |   22 |   22 |   22 |
+| 23 |   23 |   23 |   23 | 23 |   23 |   23 |   23 | 23 |   23 |   23 |   23 | 23 |   23 |   23 |   23 |
+| 24 |   24 |   24 |   24 | 24 |   24 |   24 |   24 | 24 |   24 |   24 |   24 | 24 |   24 |   24 |   24 |
+| 25 |   25 |   25 |   25 | 25 |   25 |   25 |   25 | 25 |   25 |   25 |   25 | 25 |   25 |   25 |   25 |
+| 26 |   26 |   26 |   26 | 26 |   26 |   26 |   26 | 26 |   26 |   26 |   26 | 26 |   26 |   26 |   26 |
+| 27 |   27 |   27 |   27 | 27 |   27 |   27 |   27 | 27 |   27 |   27 |   27 | 27 |   27 |   27 |   27 |
+| 28 |   28 |   28 |   28 | 28 |   28 |   28 |   28 | 28 |   28 |   28 |   28 | 28 |   28 |   28 |   28 |
++----+------+------+------+----+------+------+------+----+------+------+------+----+------+------+------+
+
+select /*+NO_USE_PX LEADING(A B C D) NO_REWRITE*/ * from t7 as A, t7 as B, t8 as C, t8 as D where A.a = B.a and B.b = C.a and C.a = D.a and D.a > 0;
++----+------+------+------+----+------+------+------+----+------+------+------+----+------+------+------+
+| a  | b    | c    | d    | a  | b    | c    | d    | a  | b    | c    | d    | a  | b    | c    | d    |
++----+------+------+------+----+------+------+------+----+------+------+------+----+------+------+------+
+|  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |  9 |    9 |    9 |    9 |
+| 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 | 10 |   10 |   10 |   10 |
+| 11 |   11 |   11 |   11 | 11 |   11 |   11 |   11 | 11 |   11 |   11 |   11 | 11 |   11 |   11 |   11 |
+| 12 |   12 |   12 |   12 | 12 |   12 |   12 |   12 | 12 |   12 |   12 |   12 | 12 |   12 |   12 |   12 |
+| 13 |   13 |   13 |   13 | 13 |   13 |   13 |   13 | 13 |   13 |   13 |   13 | 13 |   13 |   13 |   13 |
+| 14 |   14 |   14 |   14 | 14 |   14 |   14 |   14 | 14 |   14 |   14 |   14 | 14 |   14 |   14 |   14 |
+| 15 |   15 |   15 |   15 | 15 |   15 |   15 |   15 | 15 |   15 |   15 |   15 | 15 |   15 |   15 |   15 |
+| 16 |   16 |   16 |   16 | 16 |   16 |   16 |   16 | 16 |   16 |   16 |   16 | 16 |   16 |   16 |   16 |
+| 17 |   17 |   17 |   17 | 17 |   17 |   17 |   17 | 17 |   17 |   17 |   17 | 17 |   17 |   17 |   17 |
+| 18 |   18 |   18 |   18 | 18 |   18 |   18 |   18 | 18 |   18 |   18 |   18 | 18 |   18 |   18 |   18 |
+| 19 |   19 |   19 |   19 | 19 |   19 |   19 |   19 | 19 |   19 |   19 |   19 | 19 |   19 |   19 |   19 |
+| 20 |   20 |   20 |   20 | 20 |   20 |   20 |   20 | 20 |   20 |   20 |   20 | 20 |   20 |   20 |   20 |
+| 21 |   21 |   21 |   21 | 21 |   21 |   21 |   21 | 21 |   21 |   21 |   21 | 21 |   21 |   21 |   21 |
+| 22 |   22 |   22 |   22 | 22 |   22 |   22 |   22 | 22 |   22 |   22 |   22 | 22 |   22 |   22 |   22 |
+| 23 |   23 |   23 |   23 | 23 |   23 |   23 |   23 | 23 |   23 |   23 |   23 | 23 |   23 |   23 |   23 |
+| 24 |   24 |   24 |   24 | 24 |   24 |   24 |   24 | 24 |   24 |   24 |   24 | 24 |   24 |   24 |   24 |
+| 25 |   25 |   25 |   25 | 25 |   25 |   25 |   25 | 25 |   25 |   25 |   25 | 25 |   25 |   25 |   25 |
+| 26 |   26 |   26 |   26 | 26 |   26 |   26 |   26 | 26 |   26 |   26 |   26 | 26 |   26 |   26 |   26 |
+| 27 |   27 |   27 |   27 | 27 |   27 |   27 |   27 | 27 |   27 |   27 |   27 | 27 |   27 |   27 |   27 |
+| 28 |   28 |   28 |   28 | 28 |   28 |   28 |   28 | 28 |   28 |   28 |   28 | 28 |   28 |   28 |   28 |
++----+------+------+------+----+------+------+------+----+------+------+------+----+------+------+------+
+
+drop table t7;
+drop table t8;
+drop tablegroup pw_union;
+
+drop database if exists muhangtest;
+

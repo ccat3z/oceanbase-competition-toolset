@@ -1,0 +1,104 @@
+drop table if exists t1;
+CREATE TABLE t1 (
+titre char(80) NOT NULL default '',
+numeropost mediumint(8) unsigned NOT NULL,
+maxnumrep int(10) unsigned NOT NULL default '0',
+PRIMARY KEY  (numeropost)
+) partition by hash(numeropost) partitions 3;
+INSERT INTO t1 (numeropost, titre,maxnumrep) VALUES (1, 'test1','1');
+INSERT INTO t1 (numeropost, titre,maxnumrep) VALUES (2, 'test2','2');
+INSERT INTO t1 (numeropost, titre,maxnumrep) VALUES (3, 'test3','3');
+select * from t1 order by numeropost;
+titre	numeropost	maxnumrep
+test1	1	1
+test2	2	2
+test3	3	3
+select found_rows();
+found_rows()
+3
+SELECT SQL_CALC_FOUND_ROWS * FROM t1  order by numeropost LIMIT 0;
+titre	numeropost	maxnumrep
+select found_rows();
+found_rows()
+3
+select * from t1 order by numeropost limit 2;
+titre	numeropost	maxnumrep
+test1	1	1
+test2	2	2
+select found_rows();
+found_rows()
+2
+set sql_select_limit = 2;
+select * from t1 order by numeropost;
+titre	numeropost	maxnumrep
+test1	1	1
+test2	2	2
+select found_rows();
+found_rows()
+2
+select * from t1 order by numeropost limit 10;
+titre	numeropost	maxnumrep
+test1	1	1
+test2	2	2
+test3	3	3
+select found_rows();
+found_rows()
+3
+SELECT SQL_CALC_FOUND_ROWS * FROM t1  order by numeropost LIMIT 0;
+titre	numeropost	maxnumrep
+select found_rows();
+found_rows()
+3
+SELECT SQL_CALC_FOUND_ROWS * FROM t1  order by numeropost LIMIT 0;
+titre	numeropost	maxnumrep
+select found_rows();
+found_rows()
+3
+select * from t1 order by numeropost limit 2;
+titre	numeropost	maxnumrep
+test1	1	1
+test2	2	2
+select found_rows();
+found_rows()
+2
+set sql_select_limit = default;
+drop table if exists t1;
+drop table if exists t2;
+CREATE TABLE t1 (
+a int(11) DEFAULT NULL
+);
+CREATE TABLE t2 (
+a int(11) DEFAULT NULL
+);
+insert into t1 values (1),(2),(3),(4),(5);
+insert into t2 values (11),(12),(13),(14),(15);
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3);
+a
+1
+11
+12
+13
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3) limit 2;
+a
+1
+11
+set SQL_SELECT_LIMIT = 2;
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3);
+a
+1
+11
+(select * from t1 order by a limit 1) union all (select * from t2 order by a limit 3);
+a
+1
+11
+(select * from t1 order by a limit 1) union distinct (select * from t2 order by a limit 3);
+a
+1
+11
+(select * from t1 order by a limit 1) union (select * from t2 order by a limit 3) limit 10;
+a
+1
+11
+12
+13
+set sql_select_limit = default;

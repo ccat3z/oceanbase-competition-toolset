@@ -1,0 +1,14 @@
+drop table if exists t1;
+create table t1 (c1 int primary key, c2 int);
+insert into t1 values (1,1),(2,2),(3,3),(4,4);
+select * from t1 limit 0,1;
+c1	c2
+1	1
+set _force_parallel_query_dop = 3;
+select * from t1 limit 0, 1;
+c1	c2
+1	1
+select * from t1 limit 1, 2;
+c1	c2
+2	2
+3	3

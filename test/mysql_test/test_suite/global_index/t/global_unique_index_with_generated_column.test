@@ -1,0 +1,21 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+#tags: ddl, global_index
+
+--disable_warnings
+--disable_query_log
+drop table if exists givt_test4;
+--enable_query_log
+--enable_warnings
+
+create table givt_test4 (pk1 int, pk2 int, first_name varchar(100), last_name varchar(100), primary key(pk1, pk2)) partition by hash(pk1) partitions 2;
+insert into givt_test4 values(1,1, 'first                     1', 'last                    1');
+
+--sleep 1
+create unique index test_u_index ON givt_test4(first_name(11));
+
+--source mysql_test/include/check_all_idx_ok.inc
+--disable_query_log
+drop table givt_test4;
+--enable_query_log

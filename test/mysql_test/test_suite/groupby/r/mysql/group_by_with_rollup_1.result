@@ -1,0 +1,92 @@
+drop table if exists t1;
+create table t1(c1 int primary key, c2 int, c3 int, c4 int) partition by hash(c1) partitions 2;
+insert into t1 values (1,1,1,1);
+insert into t1 values (2,1,1,2);
+insert into t1 values (3,1,1,1);
+insert into t1 values (4,1,2,1);
+insert into t1 values (5,1,2,2);
+insert into t1 values (6,2,3,1);
+insert into t1 values (7,2,3,4);
+insert into t1 values (8,2,3,3);
+insert into t1 values (9,2,3,4);
+select c1, sum(c2) from t1 group by c1 with rollup;
+c1	sum(c2)
+1	1
+2	1
+3	1
+4	1
+5	1
+6	2
+7	2
+8	2
+9	2
+NULL	13
+select c1, sum(distinct c2) from t1 group by c1 with rollup;
+c1	sum(distinct c2)
+1	1
+2	1
+3	1
+4	1
+5	1
+6	2
+7	2
+8	2
+9	2
+NULL	3
+select c1, sum(distinct c2), count(distinct c2) from t1 group by c1 with rollup;
+c1	sum(distinct c2)	count(distinct c2)
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	2	1
+7	2	1
+8	2	1
+9	2	1
+NULL	3	2
+select c2, c3, sum(c1) from t1 group by c2, c3 with rollup;
+c2	c3	sum(c1)
+1	1	6
+1	2	9
+1	NULL	15
+2	3	30
+2	NULL	30
+NULL	NULL	45
+select c2, c3, sum(distinct c4) from t1 group by c2, c3 with rollup;
+c2	c3	sum(distinct c4)
+1	1	3
+1	2	3
+1	NULL	3
+2	3	8
+2	NULL	8
+NULL	NULL	10
+select c2, c3, sum(c1), avg(c1), sum(distinct c4) from t1 group by c2, c3 with rollup;
+c2	c3	sum(c1)	avg(c1)	sum(distinct c4)
+1	1	6	2.0000	3
+1	2	9	4.5000	3
+1	NULL	15	3.0000	3
+2	3	30	7.5000	8
+2	NULL	30	7.5000	8
+NULL	NULL	45	5.0000	10
+select c1, group_concat(distinct c4), group_concat(c4 order by c4) from t1 group by c1 with rollup;
+c1	group_concat(distinct c4)	group_concat(c4 order by c4)
+1	1	1
+2	2	2
+3	1	1
+4	1	1
+5	2	2
+6	1	1
+7	4	4
+8	3	3
+9	4	4
+NULL	1,2,3,4	1,1,1,1,2,2,3,4,4
+select c2, c3, group_concat(distinct c4), group_concat(c4 order by c4) from t1 group by c2, c3 with rollup;
+c2	c3	group_concat(distinct c4)	group_concat(c4 order by c4)
+1	1	1,2	1,1,2
+1	2	1,2	1,2
+1	NULL	1,2	1,1,1,2,2
+2	3	1,3,4	1,3,4,4
+2	NULL	1,3,4	1,3,4,4
+NULL	NULL	1,2,3,4	1,1,1,1,2,2,3,4,4
+drop table t1;

@@ -1,0 +1,73 @@
+# https://aone.alibaba-inc.com/code/D804192
+
+--result_format 4
+
+--disable_query_log
+--disable_warnings
+drop table if exists t1, t2, t3, t4;
+--enable_warnings
+--enable_query_log
+
+create table t1(c1 int);
+select min(c1) from t1;
+select max(c1) from t1;
+
+create table t2(c1 int);
+insert into t1 values (NULL);
+
+select min(c1) from t1;
+select max(c1) from t1;
+
+create table t3(c1 int);
+insert into t1 values (1);
+
+select min(c1) from t1;
+select max(c1) from t1;
+
+create table t4(c1 int);
+insert into t1 values (1);
+insert into t1 values (NULL);
+insert into t1 values (2);
+select min(c1) from t1;
+select max(c1) from t1;
+
+
+--disable_query_log
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+--enable_query_log
+
+create table t1(pk int primary key, a1 varchar(10) not null, a2 varchar(10));
+
+--disable_query_log
+insert into t1 values(1,'d','d4');
+insert into t1 values(2,'d','d3');
+insert into t1 values(3,'d','d2');
+insert into t1 values(4,'d','d1');
+insert into t1 values(5,'c','c1');
+insert into t1 values(6,'c','c2');
+insert into t1 values(7,'c','c3');
+insert into t1 values(8,'c','c4');
+insert into t1 values(9,'b','b2');
+insert into t1 values(10,'b','b3');
+insert into t1 values(11,'b','b1');
+insert into t1 values(12,'b','b4');
+insert into t1 values(13,'a','a4');
+insert into t1 values(14,'a','a2');
+insert into t1 values(15,'a','a3');
+insert into t1 values(16,'a','a1');
+insert into t1 values(17,'a','a1');
+insert into t1 values(18,'b','b1');
+insert into t1 values(19,'c','c1');
+insert into t1 values(20,'d','d1');
+insert into t1 values(21,'a',NULL);
+--enable_query_log
+
+select a1, max(a2) from t1 group by a1 order by a1;
+select a1, min(a2) from t1 group by a1 order by a1;
+
+--disable_query_log
+drop table t1;
+--enable_query_log

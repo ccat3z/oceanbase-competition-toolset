@@ -1,0 +1,32 @@
+# description: 本case是为了测试update ignore的情况，操作多行；
+#tags: dml,dml_ignore
+
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+create table test (c1 int primary key, c2 int unique key, c3 int, c4 char(3));
+
+insert into test values(1,2,3,4);
+insert into test values(3,3,3,3);
+
+#主键冲突
+--error 1062 
+update test set c1 = 2;
+select * from test;
+update ignore test set c1 = 2;
+select * from test;
+
+#索引冲突
+--error 1062
+update test set c2 = 2;
+select * from test;
+update ignore test set c2 = 2;
+select * from test;
+
+##数据类型错误
+--error 1406 
+update test set c4 = 'ssssssss';
+select * from test;
+update ignore test set c4 = 'ssssssss';
+select * from test;
+drop table test;

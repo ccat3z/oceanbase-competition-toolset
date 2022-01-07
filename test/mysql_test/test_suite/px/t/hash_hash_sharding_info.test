@@ -1,0 +1,33 @@
+# tags: optimizer
+##
+## Test Name: anti_join_semi.test
+## Date: 2018-9-12
+
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+--result_format 4
+--source mysql_test/include/sql_import_opt_tpch_part.inc
+use opt_tpch_part;
+
+SELECT  /*+  PQ_DISTRIBUTE(LINEITEM HASH HASH) TPCH_Q09 parallel(1) USE_PX  leading(PARTSUPP (SUPPLIER (PART LINEITEM)))*/
+             L_EXTENDEDPRICE*(1-L_DISCOUNT)-PS_SUPPLYCOST*L_QUANTITY AS AMOUNT  
+      FROM PART, SUPPLIER, LINEITEM, PARTSUPP
+      WHERE S_SUPPKEY = L_SUPPKEY AND 
+            PS_SUPPKEY= L_SUPPKEY AND 
+            PS_PARTKEY = L_PARTKEY AND  
+            P_PARTKEY= L_PARTKEY AND 
+            P_NAME LIKE '%%green%%' order by AMOUNT;
+
+SELECT  /*+  PQ_DISTRIBUTE(LINEITEM HASH HASH) TPCH_Q09 parallel(1) NO_USE_PX  leading(PARTSUPP (SUPPLIER (PART LINEITEM)))*/
+             L_EXTENDEDPRICE*(1-L_DISCOUNT)-PS_SUPPLYCOST*L_QUANTITY AS AMOUNT  
+      FROM PART, SUPPLIER, LINEITEM, PARTSUPP
+      WHERE S_SUPPKEY = L_SUPPKEY AND 
+            PS_SUPPKEY= L_SUPPKEY AND 
+            PS_PARTKEY = L_PARTKEY AND  
+            P_PARTKEY= L_PARTKEY AND 
+            P_NAME LIKE '%%green%%' order by AMOUNT;
+
+select /*+TPCH_EQ18 parallel(2) */ p_size,p_name,sum(p_retailprice),sum(l_quantity),sum(l_extendedprice *(1-l_discount)),count(distinct c_name),count(distinct n_name) from part left join lineitem on p_partkey=l_partkey inner join orders on l_orderkey=o_orderkey right join customer on o_custkey=c_custkey inner join nation on c_nationkey=n_nationkey where p_brand not in ('Brand#41','Brand#43','Brand#44','Brand#45','Brand#46') and not exists (select * from customer right join orders on c_custkey=o_custkey where o_orderkey is null) group by p_size,p_name order by p_size, p_name;
+

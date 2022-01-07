@@ -1,0 +1,328 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+
+##test primary key
+--disable_warnings
+--error 0,1051
+drop table t1;
+--error 0,1051
+drop table t2;
+--enable_warnings
+
+##init
+
+create table t1(c1 int not null,c2 int not null, c3 int);
+create table t2(c1 int not null,c2 int not null, c3 int);
+
+insert into t1 values(1,2,0);
+insert into t1 values(2,4,1);
+insert into t1 values(-1,5,2);
+insert into t1 values(5,1,3);
+insert into t1 values(3,3,4);
+insert into t1 values(3,4,5);
+insert into t1 values(10,2,6);
+
+
+insert into t2 values(1,2,0);
+insert into t2 values(4,4,1);
+insert into t2 values(-1,5,2);
+insert into t2 values(5,1,3);
+insert into t2 values(3,5,4);
+insert into t2 values(3,4,5);
+insert into t2 values(11,3,6);
+
+commit;
+
+##normal
+alter system set _force_hash_join_spill=false;
+alter system set _enable_hash_join_processor=7;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+
+##nest loop & dump
+alter system set _force_hash_join_spill=true;
+alter system set _enable_hash_join_processor=1;
+##show parameters like '%hash_join%';
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+
+## crc
+alter system set _enable_hash_join_hasher=2;
+alter system set _enable_hash_join_processor=7;
+#show parameters like '%hash_join%';
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+
+## xxhash
+alter system set _enable_hash_join_hasher=4;
+alter system set _enable_hash_join_processor=7;
+#show parameters like '%hash_join%';
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+
+
+alter system set _enable_hash_join_processor=2;
+#show parameters like '%hash_join%';
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+
+
+alter system set _enable_hash_join_processor=4;
+#show parameters like '%hash_join%';
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+--sorted_result
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+
+
+alter system set _force_hash_join_spill=false;
+alter system set _enable_hash_join_processor=7;
+
+drop table t1;
+drop table t2;

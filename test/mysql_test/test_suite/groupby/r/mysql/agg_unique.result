@@ -1,0 +1,668 @@
+drop database if exists temptest;
+create database temptest;
+use temptest;
+drop table if exists t1,t2;
+create table t1(c1 int primary key, c2 int) partition by hash (c1) partitions 5;
+create table t2(c1 int primary key, c2 int, c3 varchar(32)) partition by hash (c1) partitions 3;
+create table t3(c1 int, c2 int, c3 varchar(32)) partition by hash (c2) partitions 3;
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t1 values (2, 3);
+INSERT INTO t1 values (3, 3);
+INSERT INTO t1 values  (4, 3);
+INSERT INTO t1 values (5, 2);
+INSERT INTO t1 values (6, 1);
+INSERT INTO t1 values (7, 1);
+INSERT INTO t1 VALUES  (10, 2);
+INSERT INTO t1 VALUES  (20, 3);
+INSERT INTO t1 VALUES  (30, 4);
+INSERT INTO t1 VALUES  (77, 5);
+INSERT INTO t1 VALUES  (99, 99);
+INSERT INTO t1 VALUES  (21, 17);
+INSERT INTO t2 VALUES (1, 2, 'a');
+INSERT INTO t2 VALUES (2, 3, 'a');
+INSERT INTO t2 VALUES (3, 3, 'a');
+INSERT INTO t2 VALUES (4, 3, 'b');
+INSERT INTO t2 VALUES (5, 2, 'b');
+INSERT INTO t2 VALUES (6, 1, 'dd');
+INSERT INTO t2 VALUES (7, 1, '76www');
+INSERT INTO t2 VALUES (10, 2, 'bb21');
+INSERT INTO t2 VALUES (20, 3, 'dsa122');
+INSERT INTO t2 VALUES (30, 4, 'c');
+INSERT INTO t2 VALUES (77, 5, 'c');
+INSERT INTO t2 VALUES (99, 99, 'c');
+INSERT INTO t2 VALUES (21, 17, 'c');
+INSERT INTO t2 VALUES (231, 20, 'c');
+INSERT INTO t2 VALUES (11, 2, 'b');
+INSERT INTO t3 VALUES (1, 2, 'a');
+INSERT INTO t3 VALUES (2, 3, 'a');
+INSERT INTO t3 VALUES (3, 3, 'a');
+INSERT INTO t3 VALUES (4, 3, 'b');
+INSERT INTO t3 VALUES (5, 2, 'b');
+INSERT INTO t3 VALUES (6, 1, 'dd');
+INSERT INTO t3 VALUES (7, 1, '76www');
+INSERT INTO t3 VALUES (10, 2, 'bb21');
+INSERT INTO t3 VALUES (20, 3, 'dsa122');
+INSERT INTO t3 VALUES (30, 4, 'c');
+INSERT INTO t3 VALUES (77, 5, 'c');
+INSERT INTO t3 VALUES (99, 99, 'c');
+INSERT INTO t3 VALUES (21, 17, 'c');
+INSERT INTO t3 VALUES (231, 20, 'c');
+INSERT INTO t3 VALUES (11, 2, 'b');
+INSERT INTO t3 VALUES (1, 2, 'a');
+INSERT INTO t3 VALUES (2, 3, 'a');
+INSERT INTO t3 VALUES (3, 3, 'a');
+INSERT INTO t3 VALUES (4, 3, 'b');
+INSERT INTO t3 VALUES (5, 2, 'b');
+INSERT INTO t3 VALUES (6, 1, 'dd');
+INSERT INTO t3 VALUES (7, 1, '76www');
+INSERT INTO t3 VALUES (10, 2, 'bb21');
+INSERT INTO t3 VALUES (20, 3, 'dsa122');
+INSERT INTO t3 VALUES (30, 4, 'c');
+INSERT INTO t3 VALUES (77, 5, 'c');
+INSERT INTO t3 VALUES (99, 99, 'c');
+INSERT INTO t3 VALUES (21, 17, 'c');
+INSERT INTO t3 VALUES (231, 20, 'c');
+INSERT INTO t3 VALUES (11, 2, 'b');
+select avg(c2), count(c2) from t2;
+avg(c2)	count(c2)
+11.1333	15
+select count(c2) from t2;
+count(c2)
+15
+select count(c2) from t2 group by c2;
+count(c2)
+1
+1
+1
+1
+1
+2
+4
+4
+select count(c2) from t2 group by c3;
+count(c2)
+1
+1
+1
+1
+3
+3
+5
+select * from t2 group by c2;
+c1	c2	c3
+1	2	a
+21	17	c
+231	20	c
+3	3	a
+30	4	c
+6	1	dd
+77	5	c
+99	99	c
+select * from t2 group by c2, c3;
+c1	c2	c3
+1	2	a
+10	2	bb21
+20	3	dsa122
+21	17	c
+231	20	c
+3	3	a
+30	4	c
+4	3	b
+5	2	b
+6	1	dd
+7	1	76www
+77	5	c
+99	99	c
+select count(c1) from t2 group by c2;
+count(c1)
+1
+1
+1
+1
+1
+2
+4
+4
+select count(c2) from t2 group by c3;
+count(c2)
+1
+1
+1
+1
+3
+3
+5
+select count(c2), avg(c1) from t2 group by c3;
+count(c2)	avg(c1)
+1	10.0000
+1	20.0000
+1	6.0000
+1	7.0000
+3	2.0000
+3	6.6667
+5	91.6000
+select count(unique c2) from t2;
+count(unique c2)
+8
+select avg(unique c2), count(unique c2) from t2;
+avg(unique c2)	count(unique c2)
+18.8750	8
+select avg(unique c2), count(unique c2) from t2 group by c3;
+avg(unique c2)	count(unique c2)
+1.0000	1
+1.0000	1
+2.0000	1
+2.5000	2
+2.5000	2
+29.0000	5
+3.0000	1
+select avg(unique c2), count(unique c2) from t2 group by c2, c3;
+avg(unique c2)	count(unique c2)
+1.0000	1
+1.0000	1
+17.0000	1
+2.0000	1
+2.0000	1
+2.0000	1
+20.0000	1
+3.0000	1
+3.0000	1
+3.0000	1
+4.0000	1
+5.0000	1
+99.0000	1
+select avg(unique c1) from t2 group by c2, c3;
+avg(unique c1)
+1.0000
+10.0000
+2.5000
+20.0000
+21.0000
+231.0000
+30.0000
+4.0000
+6.0000
+7.0000
+77.0000
+8.0000
+99.0000
+select sum(unique c1) from t2 group by c2, c3;
+sum(unique c1)
+1
+10
+16
+20
+21
+231
+30
+4
+5
+6
+7
+77
+99
+select count(unique c1) from t2 group by c2, c3;
+count(unique c1)
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+2
+2
+select count(unique c1) from t2 group by c1, c2;
+count(unique c1)
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select count(unique c1) from t2 group by c1, c2, c3;
+count(unique c1)
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select count(unique c1), sum(unique c2) from t2 group by c2, c3;
+count(unique c1)	sum(unique c2)
+1	1
+1	1
+1	17
+1	2
+1	2
+1	20
+1	3
+1	3
+1	4
+1	5
+1	99
+2	2
+2	3
+select group_concat(unique c1 order by c1) from t2 group by c2, c3;
+group_concat(unique c1 order by c1)
+1
+10
+2,3
+20
+21
+231
+30
+4
+5,11
+6
+7
+77
+99
+select count(unique c1), sum(c2) from t2 group by c2, c3;
+count(unique c1)	sum(c2)
+1	1
+1	1
+1	17
+1	2
+1	2
+1	20
+1	3
+1	3
+1	4
+1	5
+1	99
+2	4
+2	6
+select count(unique c1), sum(c2) from t2 group by c3;
+count(unique c1)	sum(c2)
+1	1
+1	1
+1	2
+1	3
+3	7
+3	8
+5	145
+select avg(unique c2), count(c3) from t3 group by c1;
+avg(unique c2)	count(c3)
+1.0000	2
+1.0000	2
+17.0000	2
+2.0000	2
+2.0000	2
+2.0000	2
+2.0000	2
+20.0000	2
+3.0000	2
+3.0000	2
+3.0000	2
+3.0000	2
+4.0000	2
+5.0000	2
+99.0000	2
+select count(unique(c1)) from t3;
+count(unique(c1))
+15
+select count(unique(c1)) from t3 group by c1;
+count(unique(c1))
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select count(unique(c2)) from t3 group by c1, c2;
+count(unique(c2))
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select sum(unique(c2)) from t3;
+sum(unique(c2))
+151
+select sum(unique(c1)) from t3 group by c1;
+sum(unique(c1))
+1
+10
+11
+2
+20
+21
+231
+3
+30
+4
+5
+6
+7
+77
+99
+select sum(unique(c1)) from t3 group by c1, c2;
+sum(unique(c1))
+1
+10
+11
+2
+20
+21
+231
+3
+30
+4
+5
+6
+7
+77
+99
+select avg(unique(c1)) from t3;
+avg(unique(c1))
+35.1333
+select avg(unique(c2)) from t3 group by c1;
+avg(unique(c2))
+1.0000
+1.0000
+17.0000
+2.0000
+2.0000
+2.0000
+2.0000
+20.0000
+3.0000
+3.0000
+3.0000
+3.0000
+4.0000
+5.0000
+99.0000
+select avg(unique(c1)) from t3 group by c1, c2;
+avg(unique(c1))
+1.0000
+10.0000
+11.0000
+2.0000
+20.0000
+21.0000
+231.0000
+3.0000
+30.0000
+4.0000
+5.0000
+6.0000
+7.0000
+77.0000
+99.0000
+select count(unique c3, c2) from t3;
+count(unique c3, c2)
+13
+select count(unique c2 ) from t3 group by c1;
+count(unique c2 )
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select count(unique c2) from t3 group by c1, c2;
+count(unique c2)
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select count(unique c1, c2) from t3;
+count(unique c1, c2)
+15
+select count(unique c1, c3) from t3 group by c1;
+count(unique c1, c3)
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+select avg(unique c2) from t3 group by c1, c2;
+avg(unique c2)
+1.0000
+1.0000
+17.0000
+2.0000
+2.0000
+2.0000
+2.0000
+20.0000
+3.0000
+3.0000
+3.0000
+3.0000
+4.0000
+5.0000
+99.0000
+select avg(unique c2) from t3 group by c1, c2;
+avg(unique c2)
+1.0000
+1.0000
+17.0000
+2.0000
+2.0000
+2.0000
+2.0000
+20.0000
+3.0000
+3.0000
+3.0000
+3.0000
+4.0000
+5.0000
+99.0000
+select avg(unique c2) from t3;
+avg(unique c2)
+18.8750
+select avg(unique c2) from t3 group by c3;
+avg(unique c2)
+1.0000
+1.0000
+2.0000
+2.5000
+2.5000
+29.0000
+3.0000
+select avg(unique c2) from t3 group by c3;
+avg(unique c2)
+1.0000
+1.0000
+2.0000
+2.5000
+2.5000
+29.0000
+3.0000
+select avg(unique c2) from t3;
+avg(unique c2)
+18.8750
+select avg(unique c2) from t3 group by c1;
+avg(unique c2)
+1.0000
+1.0000
+17.0000
+2.0000
+2.0000
+2.0000
+2.0000
+20.0000
+3.0000
+3.0000
+3.0000
+3.0000
+4.0000
+5.0000
+99.0000
+select sum(unique(c2)) from t3;
+sum(unique(c2))
+151
+select sum(unique(c2)) from t3 group by c1;
+sum(unique(c2))
+1
+1
+17
+2
+2
+2
+2
+20
+3
+3
+3
+3
+4
+5
+99
+select sum(unique(c2)) from t3 group by c1, c2;
+sum(unique(c2))
+1
+1
+17
+2
+2
+2
+2
+20
+3
+3
+3
+3
+4
+5
+99
+select sum(unique(c2)) from t3 group by c2;
+sum(unique(c2))
+1
+17
+2
+20
+3
+4
+5
+99
+select avg(unique c1) from t2;
+avg(unique c1)
+35.1333
+select avg(unique c1) from t2 group by c2;
+avg(unique c1)
+21.0000
+231.0000
+30.0000
+6.5000
+6.7500
+7.2500
+77.0000
+99.0000
+select count(unique c1) from t2 group by c2;
+count(unique c1)
+1
+1
+1
+1
+1
+2
+4
+4
+select sum(unique c1) from t2;
+sum(unique c1)
+527
+select sum(unique c1) from t2 group by c1;
+sum(unique c1)
+1
+10
+11
+2
+20
+21
+231
+3
+30
+4
+5
+6
+7
+77
+99
+select sum(unique c1) from t2 group by c2;
+sum(unique c1)
+13
+21
+231
+27
+29
+30
+77
+99
+drop table if exists t1,t2;
+drop database if exists temptest;

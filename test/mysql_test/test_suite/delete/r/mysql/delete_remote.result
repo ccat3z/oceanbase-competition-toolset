@@ -1,0 +1,12 @@
+drop table if exists t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+select * from t1;
+a
+1
+DELETE FROM t1 ORDER BY (SELECT x);
+ERROR 42S22: Unknown column 'x' in 'field list'
+DELETE FROM t1 ORDER BY (SELECT a);
+select * from t1;
+a
+drop table t1;

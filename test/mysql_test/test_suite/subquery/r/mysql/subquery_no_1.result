@@ -1,0 +1,6 @@
+drop table if exists t;
+create table t(c0 varchar(20), c1 varchar(20));
+insert into t values('asa', 'adqwef');
+insert into t values('sawf', 'asdaqwe');
+select length(t.c0), (select length(t.c1) from t) from t;
+ERROR 21000: Subquery returns more than 1 row

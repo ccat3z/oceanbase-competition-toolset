@@ -1,0 +1,23 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+#update、insert时当列不存在报错信息不正确。
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1(c1 int, c2 int);
+--error 1054
+update t1 set t.i=i+(SELECT MAX(i) FROM (SELECT 1) t);
+
+--error 1054
+update t1 set i = 1;
+
+--error 1054
+insert into t1 (t1.c) values(1);
+
+--error 1054
+insert into t1 (c) values(1);
+drop table t1;
+

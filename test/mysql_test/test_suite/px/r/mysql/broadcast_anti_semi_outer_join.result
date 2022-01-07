@@ -1,0 +1,349 @@
+result_format: 4
+explain_protocol: 0
+drop database if exists muhangtest;
+create database muhangtest;
+use muhangtest;
+drop table if exists xy_t1, xy_t2;
+create table xy_t1(c1 int, c2 int) partition by hash(c1) partitions 4;
+create table xy_t2(c1 int, c2 int) partition by hash(c1) partitions 3;
+
+CREATE TABLE `t11` (
+  `c1` int(11) ,
+  `c2` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10
+ partition by range columns(c1)
+(partition p0 values less than (55),
+partition p1 values less than (100));
+
+CREATE TABLE `t12` (
+  `c1` int(11) ,
+  `c2` int(11) DEFAULT NULL
+) DEFAULT CHARSET = utf8mb4 COMPRESSION = 'lz4_1.0' REPLICA_NUM = 1 BLOCK_SIZE = 16384 USE_BLOOM_FILTER = FALSE TABLET_SIZE = 134217728 PCTFREE = 10
+ partition by range columns(c1)
+(partition p0 values less than (55),
+partition p1 values less than (100));
+
+insert into t11 values (0, 0), (61, 1), (92, 2), (3, 3), (64, 4), (5, 5), (6, 6), (67, 7), (8, 8), (69, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (NULL, NULL);
+insert into t12 values (0, 0), (61, 1), (92, 2), (3, 3), (64, 4), (5, 5), (6, 6), (67, 7), (8, 8), (69, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (NULL, NULL);
+## t2表的分区1被裁掉
+select /*+use_px parallel(4)*/ c1 from t12 where c1 not in (select c1 from t11 where c2 not in (select c2 from t11)) and t12.c1 > 55;
++------+
+| c1   |
++------+
+|   61 |
+|   64 |
+|   67 |
+|   69 |
+|   92 |
++------+
+
+##semi join 两遍被随意broadcast
+select /*+ USE_NL(xy_t1, xy_t2) */ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_MERGE(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_MERGE(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    5 |    5 |
+|    5 |    5 |
+|    6 |    6 |
+|    6 |    7 |
++------+------+
+
+## left outer join : none <- broadcast
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 left join xy_t2 on xy_t1.c1 = xy_t2.c1;
++------+------+------+------+
+| c1   | c2   | c1   | c2   |
++------+------+------+------+
+|    0 |    0 | NULL | NULL |
+|    1 |    1 |    1 |    1 |
+|    2 |    2 | NULL | NULL |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    6 |    6 |    6 |    6 |
+|    6 |    7 |    6 |    6 |
+|    7 |    7 | NULL | NULL |
++------+------+------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 left join xy_t2 on xy_t1.c1 = xy_t2.c1;
++------+------+------+------+
+| c1   | c2   | c1   | c2   |
++------+------+------+------+
+|    0 |    0 | NULL | NULL |
+|    1 |    1 |    1 |    1 |
+|    2 |    2 | NULL | NULL |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    6 |    6 |    6 |    6 |
+|    6 |    7 |    6 |    6 |
+|    7 |    7 | NULL | NULL |
++------+------+------+------+
+
+## rigth outer join : broadcast <- none
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 right join xy_t2 on xy_t1.c1 = xy_t2.c1;
++------+------+------+------+
+| c1   | c2   | c1   | c2   |
++------+------+------+------+
+|    1 |    1 |    1 |    1 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    6 |    6 |    6 |    6 |
+|    6 |    7 |    6 |    6 |
+| NULL | NULL |    3 |    3 |
++------+------+------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 right join xy_t2 on xy_t1.c1 = xy_t2.c1;
++------+------+------+------+
+| c1   | c2   | c1   | c2   |
++------+------+------+------+
+|    1 |    1 |    1 |    1 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    5 |    5 |    5 |    5 |
+|    6 |    6 |    6 |    6 |
+|    6 |    7 |    6 |    6 |
+| NULL | NULL |    3 |    3 |
++------+------+------+------+
+
+## left anti join : none <- broadcast
+## right anti join : none <- broadcast
+select /*+ USE_NL(xy_t1, xy_t2) */ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_MERGE(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_MERGE(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where not exists (select 1 from xy_t2 where xy_t1.c1 = xy_t2.c1);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+
+select /*+ USE_NL(xy_t1, xy_t2) */ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_NL(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_HASH(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_MERGE(xy_t1, xy_t2) pq_distribute(xy_t2 none broadcast)*/ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+select /*+ use_px parallel(2) LEADING(xy_t1 xy_t2) USE_MERGE(xy_t1, xy_t2) pq_distribute(xy_t2 broadcast none)*/ * from xy_t1 where c1 not in (select c1 from xy_t2);
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    2 |    2 |
+|    7 |    7 |
++------+------+
+
+## CARTESIAN
+create table t1 (pk int primary key, c1 int) partition by hash(pk) partitions 5;
+create table t2 (pk int primary key, c1 int);
+create table t3 (pk int primary key, c1 int);
+insert into t1 values (0, 10);
+insert into t1 values (1, 11);
+insert into t1 values (2, 12);
+insert into t1 values (3, 13);
+insert into t1 values (4, 14);
+insert into t1 values (5, 15);
+insert into t2 values (0, 20), (1, 21);
+insert into t3 values (0, 30), (1, 31);
+select /*+use_px parallel(3)*/ * from t1 as s1 join t1 as s2 order by s1.pk, s1.c1, s2.pk, s2.c1;
++----+------+----+------+
+| pk | c1   | pk | c1   |
++----+------+----+------+
+|  0 |   10 |  0 |   10 |
+|  0 |   10 |  1 |   11 |
+|  0 |   10 |  2 |   12 |
+|  0 |   10 |  3 |   13 |
+|  0 |   10 |  4 |   14 |
+|  0 |   10 |  5 |   15 |
+|  1 |   11 |  0 |   10 |
+|  1 |   11 |  1 |   11 |
+|  1 |   11 |  2 |   12 |
+|  1 |   11 |  3 |   13 |
+|  1 |   11 |  4 |   14 |
+|  1 |   11 |  5 |   15 |
+|  2 |   12 |  0 |   10 |
+|  2 |   12 |  1 |   11 |
+|  2 |   12 |  2 |   12 |
+|  2 |   12 |  3 |   13 |
+|  2 |   12 |  4 |   14 |
+|  2 |   12 |  5 |   15 |
+|  3 |   13 |  0 |   10 |
+|  3 |   13 |  1 |   11 |
+|  3 |   13 |  2 |   12 |
+|  3 |   13 |  3 |   13 |
+|  3 |   13 |  4 |   14 |
+|  3 |   13 |  5 |   15 |
+|  4 |   14 |  0 |   10 |
+|  4 |   14 |  1 |   11 |
+|  4 |   14 |  2 |   12 |
+|  4 |   14 |  3 |   13 |
+|  4 |   14 |  4 |   14 |
+|  4 |   14 |  5 |   15 |
+|  5 |   15 |  0 |   10 |
+|  5 |   15 |  1 |   11 |
+|  5 |   15 |  2 |   12 |
+|  5 |   15 |  3 |   13 |
+|  5 |   15 |  4 |   14 |
+|  5 |   15 |  5 |   15 |
++----+------+----+------+
+
+drop database if exists muhangtest;

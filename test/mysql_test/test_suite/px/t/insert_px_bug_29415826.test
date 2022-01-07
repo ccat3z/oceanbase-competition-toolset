@@ -1,0 +1,27 @@
+
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+--result_format 4
+--disable_warnings
+
+--disable_warnings
+drop table if exists t,t1,t2,t3,t4;
+create table t(c1 int,c2 varchar(10));
+create table t1(c1 int,c2 varchar(10));
+insert into t1 values(1,"hello");
+create table t2(c1 int,c2 varchar(10));
+insert into t2 values(1,"hello");
+create table t3(c1 int,c2 varchar(10));
+insert into t3 values(1,"hello");
+create table t4(c1 int,c2 varchar(10));
+insert into t4 values(1,"hello");
+
+insert /*+use_px parallel(16) */ into t select t1.* from t1,t2,t3,t4 where t1.c1 = t2.c1 and t2.c1=t3.c1 and t3.c1=t4.c1;
+select * from t;
+update /*+use_px parallel(16)*/ t set t.c2="test" where t.c1 in (select t1.c1 from t1,t2,t3,t4 where t1.c1 = t2.c1 and t2.c1=t3.c1 and t3.c1=t4.c1);
+select * from t;
+select * from t;
+
+--disable_warnings
+drop table if exists t1,t2,t3,t4,t;

@@ -1,0 +1,65 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description:
+#对innodb一些bug进行改写,兼容OB
+#1.注释掉--source include/have_innodb.inc
+#2.注释掉建表时候ENGINE=InnoDB;
+#3.注释掉ANALYZE TABLE
+#
+set collation_connection='utf8mb4_general_ci';
+# test of left outer join for tests that depends on innodb
+#
+
+#--source include/have_innodb.inc
+
+--disable_abort_on_error
+--disable_warnings
+drop table if exists t1,t2,t3,t4;
+--enable_warnings
+
+CREATE TABLE t1 (id int(11) NOT NULL PRIMARY KEY, name varchar(20),INDEX (name));
+CREATE TABLE t2 (id int(11) NOT NULL PRIMARY KEY, fkey int(11));           
+INSERT INTO t1 VALUES (1,'A1'),(2,'A2'),(3,'B');
+INSERT INTO t2 VALUES (1,1),(2,2),(3,2),(4,3),(5,3);
+
+SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id WHERE t1.name LIKE 'A%';
+SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id WHERE t1.name LIKE 'A%' OR FALSE;
+--sorted_result
+select * FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id;
+--sorted_result
+select * FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id WHERE t1.name LIKE 'A%' OR FALSE;
+
+DROP TABLE t1,t2;
+
+--echo #
+
+CREATE TABLE t1 (
+  col_int INT,
+  col_int_key INT,
+  pk INT NOT NULL,
+  PRIMARY KEY (pk),
+  KEY col_int_key (col_int_key)
+);
+
+INSERT INTO t1 VALUES (NULL,1,1), (6,2,2), (5,3,3), (NULL,4,4);
+INSERT INTO t1 VALUES (1,NULL,6), (8,5,7), (NULL,8,8), (8,NULL,5);
+
+CREATE TABLE t2 (
+  pk INT PRIMARY KEY
+);
+
+SELECT t1.pk
+FROM t2 LEFT JOIN t1 ON t2.pk = t1.col_int
+WHERE t1.col_int_key BETWEEN 5 AND 6 
+      AND t1.pk IS NULL OR t1.pk IN (5)
+ORDER BY pk;
+
+INSERT INTO t2 VALUES(1),(2);
+SELECT t1.pk FROM t2 LEFT JOIN t1 ON t2.pk = t1.col_int_key ORDER BY pk;
+SELECT t1.pk FROM t2 LEFT JOIN t1 ON t2.pk = t1.col_int_key ORDER BY t1.pk;
+SELECT t1.pk FROM t2 LEFT JOIN t1 ON t2.pk = t1.col_int_key ORDER BY t2.pk;
+
+DROP TABLE t1,t2;
+
+--enable_abort_on_error

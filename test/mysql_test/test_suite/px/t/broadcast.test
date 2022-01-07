@@ -1,0 +1,1357 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+
+--disable_warnings
+drop database if exists muhangtest;
+drop table if exists t1;
+drop table if exists t2;
+create database muhangtest;
+use muhangtest;
+--enable_warnings
+
+--result_format 4
+
+## 一 检测hint的有效性
+
+create table t1(c1 int primary key, c2 int, c3 int, c4 date);
+create index i1 on t1(c3);
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by key(c2) partitions 4;
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+## 看看hint是否是右边生效
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2;
+## 看看hint是否是右边生效
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2;
+## 期望让t2去broadcast
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE) LEADING(t2 t1)*/ * from t1 join t2 on t1.c2 = t2.c2;
+## 两张表的hint都写上，只有右表t2hint生效
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) PQ_DISTRIBUTE(t1 BROADCAST NONE)  LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2;
+## 没有view merge的情况下, 这个hint的的作用范围不涉及外面
+--sorted_result
+select /*+no_rewrite()*/ * from (select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1) as t1alias join t2 on t1alias.c2 = t2.c2;
+## 能够识别在作用域中的别名, 理论上说一个子查询的结果目前不能做broadcast
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1alias BROADCAST NONE) LEADING(t2alias t1)*/ * from (select * from t2) as t2alias join t1 as t1alias on t2alias.c2 = t1alias.c2;
+
+## 看看这些计划能不能broadcast
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 NONE BROADCAST) LEADING(t1 t2) */ * from t1 join t2 on t1.c2=t2.c2;
+## 从hash hash变到broadcast
+--sorted_result
+select /*+use_px parallel(3) LEADING(t2 t1) */ * from t1 join t2 on t1.c2=t2.c1;
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE) LEADING(t2 t1) */ * from t1 join t2 on t1.c2=t2.c2;
+
+## nlj带条件下压，broadcast的是左表依然是可以的。
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 NONE BROADCAST) LEADING(t2 t1) USE_NL(t1) */ * from t1 join t2 on t1.c2=t2.c2;
+
+--sorted_result
+select  /*+use_px parallel(3) LEADING(t2 t1) PQ_DISTRIBUTE(t1 NONE broadcast)*/ * from t1 join t2 on t1.c2=t2.c2;
+drop table t1;
+drop table t2;
+
+## 验证broadcast的正确性
+create table t1(c1 int primary key, c2 int, c3 int, c4 date) partition by hash(c1) partitions 2;
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by key(c1) partitions 4;
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 NONE BROADCAST) */ * from t1 join t2 on t1.c1 = t2.c1;
+
+##由于plan cache暂时不支持DISTRIBUTED属性的plan，人工校对outeline
+#create outline test_ot on select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST, NONE)*/ * from t1 join t2 on t1.c2 = t2.c2;
+#insert into t1 values(1,1,31, null);
+#insert into t1 values(2,2,32, null);
+#insert into t2 values(1,1,31);
+#insert into t2 values(1,2,32);
+
+drop table t1;
+drop table t2;
+
+## 二 测试计划正确性
+##  两个表都未分区，强行broadcast
+create table t1(c1 int primary key, c2 int, c3 int, c4 date);
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3));
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+select * from t1 join t2 on t1.c2 = t2.c2;
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 NONE BROADCAST) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2;
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2;
+
+
+##1 右表一级分区表 左表未分区表
+--disable_warnings
+drop table if exists t1;
+drop table if exists t2;
+--enable_warnings
+create table t1(c1 int primary key, c2 int, c3 int, c4 date);
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by key(c2) partitions 4;
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+## 原始计划
+
+## 核对结果
+--sorted_result
+select * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 NONE BROADCAST) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+
+drop table t1;
+drop table t2;
+
+##2 右表两级分区的表 左表未分区表
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by hash(c2) 
+subpartition by range columns(c2) subpartition template( subpartition sp_00 values less than (45), subpartition sp_01 values less than (100));
+
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key(c1));
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+## 原始计划
+
+## 核对结果
+--sorted_result
+select * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 NONE BROADCAST) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+
+drop table t1;
+drop table t2;
+
+##3 右表一级分区表 左表一级分区
+create table t1(c1 int primary key, c2 int, c3 int, c4 date) partition by hash(c1) partitions 2;
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by key(c2) partitions 4;
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);                                                                                                                                                                                                           
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+
+## 核对结果
+--sorted_result
+select * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 NONE BROADCAST) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2 = t2.c2 order by t2.c2;
+
+drop table t1;
+drop table t2;
+
+#4 二级分区表与二级分区表
+#t1
+#一级分区为range column(c2) 2 
+#二级分区为key(c3) 4
+#t2
+#一级分区为range column(c2) 2
+#二级分区为key(c3) 4
+#实测分区数据分布为
+#    p0sp0 p0sp1 p0sp2 p0sp3 p1sp0 p1sp1 p1sp2 p1sp3
+#t2  4     2     4     4     3     3     1     4
+#    p0sp0 p0sp1 p1sp0 p1sp1
+#t1  8     6     4     7
+
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 2 (partition p0 values less than (15),partition p1 values less than (50));
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+
+select * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 NONE BROADCAST) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+##5 影响partition wise join
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+
+--sorted_result
+select * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE) LEADING(t1 t2)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+## 三 验证不同分区不同类型不同join计算方法的结果正确性
+## 运行测试, 保证不同类型计算正确
+#
+##part one 对int测试
+##t1未分区
+##t2为一级key分区
+##key(c2)
+create table t1(c1 int primary key, c2 int, c3 int, c4 date);
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by key(c1) partitions 32;
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c1 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 NONE BROADCAST)*/ * from t1 join t2 on t1.c1=t2.c1 order by t2.c2;
+
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c1=t2.c1 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) use_merge(t1 t2) PQ_DISTRIBUTE(t1 NONE BROADCAST)*/ * from t1 join t2 on t1.c1=t2.c1 order by t2.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c1=t2.c1 order by t2.c2;
+
+drop table t1;
+drop table t2;
+
+##t1一级range column二级key
+##t2一级range column二级key
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (10),partition p1 values less than (50));
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 2 (partition p0 values less than (15), partition p1 values less than (50));
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+##t1一级range column二级key
+##t2一级range column二级key
+##实测分区数据分布为
+##    p0sp0 p0sp1 p0sp2 p0sp3 p1sp0 p1sp1 p1sp2 p1sp3
+##t2  3     2     4     0     3     8     4     1
+##    p0sp0 p0sp1 p1sp0 p1sp1
+##t1  8     6     4     7
+
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 2 (partition p0 values less than (15), partition p1 values less than (50));
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (10),partition p1 values less than (50));
+
+insert into t1 values(1,1,1, null);
+insert into t1 values(2,2,2, null);
+insert into t1 values(3,3,3, null);
+insert into t1 values(4,4,4, null);
+insert into t1 values(5,5,5, null);
+insert into t1 values(6,6,6, null);
+insert into t1 values(7,7,7, null);
+insert into t1 values(8,8,8, null);
+insert into t1 values(9,9,9, null);
+insert into t1 values(10,10,10, null);
+insert into t1 values(11,11,11, null);
+insert into t1 values(12,12,12, null);
+insert into t1 values(13,13,13, null);
+insert into t1 values(14,14,14, null);
+insert into t1 values(15,15,15, null);
+insert into t1 values(16,16,16, null);
+insert into t1 values(17,17,17, null);
+insert into t1 values(18,18,18, null);
+insert into t1 values(19,19,19, null);
+insert into t1 values(20,20,20, null);
+insert into t1 values(21,21,21, null);
+insert into t1 values(22,22,22, null);
+insert into t1 values(23,23,23, null);
+insert into t1 values(24,24,24, null);
+insert into t1 values(25,25,25, null);
+
+insert into t2 values(1,1,1);
+insert into t2 values(1,2,2);
+insert into t2 values(2,3,3);
+insert into t2 values(3,4,4);
+insert into t2 values(4,5,5);
+insert into t2 values(5,6,6);
+insert into t2 values(6,7,7);
+insert into t2 values(7,8,8);
+insert into t2 values(8,9,9);
+insert into t2 values(9,10,10);
+insert into t2 values(9,11,11);
+insert into t2 values(9,12,12);
+insert into t2 values(9,13,13);
+insert into t2 values(9,14,14);
+insert into t2 values(9,15,15);
+insert into t2 values(9,16,16);
+insert into t2 values(9,17,17);
+insert into t2 values(9,18,18);
+insert into t2 values(9,19,19);
+insert into t2 values(9,20,20);
+insert into t2 values(9,21,21);
+insert into t2 values(9,22,22);
+insert into t2 values(9,23,23);
+insert into t2 values(9,24,24);
+insert into t2 values(9,25,25);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c3 and t1.c3=t2.c2 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c3 and t1.c3=t2.c2 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c3 and t1.c3=t2.c2 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+#
+##t1
+##一级分区为range column(c2) 2 
+##二级分区为key(c3) 4
+##t2
+##一级分区为range column(c2) 2
+##二级分区为key(c3) 4
+##实测分区数据分布为
+##    p0sp0 p0sp1 p0sp2 p0sp3 p1sp0 p1sp1 p1sp2 p1sp3
+##t2  4     2     4     4     3     3     1     4
+##    p0sp0 p0sp1 p1sp0 p1sp1
+##t1  8     6     4     7
+##计划会按照t2的规则把t1进行重分区，具体的重分区列为t1.c1和t1.c2
+##如果有任何一行发错了，结果都会出错
+
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 2 (partition p0 values less than (15),partition p1 values less than (50));
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+#
+## t1
+## 一级key分区
+## 二级range column分区
+## t2
+## 一级key分区
+## 二级range column分区
+## 实际数据分布为
+## t1  19 6
+## t2  14 11
+create table t1(c1 int, c2 int, c3 int, c4 date, primary key (c1, c2, c3)) partition by key(c2) subpartition by range columns(c3) subpartition template( subpartition sp_00 values less than (50), subpartition sp_01 values less than (MAXVALUE));
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 int(11) not null, primary key (c1, c2, c3)) partition by key(c2) subpartition by range columns(c3) subpartition template( subpartition sp_00 values less than (45), subpartition sp_01 values less than (100));
+
+insert into t1 values(1,1,31, null);
+insert into t1 values(2,2,32, null);
+insert into t1 values(3,3,33, null);
+insert into t1 values(4,4,34, null);
+insert into t1 values(5,5,35, null);
+insert into t1 values(6,6,36, null);
+insert into t1 values(7,7,37, null);
+insert into t1 values(8,8,38, null);
+insert into t1 values(9,9,39, null);
+insert into t1 values(10,10,40, null);
+insert into t1 values(11,11,41, null);
+insert into t1 values(12,12,42, null);
+insert into t1 values(13,13,43, null);
+insert into t1 values(14,14,44, null);
+insert into t1 values(15,15,45, null);
+insert into t1 values(16,16,46, null);
+insert into t1 values(17,17,47, null);
+insert into t1 values(18,18,48, null);
+insert into t1 values(19,19,49, null);
+insert into t1 values(20,20,50, null);
+insert into t1 values(21,21,51, null);
+insert into t1 values(22,22,52, null);
+insert into t1 values(23,23,53, null);
+insert into t1 values(24,24,54, null);
+insert into t1 values(25,25,55, null);
+
+insert into t2 values(1,1,31);
+insert into t2 values(1,2,32);
+insert into t2 values(2,3,33);
+insert into t2 values(3,4,34);
+insert into t2 values(4,5,35);
+insert into t2 values(5,6,36);
+insert into t2 values(6,7,37);
+insert into t2 values(7,8,38);
+insert into t2 values(8,9,39);
+insert into t2 values(9,10,40);
+insert into t2 values(9,11,41);
+insert into t2 values(9,12,42);
+insert into t2 values(9,13,43);
+insert into t2 values(9,14,44);
+insert into t2 values(9,15,45);
+insert into t2 values(9,16,46);
+insert into t2 values(9,17,47);
+insert into t2 values(9,18,48);
+insert into t2 values(9,19,49);
+insert into t2 values(9,20,50);
+insert into t2 values(9,21,51);
+insert into t2 values(9,22,52);
+insert into t2 values(9,23,53);
+insert into t2 values(9,24,54);
+insert into t2 values(9,25,55);
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t1 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+## part two 对string测试
+## 只需要验证一次就好，确认key分区的规则对string运行正常
+## t1一级range column 二级key  0 14 0 11
+## t2一级range column 二级key  0 9 0 5 0 9 0 2
+create table t1(c1 int, c2 int, c3 varchar(32) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 2 (partition p0 values less than (15),partition p1 values less than (50));
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 varchar(32) not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 4 (partition p0 values less than (15),partition p1 values less than (50));
+
+insert into t1 values(1,1,'31abc');
+insert into t1 values(2,2,'31asdbc');
+insert into t1 values(3,3,'21aabc');
+insert into t1 values(4,4,'31abxxsc');
+insert into t1 values(5,5,'534c');
+insert into t1 values(6,6,'sdf223');
+insert into t1 values(7,7,'dsfax');
+insert into t1 values(8,8,'adsfd');
+insert into t1 values(9,9,'sdfsdfdssde');
+insert into t1 values(10,10,'sdfxasde');
+insert into t1 values(11,11,'ewrewc');
+insert into t1 values(12,12,'32dsfe2');
+insert into t1 values(13,13,'fdected');
+insert into t1 values(14,14,'edcz3');
+insert into t1 values(15,15,'dce2cd');
+insert into t1 values(16,16,'sdc3d');
+insert into t1 values(17,17,'ghtybv3');
+insert into t1 values(18,18,'dfe3gv');
+insert into t1 values(19,19,'4535f');
+insert into t1 values(20,20,'sdfc323');
+insert into t1 values(21,21,'sdf2jk');
+insert into t1 values(22,22,'rtygrf');
+insert into t1 values(23,23,'435fgfd');
+insert into t1 values(24,24,'dfg455');
+insert into t1 values(25,25,'dfg6hgfd');
+
+insert into t2 values(1,1,'31abc');
+insert into t2 values(2,2,'31asdbc');
+insert into t2 values(3,3,'21aabc');
+insert into t2 values(4,4,'31abxxsc');
+insert into t2 values(5,5,'534c');
+insert into t2 values(6,6,'sdf223');
+insert into t2 values(7,7,'dsfax');
+insert into t2 values(8,8,'adsfd');
+insert into t2 values(9,9,'sdfsdfdssde');
+insert into t2 values(10,10,'sdfxasde');
+insert into t2 values(11,11,'ewrewc');
+insert into t2 values(12,12,'32dsfe2');
+insert into t2 values(13,13,'fdected');
+insert into t2 values(14,14,'edcz3');
+insert into t2 values(15,15,'dce2cd');
+insert into t2 values(16,16,'sdc3d');
+insert into t2 values(17,17,'ghtybv3');
+insert into t2 values(18,18,'dfe3gv');
+insert into t2 values(19,19,'4535f');
+insert into t2 values(20,20,'sdfc323');
+insert into t2 values(21,21,'sdf2jk');
+insert into t2 values(22,22,'rtygrf');
+insert into t2 values(23,23,'435fgfd');
+insert into t2 values(24,24,'dfg455');
+insert into t2 values(25,25,'dfg6hgfd');
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_nl(t1 t2)*/* from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/* from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/* from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 varchar(32) not null, primary key (c1, c2, c3)) partition by range columns(c3) subpartition by key(c2) subpartitions 8
+(
+partition p0 values less than ('h'),
+partition p1 values less than (MAXVALUE)
+);
+create table t1(c1 int, c2 int, c3 varchar(32) not null, primary key (c1, c2, c3)) partition by range columns(c3) subpartition by key(c2) subpartitions 8
+(
+partition p0 values less than ('h'),
+partition p1 values less than (MAXVALUE)
+);
+
+--sorted_result
+select * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+####################part three datetime
+##t1
+##+use_px parallel(3) -----------+use_px parallel(3) ---------------+use_px parallel(3) 
+##| row_count | table_id      |
+##+use_px parallel(3) -----------+use_px parallel(3) ---------------+use_px parallel(3) 
+##|         0 | 1099511677822 |
+##|         2 | 1099511677822 |
+##|         6 | 1099511677822 |
+##|         2 | 1099511677822 |
+##|         1 | 1099511677822 |
+##|         0 | 1099511677822 |
+##|         2 | 1099511677822 |
+##|         1 | 1099511677822 |
+##|         2 | 1099511677822 |
+##|         4 | 1099511677822 |
+##|         2 | 1099511677822 |
+##|         0 | 1099511677822 |
+##|         0 | 1099511677822 |
+##|         1 | 1099511677822 |
+##|         1 | 1099511677822 |
+##|         1 | 1099511677822 |
+##+use_px parallel(3) -----------+use_px parallel(3) ---------------+use_px parallel(3) 
+##t2 
+##+use_px parallel(3) -----------+use_px parallel(3) ---------------+use_px parallel(3) 
+##| row_count | table_id      |
+##+use_px parallel(3) -----------+use_px parallel(3) ---------------+use_px parallel(3) 
+##|         0 | 1099511677821 |
+##|         2 | 1099511677821 |
+##|         6 | 1099511677821 |
+##|         2 | 1099511677821 |
+##|         1 | 1099511677821 |
+##|         0 | 1099511677821 |
+##|         2 | 1099511677821 |
+##|         1 | 1099511677821 |
+##|         2 | 1099511677821 |
+##|         4 | 1099511677821 |
+##|         2 | 1099511677821 |
+##|         0 | 1099511677821 |
+##|         0 | 1099511677821 |
+##|         1 | 1099511677821 |
+##|         1 | 1099511677821 |
+##|         1 | 1099511677821 |
+##+use_px parallel(3) -----------+use_px parallel(3) ---------------+use_px parallel(3) 
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 date not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 8 
+(
+partition p0 values less than (20),
+partition p1 values less than (50)
+);
+create table t1(c1 int, c2 int, c3 date not null, primary key (c1, c2, c3)) partition by range columns(c2) subpartition by key(c3) subpartitions 8 
+(
+partition p0 values less than (15),
+partition p1 values less than (50)
+);
+
+insert into t1 values(1,1,'2017-10-09');
+insert into t1 values(2,2,'2017-08-09');
+insert into t1 values(3,3,'2017-11-09');
+insert into t1 values(4,4,'2017-10-09');
+insert into t1 values(5,5,'2017-12-09');
+insert into t1 values(6,6,'2017-11-09');
+insert into t1 values(7,7,'2017-10-29');
+insert into t1 values(8,8,'2017-08-09');
+insert into t1 values(9,9,'2017-06-19');
+insert into t1 values(10,10,'2017-03-09');
+insert into t1 values(11,11,'2017-02-09');
+insert into t1 values(12,12,'2017-12-19');
+insert into t1 values(13,13,'2017-04-09');
+insert into t1 values(14,14,'2017-10-09');
+insert into t1 values(15,15,'2017-10-28');
+insert into t1 values(16,16,'2017-06-09');
+insert into t1 values(17,17,'2017-01-09');
+insert into t1 values(18,18,'2017-09-09');
+insert into t1 values(19,19,'2017-03-13');
+insert into t1 values(20,20,'2017-01-16');
+insert into t1 values(21,21,'2017-02-14');
+insert into t1 values(22,22,'2017-04-13');
+insert into t1 values(23,23,'2017-05-11');
+insert into t1 values(24,24,'2017-06-12');
+insert into t1 values(25,25,'2017-07-22');
+
+insert into t2 values(1,1,'2017-10-09');
+insert into t2 values(2,2,'2017-08-09');
+insert into t2 values(3,3,'2017-11-09');
+insert into t2 values(4,4,'2017-10-09');
+insert into t2 values(5,5,'2017-12-09');
+insert into t2 values(6,6,'2017-11-09');
+insert into t2 values(7,7,'2017-10-29');
+insert into t2 values(8,8,'2017-08-09');
+insert into t2 values(9,9,'2017-06-19');
+insert into t2 values(10,10,'2017-03-09');
+insert into t2 values(11,11,'2017-02-09');
+insert into t2 values(12,12,'2017-12-19');
+insert into t2 values(13,13,'2017-04-09');
+insert into t2 values(14,14,'2017-10-09');
+insert into t2 values(15,15,'2017-10-28');
+insert into t2 values(16,16,'2017-06-09');
+insert into t2 values(17,17,'2017-01-09');
+insert into t2 values(18,18,'2017-09-09');
+insert into t2 values(19,19,'2017-03-13');
+insert into t2 values(20,20,'2017-01-16');
+insert into t2 values(21,21,'2017-02-14');
+insert into t2 values(22,22,'2017-04-13');
+insert into t2 values(23,23,'2017-05-11');
+insert into t2 values(24,24,'2017-06-12');
+insert into t2 values(25,25,'2017-07-22');
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) */ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_nl(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+--sorted_result
+select /*+use_px parallel(3) use_hash(t1 t2) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1 join t2 on t1.c2=t2.c2 and t1.c3=t2.c3 order by t1.c2;
+
+drop table t1;
+drop table t2;
+
+#简化版模拟
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 date not null, primary key (c1, c2, c3)) partition by range columns(c3) subpartition by key(c2) subpartitions 8 
+(
+partition p201707 values less than ('2017-07-01 00:00:00'),
+partition p201808 values less than ('2018-08-01 00:00:00')
+);
+
+create table t1(c1 int, c2 int, c3 date not null, primary key (c1, c2, c3)) partition by range columns(c3) subpartition by key(c2) subpartitions 8 
+(
+partition p201707 values less than ('2017-07-01 00:00:00'),
+partition p201808 values less than ('2018-09-01 00:00:00')
+);
+
+insert into t1 values(1,1,'2017-10-09');
+insert into t1 values(2,2,'2017-08-09');
+insert into t1 values(3,3,'2017-11-09');
+insert into t1 values(4,4,'2017-10-09');
+insert into t1 values(5,5,'2017-12-09');
+insert into t1 values(6,6,'2017-11-09');
+insert into t1 values(7,7,'2017-10-29');
+insert into t1 values(8,8,'2017-08-09');
+insert into t1 values(9,9,'2017-06-19');
+insert into t1 values(10,10,'2017-03-09');
+insert into t1 values(11,11,'2017-02-09');
+insert into t1 values(12,12,'2017-12-19');
+insert into t1 values(13,13,'2017-04-09');
+insert into t1 values(14,14,'2017-10-09');
+insert into t1 values(15,15,'2017-10-28');
+insert into t1 values(16,16,'2017-06-09');
+insert into t1 values(17,17,'2017-01-09');
+insert into t1 values(18,18,'2017-09-09');
+insert into t1 values(19,19,'2017-03-13');
+insert into t1 values(20,20,'2017-01-16');
+insert into t1 values(21,21,'2017-02-14');
+insert into t1 values(22,22,'2017-04-13');
+insert into t1 values(23,23,'2017-05-11');
+insert into t1 values(24,24,'2017-06-12');
+insert into t1 values(25,25,'2017-07-22');
+
+insert into t2 values(1,1,'2017-10-09');
+insert into t2 values(2,2,'2017-08-09');
+insert into t2 values(3,3,'2017-11-09');
+insert into t2 values(4,4,'2017-10-09');
+insert into t2 values(5,5,'2017-12-09');
+insert into t2 values(6,6,'2017-11-09');
+insert into t2 values(7,7,'2017-10-29');
+insert into t2 values(8,8,'2017-08-09');
+insert into t2 values(9,9,'2017-06-19');
+insert into t2 values(10,10,'2017-03-09');
+insert into t2 values(11,11,'2017-02-09');
+insert into t2 values(12,12,'2017-12-19');
+insert into t2 values(13,13,'2017-04-09');
+insert into t2 values(14,14,'2017-10-09');
+insert into t2 values(15,15,'2017-10-28');
+insert into t2 values(16,16,'2017-06-09');
+insert into t2 values(17,17,'2017-01-09');
+insert into t2 values(18,18,'2017-09-09');
+insert into t2 values(19,19,'2017-03-13');
+insert into t2 values(20,20,'2017-01-16');
+insert into t2 values(21,21,'2017-02-14');
+insert into t2 values(22,22,'2017-04-13');
+insert into t2 values(23,23,'2017-05-11');
+insert into t2 values(24,24,'2017-06-12');
+insert into t2 values(25,25,'2017-07-22');
+--sleep 1
+
+##一级不同range，二级key分区，不能并行执行
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1,t2 where t1.c3=t2.c3 and t1.c2=t2.c2;
+
+drop table t1;
+drop table t2;
+
+##create table t2(c1 int(11) not null, c2 int(11) not null, c3 date not null, primary key (c1, c2, c3)) partition by range columns(c3) subpartition by key(c2) subpartitions 8
+##(
+##partition p201707 values less than ('2017-07-01 00:00:00'),
+##partition p201808 values less than ('2018-08-01 00:00:00')
+##);
+
+##create table t1(c1 int, c2 int, c3 date not null, primary key (c1, c2, c3));
+##
+##drop table t1;
+##drop table t2;
+
+create table t2(c1 int(11) not null, c2 int(11) not null, c3 date not null, primary key (c1, c2, c3)) partition by range columns(c3)
+(
+partition p201707 values less than ('2017-07-01 00:00:00'),
+partition p201808 values less than ('2018-08-01 00:00:00')
+);
+
+create table t1(c1 int, c2 int, c3 date not null, primary key (c1, c2, c3));
+
+insert into t1 values(1,1,'2017-10-09');
+insert into t1 values(2,2,'2017-08-09');
+insert into t1 values(3,3,'2017-11-09');
+insert into t1 values(4,4,'2017-10-09');
+insert into t1 values(5,5,'2017-12-09');
+insert into t1 values(6,6,'2017-11-09');
+insert into t1 values(7,7,'2017-10-29');
+insert into t1 values(8,8,'2017-08-09');
+insert into t1 values(9,9,'2017-06-19');
+insert into t1 values(10,10,'2017-03-09');
+insert into t1 values(11,11,'2017-02-09');
+insert into t1 values(12,12,'2017-12-19');
+insert into t1 values(13,13,'2017-04-09');
+insert into t1 values(14,14,'2017-10-09');
+insert into t1 values(15,15,'2017-10-28');
+insert into t1 values(16,16,'2017-06-09');
+insert into t1 values(17,17,'2017-01-09');
+insert into t1 values(18,18,'2017-09-09');
+insert into t1 values(19,19,'2017-03-13');
+insert into t1 values(20,20,'2017-01-16');
+insert into t1 values(21,21,'2017-02-14');
+insert into t1 values(22,22,'2017-04-13');
+insert into t1 values(23,23,'2017-05-11');
+insert into t1 values(24,24,'2017-06-12');
+insert into t1 values(25,25,'2017-07-22');
+
+insert into t2 values(1,1,'2017-10-09');
+insert into t2 values(2,2,'2017-08-09');
+insert into t2 values(3,3,'2017-11-09');
+insert into t2 values(4,4,'2017-10-09');
+insert into t2 values(5,5,'2017-12-09');
+insert into t2 values(6,6,'2017-11-09');
+insert into t2 values(7,7,'2017-10-29');
+insert into t2 values(8,8,'2017-08-09');
+insert into t2 values(9,9,'2017-06-19');
+insert into t2 values(10,10,'2017-03-09');
+insert into t2 values(11,11,'2017-02-09');
+insert into t2 values(12,12,'2017-12-19');
+insert into t2 values(13,13,'2017-04-09');
+insert into t2 values(14,14,'2017-10-09');
+insert into t2 values(15,15,'2017-10-28');
+insert into t2 values(16,16,'2017-06-09');
+insert into t2 values(17,17,'2017-01-09');
+insert into t2 values(18,18,'2017-09-09');
+insert into t2 values(19,19,'2017-03-13');
+insert into t2 values(20,20,'2017-01-16');
+insert into t2 values(21,21,'2017-02-14');
+insert into t2 values(22,22,'2017-04-13');
+insert into t2 values(23,23,'2017-05-11');
+insert into t2 values(24,24,'2017-06-12');
+insert into t2 values(25,25,'2017-07-22');
+--sleep 1
+
+--sorted_result
+select /*+use_px parallel(3) PQ_DISTRIBUTE(t2 BROADCAST NONE)*/ * from t1,t2 where t1.c3=t2.c3;
+
+drop table t1;
+drop table t2;
+
+##  四 各类之前px已经覆盖的计划
+--disable_warnings
+drop table if exists t1,t2,t3,t4,t5;
+--enable_warnings
+
+create table t1 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t2 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t3 (c1 int, c2 int, c3 int, c4 int, primary key (c1));
+create table t4 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2))  partition by hash(c2) partitions 4;
+create table t5 (c1 int, c2 int, c3 int, c4 int, primary key (c1, c2))  partition by hash(c2) partitions 4;
+
+let $i = 5;
+while ($i)
+{
+  let $v = 10;
+  while ($v)
+  {
+    eval insert into t$i values ($v, $v, $v, $v);
+    dec $v;
+  }
+  dec $i;
+}
+--sleep 1
+
+## allocate exchange above subplan scan
+## 非inner join不能broadcast
+
+## NL with left repartined
+# bug has been fixed muhang: https://aone.alibaba-inc.com/project/81079/issue/16377198
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b BROADCAST NONE) use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t4 b where a.c2 = b.c1 and a.c3 = b.c2;
+
+## NL with BC2HOST
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b BROADCAST NONE) use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t2 b where a.c2 = b.c1;
+--sorted_result
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from t1 a, t2 b where a.c2 = b.c1;
+
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b BROADCAST NONE) use_px parallel(4) use_nl(a, b) leading(a b) */ * from t4 a, t5 b where a.c3 = b.c1;
+
+# partition wise join order by (allocate sort above GI)
+--sorted_result
+select /*+ use_px parallel(4) user_merge(a b) */ * from t4 a, t5 b where a.c1 = b.c1 and a.c2 = b.c2 order by a.c1, a.c2;
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b BROADCAST NONE) use_px parallel(4) user_merge(a b) */ * from t4 a, t5 b where a.c1 = b.c1 and a.c2 = b.c2 order by a.c1, a.c2;
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b NONE BROADCAST) use_px parallel(4) user_merge(a b) */ * from t4 a, t5 b where a.c1 = b.c1 and a.c2 = b.c2 order by a.c1, a.c2;
+
+# hash hash distribute
+--sorted_result
+select /*+ use_px parallel(4) use_hash(a b) */ * from t1 a, t2 b where a.c2 = b.c2;
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b NONE BROADCAST) use_px parallel(4) use_hash(a b) */ * from t1 a, t2 b where a.c2 = b.c2;
+--sorted_result
+select /*+ PQ_DISTRIBUTE(b NONE BROADCAST) use_px parallel(4) use_hash(a b c) */ * from t1 a, t2 b, t3 c where a.c2 = b.c2 and b.c3 = c.c3;
+--sorted_result
+select /*+ PQ_DISTRIBUTE(c NONE BROADCAST) use_px parallel(4) use_hash(a b c) */ * from t1 a, t2 b, t3 c where a.c2 = b.c2 and b.c3 = c.c3;
+
+# local single PX worker execution
+--sorted_result
+select /*+ use_px parallel(4) use_nl(a, b) leading(a b) */ * from (select * from t1 where t1.c3 < (select max(c2) from t2)) a, t3 b where a.c4 = b.c1;
+--sorted_result
+select /*+use_px parallel(4) use_nl(a, b) leading(t1 b) */ * from (select * from t1 where t1.c3 < (select max(c2) from t2)) a, t3 b where a.c4 = b.c1;
+
+drop table if exists t1,t2,t3,t4,t5;
+

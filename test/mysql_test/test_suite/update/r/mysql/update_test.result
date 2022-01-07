@@ -1,0 +1,70 @@
+create table t1(pk int primary key, a int, b int);
+create index i1 on t1(b);
+insert into t1(pk, a, b) values(1,1,1),(2,1,1);
+select * from t1;
+pk	a	b
+1	1	1
+2	1	1
+set autocommit=0;
+update t1 set a=10, b=10 where pk=1;
+delete from t1 where pk=2;
+commit;
+insert into t1(pk,a ,b) values(3,1,1);
+set autocommit=0;
+select * from t1 where pk=3;
+pk	a	b
+3	1	1
+update t1 set a=30, b=30 where pk=3;
+insert into t1 values(4,1,1);
+select * from t1;
+pk	a	b
+1	10	10
+3	30	30
+4	1	1
+commit;
+select * from t1;
+pk	a	b
+1	10	10
+3	30	30
+4	1	1
+drop table if exists t1;
+create table t1(c1 timestamp(6) primary key);
+insert into t1 values('2018-06-15 01:00:00.000003');
+insert into t1 values('2018-06-15 01:00:00.000003');
+ERROR 23000: Duplicate entry '2018-06-15 01:00:00.000003' for key 'PRIMARY'
+insert into t1 values('2018-06-16 01:00:00.000003');
+update t1 set c1 = '2018-06-15 01:00:00.000003';
+ERROR 23000: Duplicate entry '2018-06-15 01:00:00.000003' for key 'PRIMARY'
+drop table if exists t1;
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES (8385959.1e0);
+ERROR 22007: Incorrect value
+INSERT INTO t1 VALUES (83859.1);
+drop table if exists t1;
+use test;
+create table t1(a int);
+select * from t1 for update wait 0.000001;
+a
+select * from t1 for update wait 0.0000001;
+ERROR HY000: Incorrect arguments to extract usec from string
+select * from t1 for update wait 0.0000010;
+ERROR HY000: Incorrect arguments to extract usec from string
+select * from t1 for update wait 10.000001;
+a
+select * from t1 for update wait 10.0000001;
+ERROR HY000: Incorrect arguments to extract usec from string
+drop table if exists t2;
+create table t2(a decimal);
+insert into t2 value(0.000001);
+insert into t2 value(0.0000001);
+insert into t2 value(10.0000001);
+create table test(c1 int primary key , c2 int, c3 int, c4 char, c5 char);
+insert into test values(1,2,3,'d','f') on duplicate key update c1 = 1, c2 = 3, c3 = 4, c5 = 'e', c5 = 'a';
+select * from test;
+c1	c2	c3	c4	c5
+1	2	3	d	f
+insert into test values(1,2,3,'d','f') on duplicate key update c1 = 1, c2 = 3, c3 = 4, c5 = 'e', c5 = 'a';
+select * from test;
+c1	c2	c3	c4	c5
+1	3	4	d	a
+drop table test;

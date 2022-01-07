@@ -1,0 +1,2529 @@
+#--disable_query_log
+#set @@session.explicit_defaults_for_timestamp=off;
+#--enable_query_log
+# tags: optimizer
+# description: 从mysql中迁移过来的基础subquery_all.test测试集第二部分
+# subquery_all.test由于太大，分拆成三部分，另外两部分是subquery_all2.test以及subquery_all3.test
+# #  subquery tests
+#
+# Item_int_with_ref check (Bug#10020)
+#
+--enable_sorted_result
+--disable_warnings
+drop table if exists t, t0, t1, t2, t3, t4, t5, st1, st2, m, o, integers;
+drop view if exists v1, v2, v3, v4;
+--enable_warnings
+CREATE TABLE `t1` (
+  `itemid` bigint(20) unsigned NOT NULL auto_increment,
+  `sessionid` bigint(20) unsigned default NULL,
+  `time` int(10) unsigned NOT NULL default '0',
+  `type` varchar(10) NOT NULL default '',
+  `data` varchar(100) NOT NULL,
+  PRIMARY KEY  (`itemid`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+INSERT INTO `t1` VALUES (1, 1, 1, 'D', '');
+CREATE TABLE `t2` (
+  `sessionid` bigint(20) unsigned NOT NULL auto_increment,
+  `pid` int(10) unsigned NOT NULL default '0',
+  `date` int(10) unsigned NOT NULL default '0',
+  `ip` varchar(15) collate utf8_general_ci NOT NULL default '',
+  PRIMARY KEY  (`sessionid`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+INSERT INTO `t2` VALUES (1, 1, 1, '10.10.10.1');
+SELECT s.ip, count( e.itemid ) FROM `t1` e JOIN t2 s ON s.sessionid = e.sessionid WHERE e.sessionid = ( SELECT sessionid FROM t2 ORDER BY sessionid DESC LIMIT 1 ) GROUP BY s.ip asc HAVING count( e.itemid ) >0 LIMIT 0 , 30;
+drop tables t1,t2;
+
+
+#
+# Correct building of equal fields list (do not include outer
+# fields) (Bug#6384)
+#
+CREATE TABLE t1 (EMPNUM   CHAR(3));
+CREATE TABLE t2 (EMPNUM   CHAR(3) );
+INSERT INTO t1 VALUES ('E1'),('E2');
+INSERT INTO t2 VALUES ('E1');
+DELETE FROM t1
+WHERE t1.EMPNUM NOT IN
+      (SELECT t2.EMPNUM
+       FROM t2
+       WHERE t1.EMPNUM = t2.EMPNUM);
+select * from t1;
+DROP TABLE t1,t2;
+
+
+#
+# Test for Bug#11487 range access in a subquery
+#
+
+CREATE TABLE t1(select_id BIGINT, values_id BIGINT);
+INSERT INTO t1 VALUES (1, 1);
+CREATE TABLE t2 (select_id BIGINT, values_id BIGINT,
+                 PRIMARY KEY(select_id,values_id));
+INSERT INTO t2 VALUES (0, 1), (0, 2), (0, 3), (1, 5);
+
+SELECT values_id FROM t1
+WHERE values_id IN (SELECT values_id FROM t2
+                    WHERE select_id IN (1, 0));
+SELECT values_id FROM t1
+WHERE values_id IN (SELECT values_id FROM t2
+                    WHERE select_id BETWEEN 0 AND 1);
+SELECT values_id FROM t1
+WHERE values_id IN (SELECT values_id FROM t2
+                    WHERE select_id = 0 OR select_id = 1);
+
+DROP TABLE t1, t2;
+
+
+# Bug#11821 Select from subselect using aggregate function on an enum segfaults
+create table t1 (fld varchar(10));
+insert into t1 values ('1');
+select * from (select max(fld) from t1) as foo;
+drop table t1;
+
+
+#
+# Test for Bug#11762 subquery with an aggregate function in HAVING
+#
+
+CREATE TABLE t1 (a int, b int);
+CREATE TABLE t2 (c int, d int);
+CREATE TABLE t3 (e int);
+
+INSERT INTO t1 VALUES
+  (1,10), (2,10), (1,20), (2,20), (3,20), (2,30), (4,40);
+INSERT INTO t2 VALUES
+  (2,10), (2,20), (4,10), (5,10), (3,20), (2,40);
+INSERT INTO t3 VALUES (10), (30), (10), (20) ;
+
+--sorted_result
+SELECT a, MAX(b), MIN(b) FROM t1 GROUP BY a;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2 WHERE MAX(b)>20);
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2 WHERE MAX(b)<d);
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2 WHERE MAX(b)>d);
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2
+                 WHERE d >= SOME(SELECT e FROM t3 WHERE MAX(b)=e));
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2
+                 WHERE  EXISTS(SELECT e FROM t3 WHERE MAX(b)=e AND e <= d));
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2
+                 WHERE d > SOME(SELECT e FROM t3 WHERE MAX(b)=e));
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2
+                 WHERE  EXISTS(SELECT e FROM t3 WHERE MAX(b)=e AND e < d));
+SELECT a FROM t1 GROUP BY a
+  HAVING a IN (SELECT c FROM t2
+                 WHERE MIN(b) < d AND
+                       EXISTS(SELECT e FROM t3 WHERE MAX(b)=e AND e <= d));
+
+--sorted_result
+SELECT a, SUM(a) FROM t1 GROUP BY a;
+
+--sorted_result
+SELECT a FROM t1
+   WHERE EXISTS(SELECT c FROM t2 GROUP BY c HAVING SUM(a) = c) GROUP BY a;
+--sorted_result
+SELECT a FROM t1 GROUP BY a
+   HAVING EXISTS(SELECT c FROM t2 GROUP BY c HAVING SUM(a) = c);
+
+--sorted_result
+SELECT a FROM t1
+   WHERE a < 3 AND
+         EXISTS(SELECT c FROM t2 GROUP BY c HAVING SUM(a) != c) GROUP BY a;
+SELECT a FROM t1
+   WHERE a < 3 AND
+         EXISTS(SELECT c FROM t2 GROUP BY c HAVING SUM(a) != c);
+
+--sorted_result
+SELECT t1.a FROM t1 GROUP BY t1.a
+  HAVING t1.a < ALL(SELECT t2.c FROM t2 GROUP BY t2.c
+                       HAVING EXISTS(SELECT t3.e FROM t3 GROUP BY t3.e
+                                       HAVING SUM(t1.a+t2.c) < t3.e/4));
+--sorted_result
+SELECT t1.a FROM t1 GROUP BY t1.a
+       HAVING t1.a > ALL(SELECT t2.c FROM t2
+                           WHERE EXISTS(SELECT t3.e FROM t3 GROUP BY t3.e
+                                          HAVING SUM(t1.a+t2.c) < t3.e/4));
+-- error ER_INVALID_GROUP_FUNC_USE
+SELECT t1.a FROM t1 GROUP BY t1.a
+       HAVING t1.a > ALL(SELECT t2.c FROM t2
+                           WHERE EXISTS(SELECT t3.e FROM t3
+                                          WHERE SUM(t1.a+t2.c) < t3.e/4));
+-- error ER_INVALID_GROUP_FUNC_USE
+SELECT t1.a from t1 GROUP BY t1.a HAVING AVG(SUM(t1.b)) > 20;
+
+#-- error ER_INVALID_GROUP_FUNC_USE
+#SELECT t1.a FROM t1 GROUP BY t1.a
+#  HAVING t1.a IN (SELECT t2.c FROM t2 GROUP BY t2.c
+#                    HAVING AVG(t2.c+SUM(t1.b)) > 20);
+#-- error ER_INVALID_GROUP_FUNC_USE
+#SELECT t1.a FROM t1 GROUP BY t1.a
+#  HAVING t1.a IN (SELECT t2.c FROM t2 GROUP BY t2.c
+#                    HAVING AVG(SUM(t1.b)) > 20);
+
+#SELECT t1.a, SUM(b) AS sum  FROM t1 GROUP BY t1.a
+#  HAVING t1.a IN (SELECT t2.c FROM t2 GROUP BY t2.c
+#                    HAVING t2.c+sum > 20);
+
+DROP TABLE t1,t2,t3;
+
+
+#
+# Bug#17366 Unchecked Item_int results in server crash
+#
+create table t1( f1 int,f2 int);
+insert into t1 values (1,1),(2,2);
+select tt.t from (select 'crash1' as t, f2 from t1) as tt left join t1 on tt.t = 'crash2' and tt.f2 = t1.f2 where tt.t = 'crash1';
+drop table t1;
+
+
+#
+# Bug#18306 server crash on delete using subquery.
+#
+
+create table t1 (c int, key(c));
+insert into t1 values (1142477582), (1142455969);
+create table t2 (a int, b int);
+insert into t2 values (2, 1), (1, 0);
+delete from t1 where c <= 1140006215 and (select b from t2 where a = 2) = 1;
+drop table t1, t2;
+
+
+#
+# Bug#7549 Missing error message for invalid view selection with subquery
+#
+
+CREATE TABLE t1 (a INT);
+
+--error ER_BAD_FIELD_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE no_such_column = ANY (SELECT 1);
+--error ER_BAD_FIELD_ERROR
+CREATE VIEW v2 AS SELECT * FROM t1 WHERE no_such_column = (SELECT 1);
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t1 WHERE no_such_column = ANY (SELECT 1);
+
+DROP TABLE t1;
+
+
+#
+# Bug#19077 A nested materialized derived table is used before being populated.
+#
+create table t1 (i int, j bigint);
+insert into t1 values (1, 2), (2, 2), (3, 2);
+select * from (select min(i) from t1 where j=(select * from (select min(j) from t1) t2)) t3;
+drop table t1;
+
+
+#
+# Bug#19700 subselect returning BIGINT always returned it as SIGNED
+#
+CREATE TABLE t1 (i BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (10000000000000000000); # > MAX SIGNED BIGINT 9323372036854775807
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (i BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (10000000000000000000); # same as first table
+INSERT INTO t2 VALUES (1);
+
+/* simple test */
+SELECT t1.i FROM t1 JOIN t2 ON t1.i = t2.i order by t1.i;
+
+/* subquery test */
+SELECT t1.i FROM t1 WHERE t1.i = (SELECT MAX(i) FROM t2);
+
+/* subquery test with cast*/
+SELECT t1.i FROM t1 WHERE t1.i = CAST((SELECT MAX(i) FROM t2) AS UNSIGNED);
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+
+#
+# Bug#20519 subselect with LIMIT M, N
+#
+
+CREATE TABLE t1 (
+  id bigint(20) unsigned NOT NULL auto_increment,
+  name varchar(255) NOT NULL,
+  PRIMARY KEY  (id)
+);
+INSERT INTO t1 VALUES
+  (1, 'Balazs'), (2, 'Joe'), (3, 'Frank');
+
+CREATE TABLE t2 (
+  id bigint(20) unsigned NOT NULL auto_increment,
+  mid bigint(20) unsigned NOT NULL,
+  date date NOT NULL,
+  PRIMARY KEY  (id)
+);
+INSERT INTO t2 VALUES
+  (1, 1, '2006-03-30'), (2, 2, '2006-04-06'), (3, 3, '2006-04-13'),
+  (4, 2, '2006-04-20'), (5, 1, '2006-05-01');
+
+SELECT *,
+      (SELECT date FROM t2 WHERE mid = t1.id
+         ORDER BY date DESC LIMIT 0, 1) AS date_last,
+      (SELECT date FROM t2 WHERE mid = t1.id
+         ORDER BY date DESC LIMIT 3, 1) AS date_next_to_last
+  FROM t1;
+SELECT *,
+      (SELECT COUNT(*) FROM t2 WHERE mid = t1.id
+         ORDER BY date DESC LIMIT 1, 1) AS date_count
+  FROM t1;
+SELECT *,
+      (SELECT date FROM t2 WHERE mid = t1.id
+         ORDER BY date DESC LIMIT 0, 1) AS date_last,
+      (SELECT date FROM t2 WHERE mid = t1.id
+         ORDER BY date DESC LIMIT 1, 1) AS date_next_to_last
+  FROM t1;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#20869 subselect with range access by DESC
+#
+
+CREATE TABLE t1 (
+  i1 int(11) NOT NULL default '0',
+  i2 int(11) NOT NULL default '0',
+  t datetime NOT NULL default '0000-00-00 00:00:00',
+  PRIMARY KEY  (i1,i2,t)
+);
+INSERT INTO t1 VALUES
+(24,1,'2005-03-03 16:31:31'),(24,1,'2005-05-27 12:40:07'),
+(24,1,'2005-05-27 12:40:08'),(24,1,'2005-05-27 12:40:10'),
+(24,1,'2005-05-27 12:40:25'),(24,1,'2005-05-27 12:40:30'),
+(24,2,'2005-03-03 13:43:05'),(24,2,'2005-03-03 16:23:31'),
+(24,2,'2005-03-03 16:31:30'),(24,2,'2005-05-27 12:37:02'),
+(24,2,'2005-05-27 12:40:06');
+
+CREATE TABLE t2 (
+  i1 int(11) NOT NULL default '0',
+  i2 int(11) NOT NULL default '0',
+  t datetime default NULL,
+  PRIMARY KEY  (i1)
+);
+INSERT INTO t2 VALUES (24,1,'2006-06-20 12:29:40');
+
+SELECT * FROM t1,t2
+  WHERE t1.t = (SELECT t1.t FROM t1
+                  WHERE t1.t < t2.t  AND t1.i2=1 AND t2.i1=t1.i1
+                    ORDER BY t1.t DESC LIMIT 1);
+
+DROP TABLE t1, t2;
+
+
+#
+# Bug#14654 Cannot select from the same table twice within a UNION statement
+#
+CREATE TABLE t1 (i INT);
+
+(SELECT i FROM t1) UNION (SELECT i FROM t1);
+SELECT * FROM t1 WHERE NOT EXISTS
+  (
+   (SELECT i FROM t1) UNION
+   (SELECT i FROM t1)
+  );
+
+#SELECT * FROM t1
+#WHERE NOT EXISTS (((SELECT i FROM t1) UNION (SELECT i FROM t1)));
+
+#EXPLAIN  select ((select t11.i from t1 t11) union (select t12.i from t1 t12))
+#  from t1;
+
+
+DROP TABLE t1;
+
+
+#
+# Bug#21798 memory leak during query execution with subquery in column
+#           list using a function
+#
+#CREATE TABLE t1 (a VARCHAR(250), b INT auto_increment, PRIMARY KEY (b));
+#insert into t1 (a) values (FLOOR(rand() * 100));
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#insert into t1 (a) select FLOOR(rand() * 100) from t1;
+#
+#SELECT a,
+#       (SELECT REPEAT(' ',250) FROM t1 i1
+#        WHERE i1.b=t1.a ORDER BY RAND() LIMIT 1) AS a
+#FROM t1 ORDER BY a LIMIT 5;
+#DROP TABLE t1;
+
+
+#
+# Bug#21540 Subqueries with no from and aggregate functions return
+#           wrong results
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 values (1);
+INSERT INTO t1 VALUES (1,1),(1,2),(2,3),(3,4);
+--sorted_result
+SELECT (SELECT COUNT(DISTINCT t1.b) from t2) FROM t1 GROUP BY t1.a;
+--sorted_result
+SELECT (SELECT COUNT(DISTINCT t1.b) from t2 union select 1 from t2 where 12 < 3)
+  FROM t1 GROUP BY t1.a;
+--sorted_result
+SELECT COUNT(DISTINCT t1.b), (SELECT COUNT(DISTINCT t1.b)) FROM t1 GROUP BY t1.a;
+--sorted_result
+SELECT COUNT(DISTINCT t1.b),
+       (SELECT COUNT(DISTINCT t1.b) union select 1 from DUAL where 12 < 3)
+  FROM t1 GROUP BY t1.a;
+--sorted_result
+SELECT (
+    SELECT (
+      SELECT COUNT(DISTINCT t1.b)
+    )
+)
+FROM t1 GROUP BY t1.a;
+--sorted_result
+SELECT (
+  SELECT (
+      SELECT (
+        SELECT COUNT(DISTINCT t1.b)
+      )
+  )
+  FROM t1 GROUP BY t1.a LIMIT 1)
+FROM t1 t2
+GROUP BY t2.a;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#21727 Correlated subquery that requires filesort:
+#           slow with big sort_buffer_size
+#
+#CREATE TABLE t1 (a int, b int, PRIMARY KEY (b));
+#CREATE TABLE t2 (x int auto_increment, y int, z int,
+#                 PRIMARY KEY (x), FOREIGN KEY (y) REFERENCES t1 (b));
+#create table t3 (a int);
+#insert into t3 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+#
+#insert into t1 select RAND()*1000, A.a + 10*(B.a+10*(C.a+10*D.a))
+#from t3 A, t3 B, t3 C, t3 D where D.a<3;
+#insert into t2(y,z) select t1.b, RAND()*1000 from t1, t3;
+#enable_query_log;
+#
+#SET SESSION sort_buffer_size = 32 * 1024;
+#SELECT SQL_NO_CACHE COUNT(*)
+#  FROM (SELECT  a, b, (SELECT x FROM t2 WHERE y=b ORDER BY z DESC LIMIT 1) c
+#          FROM t1) t;
+#
+#SET SESSION sort_buffer_size = 8 * 1024 * 1024;
+#SELECT SQL_NO_CACHE COUNT(*)
+#  FROM (SELECT  a, b, (SELECT x FROM t2 WHERE y=b ORDER BY z DESC LIMIT 1) c
+#          FROM t1) t;
+#
+#DROP TABLE t1,t2,t3;
+
+
+#
+# Bug#25219 EXIST subquery with UNION over a mix of
+#           correlated and uncorrelated selects
+#
+
+CREATE TABLE t1 (id char(4) PRIMARY KEY, c int);
+CREATE TABLE t2 (c int);
+
+INSERT INTO t1 VALUES ('aa', 1);
+INSERT INTO t2 VALUES (1);
+
+SELECT * FROM t1
+  WHERE EXISTS (SELECT c FROM t2 WHERE c=1
+                UNION
+                SELECT c from t2 WHERE c=t1.c);
+
+INSERT INTO t1 VALUES ('bb', 2), ('cc', 3), ('dd',1);
+
+SELECT * FROM t1
+  WHERE EXISTS (SELECT c FROM t2 WHERE c=1
+                UNION
+                SELECT c from t2 WHERE c=t1.c);
+
+INSERT INTO t2 VALUES (2);
+CREATE TABLE t3 (c int);
+INSERT INTO t3 VALUES (1);
+
+SELECT * FROM t1
+  WHERE EXISTS (SELECT t2.c FROM t2 JOIN t3 ON t2.c=t3.c WHERE t2.c=1
+                UNION
+                SELECT c from t2 WHERE c=t1.c);
+
+DROP TABLE t1,t2,t3;
+
+
+#
+# Bug#23800 Outer fields in correlated subqueries is used in a temporary
+#           table created for sorting.
+#
+CREATE TABLE t1(f1 int);
+CREATE TABLE t2(f2 int, f21 int, f3 timestamp);
+INSERT INTO t1 VALUES (1),(1),(2),(2);
+INSERT INTO t2 VALUES (1,1,"2004-02-29 11:11:11"), (2,2,"2004-02-29 11:11:11");
+--sorted_result
+SELECT ((SELECT f2 FROM t2 WHERE f21=f1 LIMIT 1) * COUNT(f1)) AS sq FROM t1 GROUP BY f1;
+SELECT (SELECT SUM(1) FROM t2 ttt GROUP BY t2.f3 LIMIT 1) AS tt FROM t2;
+SELECT ((SELECT f2 FROM t2 WHERE f21=f1 LIMIT 1) * COUNT(f1)) AS sq FROM t1 GROUP BY f1;
+DROP TABLE t1,t2;
+
+#
+# Bug#21904 (parser problem when using IN with a double "(())")
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t1xt2;
+--enable_warnings
+
+CREATE TABLE t1 (
+  id_1 int(5) NOT NULL,
+  t varchar(4) DEFAULT NULL
+);
+
+CREATE TABLE t2 (
+  id_2 int(5) NOT NULL,
+  t varchar(4) DEFAULT NULL
+);
+
+CREATE TABLE t1xt2 (
+  id_1 int(5) NOT NULL,
+  id_2 int(5) NOT NULL
+);
+
+INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd');
+
+INSERT INTO t2 VALUES (2, 'bb'), (3, 'cc'), (4, 'dd'), (12, 'aa');
+
+INSERT INTO t1xt2 VALUES (2, 2), (3, 3), (4, 4);
+
+# subselect returns 0 rows
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN (SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN ((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1)));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN (((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1))));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN (SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN ((SELECT t1xt2.id_2 FROM t1xt2 where t1.id_1 = t1xt2.id_1)));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN (((SELECT t1xt2.id_2 FROM t1xt2 where t1.id_1 = t1xt2.id_1))));
+
+insert INTO t1xt2 VALUES (1, 12);
+
+# subselect returns 1 row
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN (SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN ((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1)));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN (((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1))));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN (SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN ((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1)));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN (((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1))));
+
+insert INTO t1xt2 VALUES (2, 12);
+
+# subselect returns more than 1 row
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN (SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN ((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1)));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 IN (((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1))));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN (SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN ((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1)));
+
+SELECT DISTINCT t1.id_1 FROM t1 WHERE
+(12 NOT IN (((SELECT t1xt2.id_2 FROM t1xt2 WHERE t1.id_1 = t1xt2.id_1))));
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t1xt2;
+
+
+#
+# Bug#26728 derived table with concatanation of literals in select list
+#
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (3), (1), (2);
+
+SELECT 'this is ' 'a test.' AS col1, a AS col2 FROM t1;
+SELECT * FROM (SELECT 'this is ' 'a test.' AS col1, a AS t2 FROM t1) t;
+
+DROP table t1;
+
+
+#
+# Bug#27257 COUNT(*) aggregated in outer query
+#
+
+#CREATE TABLE t1 (a int, b int);
+#CREATE TABLE t2 (m int, n int);
+#INSERT INTO t1 VALUES (2,2), (2,2), (3,3), (3,3), (3,3), (4,4);
+#INSERT INTO t2 VALUES (1,11), (2,22), (3,32), (4,44), (4,44);
+#
+#SELECT COUNT(*), a,
+#       (SELECT m FROM t2 WHERE m = count(*) LIMIT 1)
+#  FROM t1 GROUP BY a;
+#
+#SELECT COUNT(*), a,
+#       (SELECT MIN(m) FROM t2 WHERE m = count(*))
+#  FROM t1 GROUP BY a;
+#
+#SELECT COUNT(*), a
+#  FROM t1 GROUP BY a
+#    HAVING (SELECT MIN(m) FROM t2 WHERE m = count(*)) > 1;
+#
+#DROP TABLE t1,t2;
+
+
+#
+# Bug#27229 GROUP_CONCAT in subselect with COUNT() as an argument
+#
+
+CREATE TABLE t1 (a int, b int);
+CREATE TABLE t2 (m int, n int);
+INSERT INTO t1 VALUES (2,2), (2,2), (3,3), (3,3), (3,3), (4,4);
+INSERT INTO t2 VALUES (1,11), (2,22), (3,32), (4,44), (4,44);
+
+#SELECT COUNT(*) c, a,
+#       (SELECT GROUP_CONCAT(COUNT(a)) FROM t2 WHERE m = a)
+#  FROM t1 GROUP BY a;
+#
+#SELECT COUNT(*) c, a,
+#       (SELECT GROUP_CONCAT(COUNT(a)+1) FROM t2 WHERE m = a)
+#  FROM t1 GROUP BY a;
+
+DROP table t1,t2;
+
+
+# OB不支持任何查询的where条件包含聚集函数
+# Bug#27321 Wrong subquery result in a grouping select
+#
+CREATE TABLE t1 (a int, b INT, d INT, c CHAR(10) NOT NULL, PRIMARY KEY (a, b));
+INSERT INTO t1 VALUES (1,1,0,'a'), (1,2,0,'b'), (1,3,0,'c'), (1,4,0,'d'),
+(1,5,0,'e'), (2,1,0,'f'), (2,2,0,'g'), (2,3,0,'h'), (3,4,0,'i'), (3,3,0,'j'),
+(3,2,0,'k'), (3,1,0,'l'), (1,9,0,'m'), (1,0,10,'n'), (2,0,5,'o'), (3,0,7,'p');
+
+SELECT a, MAX(b),
+  (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b + 0)) as test
+  FROM t1 GROUP BY a;
+SELECT a x, MAX(b),
+  (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b + 0)) as test
+  FROM t1 GROUP BY a;
+SELECT a, AVG(b),
+  (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=AVG(t1.b)) AS test
+  FROM t1 WHERE t1.d=0 GROUP BY a;
+
+SELECT tt.a,
+ (SELECT (SELECT c FROM t1 as t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
+  LIMIT 1) FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1) as test
+  FROM t1 as tt;
+
+SELECT tt.a,
+ (SELECT (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
+  LIMIT 1)
+  FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1) as test
+  FROM t1 as tt GROUP BY tt.a;
+
+#SELECT tt.a, MAX(
+# (SELECT (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.d=MAX(t1.b + tt.a)
+#  LIMIT 1)
+#  FROM t1 WHERE t1.a=tt.a GROUP BY a LIMIT 1)) as test
+#  FROM t1 as tt GROUP BY tt.a;
+
+DROP TABLE t1;
+
+
+#
+# Bug#27348 SET FUNCTION used in a subquery from WHERE condition
+#
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (2,22),(1,11),(2,22);
+
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 0 GROUP BY a;
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 1 GROUP BY a;
+
+--sorted_result
+SELECT a FROM t1 t0
+  WHERE (SELECT COUNT(t0.b) FROM t1 t WHERE t.b>20) GROUP BY a;
+
+SET @@sql_mode='STRICT_TRANS_TABLES';
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 0 GROUP BY a;
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 1 GROUP BY a;
+
+--sorted_result
+SELECT a FROM t1 t0
+  WHERE (SELECT COUNT(t0.b) FROM t1 t WHERE t.b>20) GROUP BY a;
+
+SET @@sql_mode=default;
+
+DROP TABLE t1;
+
+
+#
+# Bug#27363 nested aggregates in outer, subquery / sum(select count(outer))
+#
+CREATE TABLE t1 (a INT); INSERT INTO t1 values (1),(1),(1),(1);
+CREATE TABLE t2 (x INT); INSERT INTO t1 values (1000),(1001),(1002);
+
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT SUM( (SELECT COUNT(a) FROM t2) ) FROM t1;
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT SUM( (SELECT SUM(COUNT(a)) FROM t2) ) FROM t1;
+SELECT COUNT(1) FROM DUAL;
+
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT SUM( (SELECT AVG( (SELECT t1.a FROM t2) ) FROM DUAL) ) FROM t1;
+
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT
+  SUM( (SELECT AVG( (SELECT COUNT(*) FROM t1 t HAVING t1.a < 12) ) FROM t2) )
+FROM t1;
+
+--error 1054
+SELECT t1.a as XXA,
+   SUM( (SELECT AVG( (SELECT COUNT(*) FROM t1 t HAVING XXA < 12) ) FROM t2) )
+FROM t1;
+
+DROP TABLE t1,t2;
+
+
+#
+# Bug#27807 Server crash when executing subquery with EXPLAIN 
+#
+CREATE TABLE t1 (a int, b int, KEY (a));
+INSERT INTO t1 VALUES (1,1),(2,1);
+DROP TABLE t1;
+
+
+#
+# Bug#28377 grouping query with a correlated subquery in WHERE condition
+#
+
+CREATE TABLE t1 (id int NOT NULL, st CHAR(2), INDEX idx(id));
+INSERT INTO t1 VALUES
+  (3,'FL'), (2,'GA'), (4,'FL'), (1,'GA'), (5,'NY'), (7,'FL'), (6,'NY');
+CREATE TABLE t2 (id int NOT NULL, INDEX idx(id));
+INSERT INTO t2 VALUES (7), (5), (1), (3);
+
+SELECT id, st FROM t1
+  WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id);
+--sorted_result
+SELECT id, st FROM t1
+  WHERE st IN ('GA','FL') AND EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id)
+    GROUP BY id;
+
+SELECT id, st FROM t1
+  WHERE st IN ('GA','FL') AND NOT EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id);
+--sorted_result
+SELECT id, st FROM t1
+  WHERE st IN ('GA','FL') AND NOT EXISTS(SELECT 1 FROM t2 WHERE t2.id=t1.id)
+    GROUP BY id;
+
+DROP TABLE t1,t2;
+
+
+#
+# Bug#28728 crash with EXPLAIN  for a query with a derived table
+#           over a grouping subselect
+#
+
+CREATE TABLE t1 (a int);
+
+INSERT INTO t1 VALUES (1), (2);
+
+DROP TABLE t1;
+
+
+#
+# Bug#28811 crash for query containing subquery with ORDER BY and LIMIT 1
+#
+
+#CREATE TABLE t1 (
+#  a varchar(255) default NULL,
+#  b timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+#  INDEX idx(a,b)
+#);
+#CREATE TABLE t2 (
+#  a varchar(255) default NULL
+#);
+#
+#INSERT INTO t1 VALUES ('abcdefghijk','2007-05-07 06:00:24');
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO t1 SELECT * FROM t1;
+#INSERT INTO `t1` VALUES ('asdf','2007-02-08 01:11:26');
+#INSERT INTO `t2` VALUES ('abcdefghijk');
+#INSERT INTO `t2` VALUES ('asdf');
+#
+#SET session sort_buffer_size=8192;
+#
+#SELECT (SELECT 1 FROM  t1 WHERE t1.a=t2.a ORDER BY t1.b LIMIT 1) AS d1 FROM t2;
+#
+#DROP TABLE t1,t2;
+
+
+#
+# Bug#27333 subquery grouped for aggregate of outer query / no aggregate
+#           of subquery
+#
+CREATE TABLE t1 (a INTEGER, b INTEGER);
+CREATE TABLE t2 (x INTEGER);
+INSERT INTO t1 VALUES (1,11), (2,22), (2,22);
+INSERT INTO t2 VALUES (1), (2);
+
+# wasn't failing, but should
+--error ER_SUBQUERY_NO_1_ROW
+SELECT a, COUNT(b), (SELECT COUNT(b) FROM t2) FROM t1 GROUP BY a;
+
+# fails as it should
+--error ER_SUBQUERY_NO_1_ROW
+SELECT a, COUNT(b), (SELECT COUNT(b)+0 FROM t2) FROM t1 GROUP BY a;
+
+SELECT (SELECT SUM(t1.a)/AVG(t2.x) FROM t2) FROM t1;
+DROP TABLE t1,t2;
+
+# second test case from 27333
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 2), (1,3), (1,4), (2,1), (2,2);
+
+# returns no rows, when it should
+--sorted_result
+SELECT a1.a, COUNT(*) FROM t1 a1 WHERE a1.a = 1
+AND EXISTS( SELECT a2.a FROM t1 a2 WHERE a2.a = a1.a)
+GROUP BY a1.a;
+DROP TABLE t1;
+
+#test cases from 29297
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+SELECT (SELECT SUM(t1.a) FROM t2 WHERE a=0) FROM t1;
+#--error ER_SUBQUERY_NO_1_ROW
+#SELECT (SELECT SUM(t1.a) FROM t2 WHERE a!=0) FROM t1;
+SELECT (SELECT SUM(t1.a) FROM t2 WHERE a=1) FROM t1;
+DROP TABLE t1,t2;
+
+#
+# Bug#31884 Assertion + crash in subquery in the SELECT clause.
+#
+
+CREATE TABLE t1 (a1 INT, a2 INT);
+CREATE TABLE t2 (b1 INT, b2 INT);
+
+INSERT INTO t1 VALUES (100, 200);
+INSERT INTO t1 VALUES (101, 201);
+INSERT INTO t2 VALUES (101, 201);
+INSERT INTO t2 VALUES (103, 203);
+
+SELECT ((a1,a2) IN (SELECT * FROM t2 WHERE b2 > 0)) IS NULL FROM t1;
+DROP TABLE t1, t2;
+
+#
+# Bug#28076 inconsistent binary/varbinary comparison
+#
+
+CREATE TABLE t1 (s1 BINARY(5), s2 VARBINARY(5));
+INSERT INTO t1 VALUES (0x41,0x41), (0x42,0x42), (0x43,0x43);
+
+SELECT s1, s2 FROM t1 WHERE s2 IN (SELECT s1 FROM t1);
+SELECT s1, s2 FROM t1 WHERE (s2, 10) IN (SELECT s1, 10 FROM t1);
+
+CREATE INDEX I1 ON t1 (s1);
+CREATE INDEX I2 ON t1 (s2);
+
+SELECT s1, s2 FROM t1 WHERE s2 IN (SELECT s1 FROM t1);
+SELECT s1, s2 FROM t1 WHERE (s2, 10) IN (SELECT s1, 10 FROM t1);
+
+TRUNCATE t1;
+INSERT INTO t1 VALUES (0x41,0x41);
+SELECT * FROM t1 WHERE s1 = (SELECT s2 FROM t1);
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (a1 VARBINARY(2) NOT NULL DEFAULT '0', PRIMARY KEY (a1));
+CREATE TABLE t2 (a2 BINARY(2) default '0', INDEX (a2));
+CREATE TABLE t3 (a3 BINARY(2) default '0');
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t3 VALUES (1),(2),(3);
+#SELECT LEFT(t2.a2, 1) FROM t2,t3 WHERE t3.a3=t2.a2;
+SELECT t1.a1, t1.a1 in (SELECT t2.a2 FROM t2,t3 WHERE t3.a3=t2.a2) FROM t1;
+DROP TABLE t1,t2,t3;
+
+CREATE TABLE t1 (a1 BINARY(3) PRIMARY KEY, b1 VARBINARY(3));
+CREATE TABLE t2 (a2 VARBINARY(3) PRIMARY KEY);
+CREATE TABLE t3 (a3 VARBINARY(3) PRIMARY KEY);
+INSERT INTO t1 VALUES (1,10), (2,20), (3,30), (4,40);
+INSERT INTO t2 VALUES (2), (3), (4), (5);
+INSERT INTO t3 VALUES (10), (20), (30);
+#SELECT LEFT(t1.a1,1) FROM t1,t3 WHERE t1.b1=t3.a3;
+SELECT a2 FROM t2 WHERE t2.a2 IN (SELECT t1.a1 FROM t1,t3 WHERE t1.b1=t3.a3);
+DROP TABLE t1, t2, t3;
+
+
+#
+# Bug#32400 Complex SELECT query returns correct result only on some occasions
+#
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (1,2), (2,3), (2,4);
+
+--error ER_BAD_FIELD_ERROR
+SELECT a AS out_a, MIN(b) FROM t1
+WHERE b > (SELECT MIN(b) FROM t1 WHERE a = out_a)
+GROUP BY a;
+
+--sorted_result
+SELECT /*+no_rewrite*/ a AS out_a, MIN(b) FROM t1 t1_outer
+WHERE b > (SELECT MIN(b) FROM t1 WHERE a = t1_outer.a)
+GROUP BY a;
+
+DROP TABLE t1;
+
+
+#
+# Bug#32036 EXISTS within a WHERE clause with a UNION crashes MySQL 5.122
+#
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+
+SELECT 2 FROM t1 WHERE EXISTS ((SELECT 1 FROM t2 WHERE t1.a=t2.a));
+
+
+DROP TABLE t1,t2;
+
+
+#
+# Bug#33675 Usage of an uninitialized memory by filesort in a subquery
+#           caused server crash.
+#
+#create table t0(a int);
+#insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+#create table t1(f11 int, f12 int);
+#create table t2(f21 int unsigned not null, f22 int, f23 varchar(10));
+#insert into t1 values(1,1),(2,2), (3, 3);
+#--disable_warnings
+#insert into t2
+#select -1 , (@a:=(A.a + 10 * (B.a + 10 * (C.a+10*D.a))))/5000 + 1, @a
+#from t0 A, t0 B, t0 C, t0 D;
+#--enable_warnings
+#set session sort_buffer_size= 33*1024;
+#select count(*) from t1 where f12 =
+#(select f22 from t2 where f22 = f12 order by f21 desc, f22, f23 limit 1);
+#
+#drop table t0,t1,t2;
+
+
+#
+# Bug#33794 "MySQL crashes executing specific query on specific dump"
+#
+#CREATE TABLE t4 ( f7 varchar(32) collate utf8_bin NOT NULL default '',
+#  f10 varchar(32) collate utf8_bin default NULL,
+#  PRIMARY KEY  (f7)
+#);
+#INSERT INTO t4 VALUES(1,1), (2,null);
+#
+#CREATE TABLE t2 (
+#  f4 varchar(32) collate utf8_bin NOT NULL default '',
+#  f2 varchar(50) collate utf8_bin default NULL,
+#  f3 varchar(10) collate utf8_bin default NULL,
+#  PRIMARY KEY  (f4),
+#  UNIQUE KEY uk1 (f2)
+#);
+#INSERT INTO t2 VALUES(1,1,null), (2,2,null);
+#
+#CREATE TABLE t1 (
+#  f8 varchar(32) collate utf8_bin NOT NULL default '',
+#  f1 varchar(10) collate utf8_bin default NULL,
+#  f9 varchar(32) collate utf8_bin default NULL,
+#  PRIMARY KEY  (f8)
+#);
+#INSERT INTO t1 VALUES (1,'P',1), (2,'P',1), (3,'R',2);
+#
+#CREATE TABLE t3 (
+#  f6 varchar(32) collate utf8_bin NOT NULL default '',
+#  f5 varchar(50) collate utf8_bin default NULL,
+#  PRIMARY KEY (f6)
+#);
+#INSERT INTO t3 VALUES (1,null), (2,null);
+#
+#SELECT
+#  IF(t1.f1 = 'R', a1.f2, t2.f2) AS a4,
+#  IF(t1.f1 = 'R', a1.f3, t2.f3) AS f3,
+#  SUM(
+#    IF(
+#      (SELECT VPC.f2
+#       FROM t2 VPC, t4 a2, t2 a3
+#       WHERE
+#         VPC.f4 = a2.f10 AND a3.f2 = a4
+#       LIMIT 1) IS NULL,
+#       0,
+#       t3.f5
+#    )
+#  ) AS a6
+#FROM
+#  t2, t3, t1 JOIN t2 a1 ON t1.f9 = a1.f4
+#GROUP BY a4;
+#
+#DROP TABLE t1, t2, t3, t4;
+
+
+#
+# Bug#36139 "float, zerofill, crash with subquery"
+#
+create table t1 (a float(5,4) zerofill);
+create table t2 (a float(5,4),b float(2,0));
+
+select t1.a from t1 where
+  t1.a= (select b from t2 limit 1) and not
+  t1.a= (select a from t2 limit 1) ;
+
+drop table t1, t2;
+
+
+--echo #
+--echo # Bug#45061: Incorrectly market field caused wrong result.
+--echo #
+
+--disable_warnings
+drop table if exists C;
+--enable_warnings
+CREATE TABLE `C` (
+  `int_nokey` int(11) NOT NULL,
+  `int_key` int(11) NOT NULL,
+  KEY `int_key` (`int_key`)
+);
+
+INSERT INTO `C` VALUES (9,9), (0,0), (8,6), (3,6), (7,6), (0,4),
+(1,7), (9,4), (0,8), (9,4), (0,7), (5,5), (0,0), (8,5), (8,7),
+(5,2), (1,8), (7,0), (0,9), (9,5);
+
+--disable_warnings
+SELECT * FROM C WHERE `int_key` IN (SELECT `int_nokey`);
+--enable_warnings
+
+DROP TABLE C;
+--echo # End of test for bug#45061.
+
+
+--echo #
+--echo # Bug #46749: Segfault in add_key_fields() with outer subquery level
+--echo #   field references
+--echo #
+
+CREATE TABLE t1 (
+  a int,
+  b int,
+  UNIQUE (a), KEY (b)
+);
+INSERT INTO t1 VALUES (1,1), (2,1);
+
+CREATE TABLE st1 like t1;
+INSERT INTO st1 VALUES (1,1), (2,1);
+
+CREATE TABLE st2 like t1;
+INSERT INTO st2 VALUES (1,1), (2,1);
+
+# should have "impossible where"
+
+# should not crash
+SELECT MAX(b), (SELECT COUNT(*) FROM st1,st2 WHERE st2.b <= t1.b)
+FROM t1
+WHERE a = 230;
+
+DROP TABLE t1, st1, st2;
+
+--echo #
+--echo # Bug #48709: Assertion failed in sql_select.cc:11782:
+--echo #   int join_read_key(JOIN_TAB*)
+--echo #
+
+CREATE TABLE t1 (pk int PRIMARY KEY, int_key int);
+INSERT INTO t1 VALUES (10,1), (14,1);
+
+CREATE TABLE t2 (pk int PRIMARY KEY, int_key int);
+INSERT INTO t2 VALUES (3,3), (5,NULL), (7,3);
+
+--echo # should not crash on debug binaries
+SELECT * FROM t2 outr
+WHERE outr.int_key NOT IN (SELECT t1.pk FROM t1, t2)
+ORDER BY outr.pk;
+
+DROP TABLE t1,t2;
+
+#
+# 1. Subquery with GROUP/HAVING
+#
+create table t1 (oref int, grp int, ie int) ;
+insert into t1 (oref, grp, ie) values
+ (1, 1, 1),
+ (1, 1, 1),
+ (1, 2, NULL),
+
+ (2, 1, 3),
+
+ (3, 1, 4),
+ (3, 2, NULL);
+
+# Ok, for
+#   select max(ie) from t1 where oref=PARAM group by grp
+# we'll have:
+# PARAM      subquery result
+#   1   ->   {(1), (NULL)}    matching + NULL
+#   2   ->   {(3)}            non-matching
+#   3   ->   {(3), (NULL)}    non-matching + NULL
+#   4   ->   {}               empty set
+
+create table t2 (oref int, a int);
+insert into t2 values
+  (1, 1),
+  (2, 2),
+  (3, 3),
+  (4, NULL),
+  (2, NULL);
+
+# true, false, null, false, null
+--sorted_result
+select a, oref, a in (select max(ie)
+  from t1 where oref=t2.oref group by grp) Z from t2;
+
+# Non-correlated subquery, 2 NULL evaluations
+create table t3 (a int);
+insert into t3 values (NULL), (NULL);
+#flush status;
+--sorted_result
+select a in (select max(ie) from t1 where oref=4 group by grp) from t3;
+#show status like 'Handler_read_rnd_next';
+select ' ^ This must show 11' Z;
+
+drop table t1, t2, t3;
+
+#
+#  2. Subquery handled with 'index_subquery':
+#
+create table t1 (a int, oref int, key(a));
+insert into t1 values
+  (1, 1),
+  (1, NULL),
+  (2, 3),
+  (2, NULL),
+  (3, NULL);
+
+create table t2 (a int, oref int);
+insert into t2 values (1, 1), (2,2), (NULL, 3), (NULL, 4);
+
+select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
+
+#flush status;
+select oref, a from t2 where a in (select a from t1 where oref=t2.oref);
+# This will only show access to t2:
+show status like '%Handler_read_rnd_next';
+
+# Check that repeated NULL-scans are not cached (subq. is not correlated):
+delete from t2;
+insert into t2 values (NULL, 0),(NULL, 0), (NULL, 0), (NULL, 0);
+
+#flush status;
+select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
+show status like '%Handler_read%';
+select 'No key lookups, seq reads: 29= 5 reads from t2 + 4 * 6 reads from t1.' Z;
+
+drop table t1, t2;
+
+#
+# 3. Subquery handled with 'unique_index_subquery':
+#
+create table t1 (a int, b int, primary key (a));
+insert into t1 values (1,1), (3,1),(100,1);
+
+create table t2 (a int, b int);
+insert into t2 values (1,1),(2,1),(NULL,1),(NULL,0);
+
+select a,b, a in (select a from t1 where t1.b = t2.b) Z from t2 ;
+
+drop table t1, t2;
+
+#
+# 4. Subquery that is a join, with ref access
+#
+create table t1 (a int, b int, key(a));
+insert into t1 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+create table t2 (a int, b int, key(a));
+insert into t2 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+update t2 set b=1;
+
+create table t3 (a int, oref int);
+insert into t3 values (1, 1), (NULL,1), (NULL,0);
+select a, oref,
+       t3.a in (select t1.a from t1, t2 where t1.b=t2.a and t2.b=t3.oref) Z
+from t3;
+
+drop table t1, t2, t3;
+
+
+#
+# BUG#24085: Wrong query result for "NULL IN (SELECT ... UNION SELECT ...)"
+#
+
+# case 1: NULL IN (SELECT not_null_val FROM ...) w/o HAVING/GROUP-BY/etc
+create table t1 (a int NOT NULL, b int NOT NULL, key(a));
+insert into t1 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+create table t2 like t1;
+#insert into t2 select * from t1;
+update t2 set b=1;
+
+create table t3 (a int, oref int);
+insert into t3 values (1, 1), (NULL,1), (NULL,0);
+select a, oref,
+       t3.a in (select t1.a from t1, t2 where t1.b=t2.a and t2.b=t3.oref) Z
+from t3;
+
+--echo This must show a trig_cond:
+drop table t1,t2,t3;
+
+
+# case 2: NULL IN (SELECT not_null_val FROM) where SELECT has GROUP BY
+create table t1 (oref int, grp int);
+insert into t1 (oref, grp) values
+ (1, 1),
+ (1, 1);
+
+# Ok, for
+#   select count(*) from t1 group by grp having grp=PARAM
+# we'll have:
+#  PARAM    subuqery result
+#    1  ->    {(2)}
+#    2  ->    {} - empty set
+create table t2 (oref int, a int);
+insert into t2 values
+  (1, NULL),
+  (2, NULL);
+
+select a, oref,
+       a in (select count(*) from t1 group by grp having grp=t2.oref) Z from t2;
+
+drop table t1, t2;
+
+create table t1 (a int, b int, primary key (a));
+insert into t1 values (1,1), (3,1),(100,1);
+create table t2 (a int, b int);
+insert into t2 values (1,1),(2,1),(NULL,1),(NULL,0);
+
+select a,b, a in (select a from t1 where t1.b = t2.b union select a from
+t1 where t1.b = t2.b) Z from t2 ;
+select a,b, a in (select a from t1 where t1.b = t2.b) Z from t2 ;
+drop table t1, t2;
+
+
+#
+# BUG#24127: Incorrect results of row-based subqueries with NULLs on the left side.
+#
+create table t3 (a int);
+insert into t3 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, b int, oref int);
+insert into t2 values (NULL,1, 100), (NULL,2, 100);
+
+create table t1 (a int, b int, c int, key(a,b));
+#insert into t1 select 2*A, 2*A, 100 from t3;
+
+# First test index subquery engine
+select a,b, oref, (a,b) in (select a,b from t1 where c=t2.oref) Z from t2;
+
+# Then check that we do turn off 'ref' scans in the subquery
+create table t4 (x int);
+#insert into t4 select A.a + 10*B.a from t1 A, t1 B;
+select a,b, oref,
+       (a,b) in (select a,b from t1,t4 where c=t2.oref) Z
+from t2;
+
+drop table t1,t2,t3,t4;
+
+# More tests for tricky multi-column cases, where some of pushed-down
+# equalities are used for index lookups and some arent.
+create table t1 (oref char(4), grp int, ie1 int, ie2 int);
+insert into t1 (oref, grp, ie1, ie2) values
+ ('aa', 10, 2, 1),
+ ('aa', 10, 1, 1),
+ ('aa', 20, 2, 1),
+ ('bb', 10, 3, 1),
+ ('cc', 10, 4, 2),
+ ('cc', 20, 3, 2),
+
+ ('ee', 10, 2, 1),
+ ('ee', 10, 1, 2),
+
+ ('ff', 20, 2, 2),
+ ('ff', 20, 1, 2);
+create table t2 (oref char(4), a int, b int);
+insert into t2 values
+  ('ee', NULL, 1),
+  ('bb', 2, 1),
+  ('ff', 2, 2),
+  ('cc', 3, NULL),
+  ('bb', NULL, NULL),
+  ('aa', 1, 1),
+  ('dd', 1, NULL);
+alter table t1 add index idx(ie1,ie2);
+
+# cc 3 NULL NULL
+select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2 where a=3 and b is null ;
+insert into t2 values ('new1', 10,10);
+insert into t1 values ('new1', 1234, 10, NULL);
+# new1, 10, 10, NULL,
+select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2 where a=10 and b=10;
+drop table t1, t2;
+
+# Now test different column types:
+create table t1 (oref char(4), grp int, ie int);
+insert into t1 (oref, grp, ie) values
+ ('aa', 10, 2),
+ ('aa', 10, 1),
+ ('aa', 20, NULL),
+
+ ('bb', 10, 3),
+
+ ('cc', 10, 4),
+ ('cc', 20, NULL),
+
+ ('ee', 10, NULL),
+ ('ee', 10, NULL),
+
+ ('ff', 20, 2),
+ ('ff', 20, 1);
+
+create table t2 (oref char(4), a int);
+insert into t2 values
+  ('ee', NULL),
+  ('bb', 2),
+  ('ff', 2),
+  ('cc', 3),
+  ('aa', 1),
+  ('dd', NULL),
+  ('bb', NULL);
+
+select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
+
+--sorted_result
+select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+
+select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
+
+
+select oref, a, a in (select min(ie) from t1 where oref=t2.oref group by grp) Z from t2;
+
+select oref, a from t2 where
+  a in (select min(ie) from t1 where oref=t2.oref group by grp);
+
+select oref, a from t2 where
+  a not in (select min(ie) from t1 where oref=t2.oref group by grp);
+
+#
+update t1 set ie=3 where oref='ff' and ie=1;
+
+select oref, a, a in (select min(ie) from t1 where oref=t2.oref group by
+grp) Z from t2;
+
+
+select oref, a from t2 where a in (select min(ie) from t1 where
+oref=t2.oref group by grp);
+
+select oref, a from t2 where a not in (select min(ie) from t1 where
+oref=t2.oref group by grp);
+
+select oref, a, a in (select min(ie) from t1 where oref=t2.oref group by
+grp having min(ie) > 1) Z from t2;
+
+select oref, a from t2 where a in (select min(ie) from t1 where
+oref=t2.oref group by grp having min(ie) > 1);
+
+select oref, a from t2 where a not in (select min(ie) from t1 where
+oref=t2.oref group by grp having min(ie) > 1);
+
+#
+alter table t1 add index idx(ie);
+
+select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
+
+--sorted_result
+select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+
+select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
+
+
+alter table t1 drop index idx;
+alter table t1 add index idx(oref,ie);
+
+select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
+
+select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+
+select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
+
+select oref, a,
+       a in (select min(ie) from t1 where oref=t2.oref
+             group by grp having min(ie) > 1) Z
+from t2;
+
+select oref, a from t2 where a in (select min(ie) from t1 where oref=t2.oref
+                                   group by grp having min(ie) > 1);
+
+select oref, a from t2 where a not in (select min(ie) from t1 where oref=t2.oref
+                                       group by grp having min(ie) > 1);
+
+drop table t1,t2;
+
+create table t1 (oref char(4), grp int, ie1 int, ie2 int);
+insert into t1 (oref, grp, ie1, ie2) values
+ ('aa', 10, 2, 1),
+ ('aa', 10, 1, 1),
+ ('aa', 20, 2, 1),
+
+ ('bb', 10, 3, 1),
+
+ ('cc', 10, 4, 2),
+ ('cc', 20, 3, 2),
+
+ ('ee', 10, 2, 1),
+ ('ee', 10, 1, 2),
+
+ ('ff', 20, 2, 2),
+ ('ff', 20, 1, 2);
+
+create table t2 (oref char(4), a int, b int);
+insert into t2 values
+  ('ee', NULL, 1),
+  ('bb', 2, 1),
+  ('ff', 2, 2),
+  ('cc', 3, NULL),
+  ('bb', NULL, NULL),
+  ('aa', 1, 1),
+  ('dd', 1, NULL);
+
+select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2;
+
+--sorted_result
+select oref, a, b from t2 where (a,b) in (select ie1,ie2 from t1 where oref=t2.oref);
+
+select oref, a, b from t2 where (a,b) not in (select ie1,ie2 from t1 where oref=t2.oref);
+
+select oref, a, b,
+             (a,b) in (select min(ie1),max(ie2) from t1
+                       where oref=t2.oref group by grp) Z
+from t2;
+
+select oref, a, b from t2 where
+  (a,b) in (select min(ie1), max(ie2) from t1 where oref=t2.oref group by grp);
+
+select oref, a, b from t2 where
+  (a,b) not in (select min(ie1), max(ie2) from t1 where oref=t2.oref group by grp);
+
+alter table t1 add index idx(ie1,ie2);
+
+select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2;
+
+--sorted_result
+select oref, a, b from t2 where (a,b) in (select ie1,ie2 from t1 where oref=t2.oref);
+
+select oref, a, b from t2 where (a,b) not in (select ie1,ie2 from t1 where oref=t2.oref);
+
+drop table t1,t2;
+
+create table t1 (oref char(4), grp int, ie int primary key);
+insert into t1 (oref, grp, ie) values
+ ('aa', 10, 2),
+ ('aa', 10, 1),
+
+ ('bb', 10, 3),
+
+ ('cc', 10, 4),
+ ('cc', 20, 5),
+ ('cc', 10, 6);
+
+create table t2 (oref char(4), a int);
+insert into t2 values
+  ('ee', NULL),
+  ('bb', 2),
+  ('cc', 5),
+  ('cc', 2),
+  ('cc', NULL),
+  ('aa', 1),
+  ('bb', NULL);
+
+select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
+
+--sorted_result
+select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+
+select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
+
+select oref, a, a in (select min(ie) from t1 where oref=t2.oref group by grp) Z from t2;
+
+drop table t1,t2;
+
+#
+# BUG#24420: row-based IN suqueries with aggregation when the left operand
+#            of the subquery predicate may contain NULL values
+#
+
+create table t1 (a int, b int);
+insert into t1 values (0,0), (2,2), (3,3);
+create table t2 (a int, b int);
+insert into t2 values (1,1), (3,3);
+
+select a, b, (a,b) in (select a, min(b) from t2 group by a) Z from t1;
+
+insert into t2 values (NULL,4);
+select a, b, (a,b) in (select a, min(b) from t2 group by a) Z from t1;
+
+drop table t1,t2;
+
+#
+# Bug #24484: Aggregate function used in column list subquery gives erroneous
+# error
+#
+CREATE TABLE t1 (a int, b INT, c CHAR(10) NOT NULL, PRIMARY KEY (a, b));
+INSERT INTO t1 VALUES (1,1,'a'), (1,2,'b'), (1,3,'c'), (1,4,'d'), (1,5,'e'),
+  (2,1,'f'), (2,2,'g'), (2,3,'h'), (3,4,'i'),(3,3,'j'), (3,2,'k'), (3,1,'l'),
+  (1,9,'m');
+CREATE TABLE t2 (a int, b INT, c CHAR(10) NOT NULL, PRIMARY KEY (a, b));
+#INSERT INTO t2 SELECT * FROM t1;
+
+# Gives error, but should work since it is (a, b) is the PK so only one
+# given match possible
+#SELECT a, MAX(b), (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b))
+#  as test FROM t1 GROUP BY a;
+SELECT * FROM t1 GROUP by t1.a
+  HAVING (MAX(t1.b) > (SELECT MAX(t2.b) FROM t2 WHERE t2.c < t1.c
+                                                HAVING MAX(t2.b+t1.a) < 10));
+
+SELECT a,b,c FROM t1 WHERE b in (9,3,4) ORDER BY b,c;
+
+#SELECT a, MAX(b),
+# (SELECT COUNT(DISTINCT t.c) FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b)
+#  LIMIT 1)
+#  as cnt,
+# (SELECT t.b FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b) LIMIT 1)
+#  as t_b,
+# (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b) LIMIT 1)
+#  as t_b,
+# (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b) ORDER BY t.c LIMIT 1)
+#  as t_b
+# FROM t1 GROUP BY a;
+
+#SELECT a, MAX(b),
+# (SELECT t.c FROM t1 AS t WHERE t1.a=t.a AND t.b=MAX(t1.b) LIMIT 1) as test
+# FROM t1 GROUP BY a;
+
+
+DROP TABLE t1, t2;
+
+
+#
+# Bug #27870: crash of an equijoin query with WHERE condition containing
+#             a subquery predicate of the form <join attr> NOT IN (SELECT ...)
+#
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (b int, PRIMARY KEY(b));
+INSERT INTO t1 VALUES (1), (NULL), (4);
+INSERT INTO t2 VALUES (3), (1),(2), (5), (4), (7), (6);
+
+SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1));
+SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1 WHERE a > 4));
+
+DROP TABLE t1,t2;
+
+#
+# Bug #28375: crash for NOT IN subquery predicate when left operand becomes NULL
+#
+
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int PRIMARY KEY);
+CREATE TABLE t3 (id int PRIMARY KEY, name varchar(10));
+INSERT INTO t1 VALUES (2), (NULL), (3), (1);
+INSERT INTO t2 VALUES (234), (345), (457);
+INSERT INTO t3 VALUES (222,'bbb'), (333,'ccc'), (111,'aaa');
+
+SELECT * FROM t1
+  WHERE t1.id NOT IN (SELECT t2.id FROM t2,t3
+                        WHERE t3.name='xxx' AND t2.id=t3.id);
+
+SELECT (t1.id IN (SELECT t2.id FROM t2,t3
+                    WHERE t3.name='xxx' AND t2.id=t3.id)) AS x
+  FROM t1;
+
+DROP TABLE t1,t2,t3;
+
+#
+# Bug #22855: Optimizer doesn't rewrite NOT IN subselects to a correlated
+# subquery
+#
+CREATE TABLE t1 (a INT NOT NULL);
+INSERT INTO t1 VALUES (1),(-1), (65),(66);
+
+CREATE TABLE t2 (a INT UNSIGNED NOT NULL PRIMARY KEY);
+INSERT INTO t2 VALUES (65),(66);
+
+SELECT a FROM t1 WHERE a NOT IN (65,66);
+SELECT a FROM t1 WHERE a NOT IN (SELECT a FROM t2);
+
+DROP TABLE t1, t2;
+
+#
+# Bug #34763: item_subselect.cc:1235:Item_in_subselect::row_value_transformer:
+#             Assertion failed, unexpected error message:
+#             ERROR 1247 (42S22): Reference '<list ref>' not supported (forward
+#             reference in item list)
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES(1);
+
+CREATE TABLE t2 (placeholder CHAR(11));
+INSERT INTO t2 VALUES("placeholder");
+
+SELECT ROW(1, 2) IN (SELECT t1.a, 2)         FROM t1 GROUP BY t1.a;
+SELECT ROW(1, 2) IN (SELECT t1.a, 2 FROM t2) FROM t1 GROUP BY t1.a;
+
+DROP TABLE t1, t2;
+
+#
+# Bug #36005: crash in subselect with single row
+#             (subselect_single_select_engine::exec)
+#
+
+#CREATE TABLE t1 (a INT);
+#INSERT INTO t1 VALUES (1),(2),(3);
+#CREATE TABLE t2 SELECT * FROM t1;
+#
+#SELECT 1 FROM t1 WHERE t1.a NOT IN (SELECT 1 FROM t1, t2 WHERE 0);
+#
+#DROP TABLE t1, t2;
+
+#
+# Bug 2198
+#
+
+create table t1 (a int, b decimal(13, 3));
+insert into t1 values (1, 0.123);
+#select a, (select max(b) from t1) into outfile "subselect.out.file.1" from t1;
+delete from t1;
+#load data infile "subselect.out.file.1" into table t1;
+select * from t1;
+drop table t1;
+#let $datadir=`select @@datadir`;
+#--remove_file $datadir/test/subselect.out.file.1
+
+#
+# Bug #37894: Assertion in init_read_record_seq in handler.h line 1444
+#
+
+#CREATE TABLE t1 (
+#  pk INT PRIMARY KEY,
+#  int_key INT,
+#  varchar_key VARCHAR(5) UNIQUE,
+#  varchar_nokey VARCHAR(5)
+#);
+#INSERT INTO t1 VALUES (9, 7,NULL,NULL), (10,8,'p' ,'p');
+
+#SELECT varchar_nokey
+#FROM t1
+#WHERE NULL NOT IN (
+# SELECT INNR.pk FROM t1 AS INNR2
+#   LEFT JOIN t1 AS INNR ON ( INNR2.int_key = INNR.int_key )
+#   WHERE INNR.varchar_key > 'n{'
+#);
+
+#DROP TABLE t1;
+
+#
+# Bug #39069: <row constructor> IN <table-subquery> seriously messed up
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (11);
+
+--echo # 2nd and 3rd columns should be same
+--sorted_result
+SELECT a, ROW(11, 12) = (SELECT a, 22), ROW(11, 12) IN (SELECT a, 22) FROM t1 GROUP BY t1.a;
+--sorted_result
+SELECT a, ROW(11, 12) = (SELECT a, 12), ROW(11, 12) IN (SELECT a, 12) FROM t1 GROUP BY t1.a;
+SELECT a, ROW(11, 12) = (SELECT a, 22), ROW(11, 12) IN (SELECT a, 22) FROM t1;
+SELECT a, ROW(11, 12) = (SELECT a, 12), ROW(11, 12) IN (SELECT a, 12) FROM t1;
+
+# The x alias is used below to workaround bug #40674.
+# Regression tests for sum function on outer column in subselect from dual:
+#SELECT a AS x, ROW(11, 12) = (SELECT MAX(x), 22), ROW(11, 12) IN (SELECT MAX(x), 22) FROM t1;
+#SELECT a AS x, ROW(11, 12) = (SELECT MAX(x), 12), ROW(11, 12) IN (SELECT MAX(x), 12) FROM t1;
+
+DROP TABLE t1;
+
+--echo # both columns should be same
+SELECT ROW(1,2) = (SELECT NULL, NULL), ROW(1,2) IN (SELECT NULL, NULL);
+SELECT ROW(1,2) = (SELECT   1,  NULL), ROW(1,2) IN (SELECT    1, NULL);
+SELECT ROW(1,2) = (SELECT NULL,    2), ROW(1,2) IN (SELECT NULL,    2);
+SELECT ROW(1,2) = (SELECT NULL,    1), ROW(1,2) IN (SELECT NULL,    1);
+SELECT ROW(1,2) = (SELECT    1,    1), ROW(1,2) IN (SELECT    1,    1);
+SELECT ROW(1,2) = (SELECT    1,    2), ROW(1,2) IN (SELECT    1,    2);
+
+#
+# Bug #37362      Crash in do_field_eq
+#
+CREATE TABLE t1 (a INT, b INT, c INT);
+INSERT INTO t1 VALUES (1,1,1), (1,1,1);
+
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #46791: Assertion failed:(table->key_read==0),function unknown
+--echo #    function,file sql_base.cc
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t2 VALUES (1,1),(2,2);
+CREATE TABLE t3 LIKE t1;
+
+--echo # should not crash the next statement
+SELECT 1 FROM t1
+WHERE NOT EXISTS (SELECT 1 FROM t2 WHERE 1 = (SELECT MIN(t2.b) FROM t3))
+ORDER BY count(*);
+
+--echo # should not crash: the crash is caused by the previous statement
+SELECT 1;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # Bug #47106: Crash / segfault on adding EXPLAIN  to a non-crashing
+--echo # query
+--echo #
+
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  PRIMARY KEY (a),
+  KEY b (b)
+);
+INSERT INTO t1 VALUES (1, 1), (2, 1);
+
+CREATE TABLE t2 LIKE t1;
+#INSERT INTO t2 SELECT * FROM t1;
+
+CREATE TABLE t3 LIKE t1;
+#INSERT INTO t3 SELECT * FROM t1;
+
+--echo # Should not crash.
+--echo # Should have 1 impossible where and 2 dependent subqs.
+
+--echo # should return 0 rows
+SELECT
+  (SELECT 1 FROM t1,t2 WHERE t2.b > t3.b)
+FROM t3 WHERE 1 = 0 GROUP BY 1;
+
+DROP TABLE t1,t2,t3;
+--echo #
+--echo # Bug#12329653
+--echo # EXPLAIN , UNION, PREPARED STATEMENT, CRASH, SQL_FULL_GROUP_BY
+--echo #
+
+CREATE TABLE t1(a1 int);
+INSERT INTO t1 VALUES (1),(2);
+
+#SELECT @@session.sql_mode INTO @old_sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+
+## First a simpler query, illustrating the transformation
+## '1 < some (...)' => '1 < max(...)'
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t1);
+
+## The query which made the server crash.
+#PREPARE stmt FROM
+#'SELECT 1 UNION ALL
+#SELECT 1 FROM t1
+#ORDER BY
+#(SELECT 1 FROM t1 AS t1_0
+#  WHERE 1 < SOME (SELECT a1 FROM t1)
+#)' ;
+#
+#--error ER_SUBQUERY_NO_1_ROW
+#EXECUTE stmt ;
+#--error ER_SUBQUERY_NO_1_ROW
+#EXECUTE stmt ;
+#
+#SET SESSION sql_mode=@old_sql_mode;
+#
+#DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#12763207 - ASSERT IN SUBSELECT::SINGLE_VALUE_TRANSFORMER
+--echo #
+
+CREATE TABLE t1(a1 int);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2(a1 int);
+INSERT INTO t2 VALUES (3);
+
+#SELECT @@session.sql_mode INTO @old_sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+
+## All these are subject to the transformation
+## '1 < some (...)' => '1 < max(...)'
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2 FROM t2);
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
+
+#SET SESSION sql_mode=@old_sql_mode;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#12763207 - ASSERT IN SUBSELECT::SINGLE_VALUE_TRANSFORMER
+--echo #
+
+create table t2(i int);
+insert into t2 values(0);
+
+SELECT @old_sql_mode:=@@session.sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+
+CREATE VIEW v1 AS
+SELECT 'f' FROM t2 UNION SELECT 'x' FROM t2
+;
+
+CREATE TABLE t1 (
+  pk int NOT NULL,
+  col_varchar_key varchar(1) DEFAULT NULL,
+  PRIMARY KEY (pk),
+  KEY col_varchar_key (col_varchar_key)
+);
+
+SELECT t1.pk
+FROM t1
+WHERE t1.col_varchar_key < ALL ( SELECT * FROM v1 )
+;
+
+SET SESSION sql_mode=@old_sql_mode;
+
+drop table t2, t1;
+drop view v1;
+
+--echo End of 5.0 tests.
+
+#
+#  Test [NOT] IN truth table (both as top-level and general predicate).
+#
+
+create table t_out (subcase char(3),
+                    a1 char(2), b1 char(2), c1 char(2));
+create table t_in  (a2 char(2), b2 char(2), c2 char(2));
+
+insert into t_out values ('A.1','2a', NULL, '2a');
+# -------------------------- A.2 - impossible
+insert into t_out values ('A.3', '2a', NULL, '2a');
+insert into t_out values ('A.4', '2a', NULL, 'xx');
+insert into t_out values ('B.1', '2a', '2a', '2a');
+insert into t_out values ('B.2', '2a', '2a', '2a');
+insert into t_out values ('B.3', '3a', 'xx', '3a');
+insert into t_out values ('B.4', 'xx', '3a', '3a');
+
+insert into t_in values ('1a', '1a', '1a');
+insert into t_in values ('2a', '2a', '2a');
+insert into t_in values (NULL, '2a', '2a');
+insert into t_in values ('3a', NULL, '3a');
+-- echo
+-- echo Test general IN semantics (not top-level)
+-- echo
+-- echo case A.1
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in where a2 = 'no_match') pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in where a2 = 'no_match') pred_not_in
+from t_out where subcase = 'A.1';
+
+-- echo case A.2 - impossible
+
+-- echo case A.3
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in) pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in) pred_not_in
+from t_out where subcase = 'A.3';
+
+-- echo case A.4
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in) pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in) pred_not_in
+from t_out where subcase = 'A.4';
+
+-- echo case B.1
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in where a2 = 'no_match') pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in where a2 = 'no_match') pred_not_in
+from t_out where subcase = 'B.1';
+
+-- echo case B.2
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in) pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in) pred_not_in
+from t_out where subcase = 'B.2';
+
+-- echo case B.3
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in) pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in) pred_not_in
+from t_out where subcase = 'B.3';
+
+-- echo case B.4
+select subcase,
+       (a1, b1, c1)     IN (select * from t_in) pred_in,
+       (a1, b1, c1) NOT IN (select * from t_in) pred_not_in
+from t_out where subcase = 'B.4';
+
+-- echo
+-- echo Test IN as top-level predicate, and
+-- echo as non-top level for cases A.3, B.3 (the only cases with NULL result).
+-- echo
+-- echo case A.1
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'A.1' and
+      (a1, b1, c1) IN (select * from t_in where a1 = 'no_match');
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'A.1' and
+      (a1, b1, c1) NOT IN (select * from t_in where a1 = 'no_match');
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'A.1' and
+      NOT((a1, b1, c1) IN (select * from t_in where a1 = 'no_match'));
+
+-- echo case A.3
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'A.3' and
+      (a1, b1, c1) IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'A.3' and
+      (a1, b1, c1) NOT IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'A.3' and
+      NOT((a1, b1, c1) IN (select * from t_in));
+-- echo test non-top level result indirectly
+select case when count(*) > 0 then 'N' else 'wrong result' end as pred_in from t_out
+where subcase = 'A.3' and
+      ((a1, b1, c1) IN (select * from t_in)) is NULL and
+      ((a1, b1, c1) NOT IN (select * from t_in)) is NULL;
+
+-- echo case A.4
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'A.4' and
+      (a1, b1, c1) IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'A.4' and
+      (a1, b1, c1) NOT IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'A.4' and
+      NOT((a1, b1, c1) IN (select * from t_in));
+
+-- echo case B.1
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'B.1' and
+      (a1, b1, c1) IN (select * from t_in where a1 = 'no_match');
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'B.1' and
+      (a1, b1, c1) NOT IN (select * from t_in where a1 = 'no_match');
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'B.1' and
+      NOT((a1, b1, c1) IN (select * from t_in where a1 = 'no_match'));
+
+-- echo case B.2
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'B.2' and
+      (a1, b1, c1) IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'B.2' and
+      (a1, b1, c1) NOT IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'B.2' and
+      NOT((a1, b1, c1) IN (select * from t_in));
+
+-- echo case B.3
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'B.3' and
+      (a1, b1, c1) IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'B.3' and
+      (a1, b1, c1) NOT IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'B.3' and
+      NOT((a1, b1, c1) IN (select * from t_in));
+-- echo test non-top level result indirectly
+select case when count(*) > 0 then 'N' else 'wrong result' end as pred_in from t_out
+where subcase = 'B.3' and
+      ((a1, b1, c1) IN (select * from t_in)) is NULL and
+      ((a1, b1, c1) NOT IN (select * from t_in)) is NULL;
+
+-- echo case B.4
+select case when count(*) > 0 then 'T' else 'F' end as pred_in from t_out
+where subcase = 'B.4' and
+      (a1, b1, c1) IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as pred_not_in from t_out
+where subcase = 'B.4' and
+      (a1, b1, c1) NOT IN (select * from t_in);
+
+select case when count(*) > 0 then 'T' else 'F' end as not_pred_in from t_out
+where subcase = 'B.4' and
+      NOT((a1, b1, c1) IN (select * from t_in));
+
+drop table t_out;
+drop table t_in;
+
+
+#
+# Bug#27348 SET FUNCTION used in  a subquery from WHERE condition
+#
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (2,22),(1,11),(2,22);
+
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 0 GROUP BY a;
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 1 GROUP BY a;
+
+--sorted_result
+SELECT a FROM t1 t0
+  WHERE (SELECT COUNT(t0.b) FROM t1 t WHERE t.b>20) GROUP BY a;
+
+SET @@sql_mode='STRICT_TRANS_TABLES';
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 0 GROUP BY a;
+--sorted_result
+SELECT a FROM t1 WHERE (SELECT COUNT(b) FROM DUAL) > 1 GROUP BY a;
+
+--sorted_result
+SELECT a FROM t1 t0
+  WHERE (SELECT COUNT(t0.b) FROM t1 t WHERE t.b>20) GROUP BY a;
+
+SET @@sql_mode=default;
+DROP TABLE t1;
+
+#
+# Bug#20835 (literal string with =any values)
+#
+CREATE TABLE t1 (s1 CHAR(1));
+INSERT INTO t1 VALUES ('a');
+SELECT * FROM t1 WHERE _utf8'a' = ANY (SELECT s1 FROM t1);
+DROP TABLE t1;
+
+#
+# Bug#37004 NOT IN subquery with MAX over an empty set
+#
+
+CREATE TABLE t1(c INT, KEY(c));
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 VALUES (1, 10), (2, NULL);
+INSERT INTO t1 VALUES (1), (3);
+
+SELECT * FROM t2 WHERE b NOT IN (SELECT max(t.c) FROM t1, t1 t WHERE t.c>10);
+
+DROP TABLE t1,t2;
+
+#
+# Bug#38191 Server crash with subquery containing DISTINCT and ORDER BY
+#
+
+CREATE TABLE t1(pk INT PRIMARY KEY, a INT, INDEX idx(a));
+INSERT INTO t1 VALUES (1, 10), (3, 30), (2, 20);
+CREATE TABLE t2(pk INT PRIMARY KEY, a INT, b INT, INDEX idxa(a));
+INSERT INTO t2 VALUES (2, 20, 700), (1, 10, 200), (4, 10, 100);
+SELECT * FROM t1
+   WHERE EXISTS (SELECT DISTINCT a FROM t2 WHERE t1.a < t2.a ORDER BY b);
+DROP TABLE t1,t2;
+
+#
+# Bug#37548 result value erronously reported being NULL in certain subqueries
+#
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (a), KEY b (b));
+
+INSERT INTO t1 VALUES (1,NULL), (9,NULL);
+
+CREATE TABLE t2 (
+  a INT,
+  b INT,
+  c INT,
+  d INT,
+  PRIMARY KEY (a),
+  UNIQUE KEY b (b,c,d),
+  KEY b_2 (b),
+  KEY c (c),
+  KEY d (d)
+);
+
+INSERT INTO t2 VALUES
+  (43, 2, 11 ,30),
+  (44, 2, 12 ,30),
+  (45, 1, 1  ,10000),
+  (46, 1, 2  ,10000),
+  (556,1, 32 ,10000);
+
+CREATE TABLE t3 (
+  a INT,
+  b INT,
+  c INT,
+  PRIMARY KEY (a),
+  UNIQUE KEY b (b,c),
+  KEY c (c),
+  KEY b_2 (b)
+);
+
+INSERT INTO t3 VALUES (1,1,1), (2,32,1);
+
+SELECT t1.a, (SELECT 1 FROM t2 WHERE t2.b=t3.c AND t2.c=t1.a ORDER BY t2.d LIMIT 1) AS incorrect FROM t1, t3 WHERE t3.b=t1.a;
+
+DROP TABLE t1,t2,t3;
+
+#
+# Bug#37460 Assertion failed:
+# !table->file || table->file->inited == handler::NONE
+#
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int, c int);
+
+INSERT INTO t1 (id) VALUES (1);
+INSERT INTO t2 (id) VALUES (1);
+INSERT INTO t1 (id) VALUES (1);
+INSERT INTO t2 (id) VALUES (1);
+
+CREATE VIEW v1 AS
+SELECT t2.c AS c FROM t1, t2
+WHERE t1.id=t2.id AND 1 IN (SELECT id FROM t1) ;
+#UPDATE v1 SET c=1;
+
+CREATE VIEW v2 (a,b) AS
+SELECT t2.id, t2.c AS c FROM t1, t2
+WHERE t1.id=t2.id AND 1 IN (SELECT id FROM t1) ;
+
+#--error ER_VIEW_CHECK_FAILED
+#--error 4016
+#INSERT INTO v2(a,b) VALUES (2,2);
+#--error 4016
+#INSERT INTO v2(a,b) VALUES (1,2);
+SELECT * FROM v1;
+
+CREATE VIEW v3 AS
+SELECT t2.c AS c FROM t2
+WHERE 1 IN (SELECT id FROM t1) ;
+
+#DELETE FROM v3;
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug#37822 Correlated subquery with IN and IS UNKNOWN provides wrong result
+--echo #
+create table t1(id integer primary key, g integer, v integer, s char(1));
+create table t2(id integer primary key, g integer, v integer, s char(1));
+insert into t1 values
+  (10, 10, 10,   'l'),
+  (20, 20, 20,   'l'),
+  (40, 40, 40,   'l'),
+  (41, 40, null, 'l'),
+  (50, 50, 50,   'l'),
+  (51, 50, null, 'l'),
+  (60, 60, 60,   'l'),
+  (61, 60, null, 'l'),
+  (70, 70, 70,   'l'),
+  (90, 90, null, 'l');
+insert into t2 values
+  (10, 10, 10,   'r'),
+  (30, 30, 30,   'r'),
+  (50, 50, 50,   'r'),
+  (60, 60, 60,   'r'),
+  (61, 60, null, 'r'),
+  (70, 70, 70,   'r'),
+  (71, 70, null, 'r'),
+  (80, 80, 80,   'r'),
+  (81, 80, null, 'r'),
+  (100,100,null, 'r');
+
+select *
+from t1
+where v in(select v
+           from t2
+           where t1.g=t2.g) is unknown;
+drop table t1, t2;
+
+-- echo #
+-- echo # Bug#33204: INTO is allowed in subselect, causing inconsistent results
+-- echo #
+CREATE TABLE t1( a INT );
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2( a INT, b INT );
+
+#todo@yeti: select into不可放在自查询里
+#https://aone.alibaba-inc.com/project/81079/issue/9941079
+#--error ER_PARSE_ERROR
+#SELECT *
+#FROM (SELECT a INTO @var FROM t1 WHERE a = 2) t1a;
+#--error ER_PARSE_ERROR
+#SELECT *
+#FROM (SELECT a INTO OUTFILE 'file' FROM t1 WHERE a = 2) t1a;
+#--error ER_PARSE_ERROR
+#SELECT *
+#FROM (SELECT a INTO DUMPFILE 'file' FROM t1 WHERE a = 2) t1a;
+
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM (
+#  SELECT 1 a
+#  UNION
+#  SELECT a INTO @var FROM t1 WHERE a = 2
+#) t1a;
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM (
+#  SELECT 1 a
+#  UNION
+#  SELECT a INTO OUTFILE 'file' FROM t1 WHERE a = 2
+#) t1a;
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM (
+#  SELECT 1 a
+#  UNION
+#  SELECT a INTO DUMPFILE 'file' FROM t1 WHERE a = 2
+#) t1a;
+
+SELECT * FROM (SELECT a FROM t1 WHERE a = 2) t1a;
+
+SELECT * FROM (
+  SELECT a FROM t1 WHERE a = 2
+  UNION
+  SELECT a FROM t1 WHERE a = 2
+) t1a;
+
+SELECT * FROM (
+  SELECT 1 a
+  UNION
+  SELECT a FROM t1 WHERE a = 2
+  UNION
+  SELECT a FROM t1 WHERE a = 2
+) t1a;
+
+# This was not allowed previously. Possibly, it should be allowed on the future.
+# For now, the intent is to keep the fix as non-intrusive as possible.
+# (@linsheng) implement: https://aone.alibaba-inc.com/code/D129641
+SELECT * FROM ((SELECT 1 a) UNION SELECT 1 a);
+SELECT * FROM (SELECT 1 a UNION (SELECT 1 a)) alias;
+SELECT * FROM (SELECT 1 UNION SELECT 1) t1a;
+#todo@yeti
+#--error ER_PARSE_ERROR
+#SELECT * FROM ((SELECT 1 a INTO @a)) t1a;
+#--error ER_PARSE_ERROR
+#SELECT * FROM ((SELECT 1 a INTO OUTFILE 'file' )) t1a;
+#--error ER_PARSE_ERROR
+#SELECT * FROM ((SELECT 1 a INTO DUMPFILE 'file' )) t1a;
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM (SELECT 1 a UNION (SELECT 1 a INTO @a)) t1a;
+#--error ER_PARSE_ERROR
+#SELECT * FROM (SELECT 1 a UNION (SELECT 1 a INTO DUMPFILE 'file' )) t1a;
+#--error ER_PARSE_ERROR
+#SELECT * FROM (SELECT 1 a UNION (SELECT 1 a INTO OUTFILE 'file' )) t1a;
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM (SELECT 1 a UNION ((SELECT 1 a INTO @a))) t1a;
+#--error ER_PARSE_ERROR
+#SELECT * FROM (SELECT 1 a UNION ((SELECT 1 a INTO DUMPFILE 'file' ))) t1a;
+#--error ER_PARSE_ERROR
+#SELECT * FROM (SELECT 1 a UNION ((SELECT 1 a INTO OUTFILE 'file' ))) t1a;
+
+SELECT * FROM (SELECT 1 a ORDER BY a) t1a;
+SELECT * FROM (SELECT 1 a UNION SELECT 1 a ORDER BY a) t1a;
+SELECT * FROM (SELECT 1 a UNION SELECT 1 a LIMIT 1) t1a;
+SELECT * FROM (SELECT 1 a UNION SELECT 1 a ORDER BY a LIMIT 1) t1a;
+
+# Test of rule
+# table_factor:  '(' get_select_lex query_expression_body ')' opt_table_alias
+# UNION should not be allowed inside the parentheses, nor should
+# aliases after.
+#
+SELECT * FROM t1 JOIN  (SELECT 1 UNION SELECT 1) alias ON 1;
+SELECT * FROM t1 JOIN ((SELECT 1 UNION SELECT 1)) ON 1;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 JOIN  (t1 t1a UNION SELECT 1)  ON 1;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 JOIN ((t1 t1a UNION SELECT 1)) ON 1;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 JOIN  (t1 t1a)  t1a ON 1;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 JOIN ((t1 t1a)) t1a ON 1;
+
+SELECT * FROM t1 JOIN  (t1 t1a)  ON 1;
+SELECT * FROM t1 JOIN ((t1 t1a)) ON 1;
+
+SELECT * FROM (t1 t1a);
+SELECT * FROM ((t1 t1a));
+
+SELECT * FROM t1 JOIN  (SELECT 1 t1a) alias ON 1;
+SELECT * FROM t1 JOIN ((SELECT 1 t1a)) alias ON 1;
+
+SELECT * FROM t1 JOIN  (SELECT 1 a)  a ON 1;
+SELECT * FROM t1 JOIN ((SELECT 1 a)) a ON 1;
+
+# For the join, TABLE_LIST::select_lex == NULL
+# Check that we handle this.
+--error ER_PARSE_ERROR
+SELECT * FROM (t1 JOIN (SELECT 1) t1a1 ON 1) t1a2;
+
+SELECT * FROM t1 WHERE a = ALL ( SELECT 1 );
+SELECT * FROM t1 WHERE a = ALL ( SELECT 1 UNION SELECT 1 );
+SELECT * FROM t1 WHERE a = ANY ( SELECT 3 UNION SELECT 1 );
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION SELECT 1 INTO @a);
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION SELECT 1 INTO OUTFILE 'file' );
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION SELECT 1 INTO DUMPFILE 'file' );
+
+SELECT * FROM t1 WHERE a = ( SELECT 1 );
+SELECT * FROM t1 WHERE a = ( SELECT 1 UNION SELECT 1 );
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ( SELECT 1 INTO @a);
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ( SELECT 1 INTO OUTFILE 'file' );
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ( SELECT 1 INTO DUMPFILE 'file' );
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ( SELECT 1 UNION SELECT 1 INTO @a);
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ( SELECT 1 UNION SELECT 1 INTO OUTFILE 'file' );
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a = ( SELECT 1 UNION SELECT 1 INTO DUMPFILE 'file' );
+
+#--error ER_PARSE_ERROR
+#SELECT ( SELECT 1 INTO @v );
+#--error ER_PARSE_ERROR
+#SELECT ( SELECT 1 INTO OUTFILE 'file' );
+#--error ER_PARSE_ERROR
+#SELECT ( SELECT 1 INTO DUMPFILE 'file' );
+
+#--error ER_PARSE_ERROR
+#SELECT ( SELECT 1 UNION SELECT 1 INTO @v );
+#--error ER_PARSE_ERROR
+#SELECT ( SELECT 1 UNION SELECT 1 INTO OUTFILE 'file' );
+#--error ER_PARSE_ERROR
+#SELECT ( SELECT 1 UNION SELECT 1 INTO DUMPFILE 'file' );
+
+# Make sure context is popped when we leave the nested select
+SELECT ( SELECT a FROM t1 WHERE a = 1 ), a FROM t1;
+SELECT ( SELECT a FROM t1 WHERE a = 1 UNION SELECT 1 ), a FROM t1;
+
+# Make sure we have feature F561 (see .yy file)
+SELECT * FROM t2 WHERE (a, b) IN (SELECT a, b FROM t2);
+
+# Make sure the parser does not allow nested UNIONs anywhere
+
+#SELECT 1 UNION ( SELECT 1 UNION SELECT 1 );
+#( SELECT 1 UNION SELECT 1 ) UNION SELECT 1;
+
+#SELECT ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
+SELECT ( SELECT 1 UNION SELECT 1 UNION SELECT 1 );
+SELECT ((SELECT 1 UNION SELECT 1 UNION SELECT 1));
+
+SELECT * FROM ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
+SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 );
+SELECT * FROM ( SELECT 1 UNION SELECT 1 UNION SELECT 1 ) a;
+
+#SELECT * FROM t1 WHERE a =     ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
+#SELECT * FROM t1 WHERE a = ALL ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
+#SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
+#SELECT * FROM t1 WHERE a IN    ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
+
+#SELECT * FROM t1 WHERE a =     ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
+#SELECT * FROM t1 WHERE a = ALL ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
+#SELECT * FROM t1 WHERE a = ANY ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
+#SELECT * FROM t1 WHERE a IN    ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
+
+#SELECT * FROM t1 WHERE a =     ( SELECT 1 UNION SELECT 1 UNION SELECT 1 );
+#SELECT * FROM t1 WHERE a = ALL ( SELECT 1 UNION SELECT 1 UNION SELECT 1 );
+#SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION SELECT 1 UNION SELECT 1 );
+#SELECT * FROM t1 WHERE a IN    ( SELECT 1 UNION SELECT 1 UNION SELECT 1 );
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE EXISTS ( SELECT 1 UNION SELECT 1 INTO @v );
+#SELECT EXISTS(SELECT 1+1);
+#--error ER_PARSE_ERROR
+#SELECT EXISTS(SELECT 1+1 INTO @test);
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a IN ( SELECT 1 UNION SELECT 1 INTO @v );
+
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE EXISTS ( SELECT 1 INTO @v );
+#--error ER_PARSE_ERROR
+#SELECT * FROM t1 WHERE a IN ( SELECT 1 INTO @v );
+
+DROP TABLE t1, t2;
+#
+# Bug #31157: Crash when select+order by the avg of some field within the
+# group by
+#
+#CREATE TABLE t1 (a ENUM('rainbow'));
+#INSERT INTO t1 VALUES (),(),(),(),();
+#SELECT 1 FROM t1 GROUP BY (SELECT 1 FROM t1 ORDER BY AVG(LAST_INSERT_ID()));
+#DROP TABLE t1;
+#CREATE TABLE t1 (a LONGBLOB);
+#INSERT INTO t1 SET a = 'aaaa';
+#INSERT INTO t1 SET a = 'aaaa';
+#SELECT 1 FROM t1 GROUP BY
+#  (SELECT LAST_INSERT_ID() FROM t1 ORDER BY MIN(a) ASC LIMIT 1);
+#DROP TABLE t1;
+
+--echo #
+--echo # Bug #49512 : subquery with aggregate function crash
+--echo #   subselect_single_select_engine::exec()
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES();
+
+--echo # should not crash
+#SELECT 1 FROM t1 WHERE a <> SOME
+#(
+# SELECT MAX((SELECT a FROM t1 LIMIT 1)) AS d
+# FROM t1,t1 a
+#);
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #45989 take 2 : memory leak after EXPLAIN  encounters an
+--echo # error in the query
+--echo #
+
+CREATE TABLE t1(a varchar(200));
+INSERT INTO t1 VALUES (repeat('a', 100));
+INSERT INTO t1 VALUES (repeat('b', 100));
+
+DROP TABLE t1;
+
+#
+# BUG#36135 "void Diagnostics_area::set_eof_status(THD*): Assertion `!is_set()' failed."
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  a int(11) default null,
+  b int(11) default null,
+  key (a)
+);
+# produce numbers 0..999
+insert into t1 select A.a+10*(B.a+10*C.a),A.a+10*(B.a+10*C.a) from t0 A, t0 B, t0 C;
+
+create table t2 (a int(11) default null);
+insert into t2 values (0),(1);
+
+create table t3 (a int(11) default null);
+insert into t3 values (0),(1);
+
+create table t4 (a int(11) default null);
+insert into t4 values (0),(1);
+
+create table t5 (a int(11) default null);
+insert into t5 values (0),(1),(0),(1);
+
+# this must not fail assertion
+select * from t2, t3
+where
+    t2.a < 10 and
+    t3.a+1 = 2 and
+    t3.a in (select t1.b from t1
+                 where t1.a+1=t1.a+1 and
+                       t1.a < (select t4.a+10
+                                  from t4, t5 limit 1));
+
+drop table t0, t1, t2, t3, t4, t5;

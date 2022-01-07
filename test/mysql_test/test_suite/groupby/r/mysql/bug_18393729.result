@@ -1,0 +1,85 @@
+result_format: 4
+create table t1(c1 int);
+select min(c1) from t1;
++---------+
+| min(c1) |
++---------+
+|    NULL |
++---------+
+select max(c1) from t1;
++---------+
+| max(c1) |
++---------+
+|    NULL |
++---------+
+
+create table t2(c1 int);
+insert into t1 values (NULL);
+
+select min(c1) from t1;
++---------+
+| min(c1) |
++---------+
+|    NULL |
++---------+
+select max(c1) from t1;
++---------+
+| max(c1) |
++---------+
+|    NULL |
++---------+
+
+create table t3(c1 int);
+insert into t1 values (1);
+
+select min(c1) from t1;
++---------+
+| min(c1) |
++---------+
+|       1 |
++---------+
+select max(c1) from t1;
++---------+
+| max(c1) |
++---------+
+|       1 |
++---------+
+
+create table t4(c1 int);
+insert into t1 values (1);
+insert into t1 values (NULL);
+insert into t1 values (2);
+select min(c1) from t1;
++---------+
+| min(c1) |
++---------+
+|       1 |
++---------+
+select max(c1) from t1;
++---------+
+| max(c1) |
++---------+
+|       2 |
++---------+
+
+create table t1(pk int primary key, a1 varchar(10) not null, a2 varchar(10));
+
+select a1, max(a2) from t1 group by a1 order by a1;
++----+---------+
+| a1 | max(a2) |
++----+---------+
+| a  | a4      |
+| b  | b4      |
+| c  | c4      |
+| d  | d4      |
++----+---------+
+select a1, min(a2) from t1 group by a1 order by a1;
++----+---------+
+| a1 | min(a2) |
++----+---------+
+| a  | a1      |
+| b  | b1      |
+| c  | c1      |
+| d  | d1      |
++----+---------+
+

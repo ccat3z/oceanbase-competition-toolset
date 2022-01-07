@@ -1,0 +1,203 @@
+# tags: optimizer
+## Test Name: batch nested loop join
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+CREATE TABLE t1 ( pk INT primary key, c1 INT, c2 INT, c3 INT, key idx_c1_c2(c1, c2));
+CREATE TABLE t2 ( pk INT primary key, c1 INT, c2 INT, c3 INT, key idx_c1_c2(c1, c2));
+insert into t1 values (0, 2, 0, 1);
+insert into t1 values (1, 1, 1, 1);
+insert into t1 values (2, 2, 1, 1);
+insert into t1 values (3, 2, 1, 1);
+insert into t1 values (4, 4, 0, 1);
+insert into t2 values (0, 2, 0, 1);
+insert into t2 values (1, 1, 1, 1);
+insert into t2 values (2, 2, 1, 5);
+insert into t2 values (3, 2, 1, 4);
+insert into t2 values (4, 4, 0, 3);
+
+--echo
+--echo *********** use batch nlp **************
+select /*+ use_nl(a) leading(b a) */ * from t1 a, t2 b where b.c1 = a.pk;
+
+--echo
+--echo *********** use batch nlp *************
+select /*+ use_nl(a, b) leading(a, b) */ * from t1 a, t2 b where a.c1 = b.c1 and b.c3 > 4;
+
+--echo
+--echo *********** no use batch: right op is not table scan *******
+select /*+ use_nl(a) leading(b a) */ * from t1 a, t2 b where b.c1 = a.c1;
+
+--echo
+--echo *********** no use batch: table filter contain nl param *****
+select /*+ use_nl(a, b) leading(a, b) */ * from t1 a, t2 b where a.c1 = b.c1 and a.c3 = b.c3;
+
+--echo
+--echo *********** no use batch nlp: select for update **************
+select /*+ use_nl(a) leading(b a) */ * from t1 a, t2 b where b.c1 = a.pk for update;
+
+drop table t1, t2;
+
+create table t1(c1 number, c2 number, c3 number);
+create table t2(c1 number, c2 number, c3 number, primary key(c1, c2));
+insert into t1 values (1,1,1), (1,1,1), (2,2,2),(2,2,2), (2,2,2),(2,2,2), (3,3,3),(3,3,3),(3,3,3),(3,3,3),(3,3,3);
+insert into t2 values (1,1,1), (2,2,2), (3,3,3);
+select /*+use_nl(v t2) leading(v, t2)*/ * from t2, (select c1 + 0 c1, c2 from t1 group by c1, c2) v where v.c1 = t2.c1 and v.c2 =  t2.c2;
+
+
+## test table scan to rescan when nest loop join
+--disable_warnings
+DROP TABLE IF EXISTS `l`;
+--enable_warnings
+
+CREATE TABLE `l` (
+  `col_date_key` date DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_datetime_key` datetime DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_date` date DEFAULT NULL,
+  `col_datetime` datetime DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx7` (`pk`, `col_date_key`) BLOCK_SIZE 16384,
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx9` (`pk`, `col_datetime_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384
+);
+INSERT INTO `l` VALUES ('2009-07-05',NULL,1,NULL,'2007-07-25 02:08:22','look','LVAUD','2005-12-27','2008-11-03 18:21:02','q','nria'),('2006-07-17',NULL,2,NULL,'2004-12-18 21:03:39','f','s','2004-10-14','2009-11-17 09:13:35','g','will'),('2006-09-18',7,3,NULL,'2006-06-09 17:30:26','asnriazlw','kasnri','2003-09-25','2006-11-23 17:44:03','gka','PAIAO'),('2001-10-28',1120403456,4,7,'2005-01-22 09:58:05','bgka','out','2008-10-16','2001-03-01 14:57:11','db','her'),('2002-07-14',NULL,5,NULL,'2002-03-03 07:58:16','GSIAC','from','2004-11-08','2000-07-27 04:16:00','adbgka','cadbgkasnr'),('2007-02-14',1,6,1908932608,'2007-07-17 11:52:03','i','here','2005-01-02','2005-07-14 23:39:37','you','tca'),('2001-12-12',1835532288,7,3,'2007-07-14 02:26:18','LNQMM','v','2008-07-06','2008-08-28 13:56:18','RYJYN','QDEJS'),('2003-04-16',8,8,NULL,'2002-10-12 05:36:01','UYXDM','want','2005-12-10','2002-02-12 06:57:52','o','VYRKH'),('2005-10-04',NULL,9,1705771008,'2008-09-26 14:18:04','hvtcadbgka','gh','2002-05-16','2005-12-17 10:41:38','k','o'),('2009-03-16',NULL,10,NULL,'2007-01-24 19:43:25','h','WNAHE','2000-09-01','2002-10-26 16:34:56','JIYRP','NMSWI'),('2008-07-23',NULL,11,7,'2001-08-25 20:58:11','FLKVS','VCFSU','2000-10-05','2003-10-20 10:48:23','IYPOX','i'),('2001-05-18',-547094528,12,4,'2006-09-05 12:07:48','mg','smgh','2001-11-09','2001-03-10 18:47:42','m','r');
+
+--disable_warnings
+DROP TABLE IF EXISTS `ii`;
+--enable_warnings
+
+CREATE TABLE `ii` (
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_date` date DEFAULT NULL,
+  `col_date_key` date DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_datetime` datetime DEFAULT NULL,
+  `col_datetime_key` datetime DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx3` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384,
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx7` (`pk`, `col_date_key`) BLOCK_SIZE 16384,
+  KEY `idx9` (`pk`, `col_datetime_key`) BLOCK_SIZE 16384
+);
+INSERT INTO `ii` VALUES ('some','had','EORMT',NULL,'a',9,'2009-10-01','2009-05-06',1,'2008-12-27 14:46:16','2002-11-24 07:40:19'),('it\'s','would','xuauo',4,'got',9,'2008-07-12','2004-07-22',2,'2005-10-05 12:31:44','2002-05-13 17:58:02'),('hxuauop','QBFUC','shxuau',0,'pshxuauo',-817299456,'2007-06-07','2002-08-25',3,'2000-08-28 15:21:25','2009-03-10 15:33:50'),('ZLVQQ','XEEJR','j',3,'x',-2063073280,'2006-09-18','2002-04-23',4,'2007-07-16 21:19:11','2003-07-01 10:23:29'),('p','something','l',1,'JBBRM',NULL,'2006-07-08','2002-02-10',5,'2003-12-27 13:51:24','2008-09-20 03:28:09'),('WZJJT','AJSHL','x',-567148544,'IQSZP',6,'2009-08-18','2009-01-25',6,'2004-03-19 06:10:21','2005-01-16 20:44:51'),('can\'t','wpshxuau','xwpsh',9,'I\'ll',NULL,'2007-05-25','2000-11-27',7,'2007-04-05 16:23:02','2001-04-28 03:46:32'),('z','x','bxwpshx',847708160,'NIDVU',8,'2009-08-14','2007-05-05',8,'2002-05-27 20:02:50','2007-11-23 22:49:42'),('back','jbxwpsh','x',1438253056,'e',NULL,'2000-08-19','2008-01-24',9,'2002-08-09 04:33:14','2009-04-01 13:25:20'),('w','KIVUN','w',4,'TNPKO',268566528,'2009-09-04','2000-04-12',10,'2003-08-15 23:11:00','2008-09-19 15:17:14'),('yes','hjbxwp','i',NULL,'ok',-1492910080,'2004-02-02','2001-12-18',11,'2004-07-22 01:52:53','2006-11-26 13:19:05'),('nhjbx','been','inhj',-881786880,'oinhjbxwps',3,'2008-01-23','2002-03-12',12,'2004-11-11 16:40:51','2004-03-28 01:52:06'),('coinhj','ZXTDF','RQHKW',4,'XCVUC',5,'2005-05-13','2004-07-28',13,'2005-07-09 00:38:53','2006-07-20 00:38:01'),('scoinhjb','QTKYL','VUQIS',340393984,'because',-376438784,'2001-09-09','2001-09-23',14,'2000-09-07 15:28:32','2007-03-05 20:48:47'),('iscoinhjb','xisco','MHJRO',NULL,'hxiscoinhj',NULL,'2009-06-02','2000-01-18',15,'2002-10-20 16:20:46','2000-01-12 13:20:27'),('fhxisc','h','BFEZW',9,'FSBLA',2,'2000-06-07','2001-06-04',16,'2004-12-10 22:51:29','2004-02-09 22:10:06'),('that','go','i',376373248,'her',1188298752,'2004-10-15','2003-06-19',17,'2000-08-24 15:26:16','2003-01-26 18:21:51'),('YZJYX','e','SAJLC',6,'r',709951488,'2007-06-17','2002-11-13',18,'2005-04-18 11:17:43','2006-08-19 13:19:45'),('xfh','do','r',4,'uxfh',-1448607744,'2009-03-11','2001-05-03',19,'2007-10-19 02:47:28','2003-08-17 13:50:07'),('j','luxfhx','look',695861248,'pl',1,'2000-11-20','2006-10-26',20,'2008-12-08 12:40:52','2000-06-10 14:23:04'),('can\'t','kpluxfhx','u',937623552,'could',1694564352,'2007-07-07','2000-05-17',21,'2000-09-19 14:48:35','2004-08-20 18:53:27'),('qkpluxfh','AZLHB','gqkp',2128805888,'s',NULL,'2005-04-06','2000-07-20',22,'2003-01-12 19:50:25','2007-09-07 09:05:42'),('n','will','in',341311488,'y',1,'2000-12-06','2002-01-01',23,'2002-11-18 23:41:50','2000-02-04 21:30:00'),('oh','FLCKL','h',894697472,'now',848691200,'2001-01-04','2004-05-19',24,'2000-11-24 17:15:20','2001-08-03 09:14:02'),('oh','rhgqkplu','s',NULL,'she',NULL,'2000-03-13','2007-04-05',25,'2007-11-20 07:32:51','2009-04-13 13:31:49'),('crhgqk','HYFHX','b',4,'tcrh',-1905524736,'2003-11-11','2003-11-13',26,'2007-04-27 17:20:35','2004-05-21 08:01:07'),('who','BDERE','f',-497025024,'they',4,'2009-10-27','2004-01-15',27,'2009-07-24 16:47:27','2003-02-27 06:12:23'),('o','WWGAY','c',7,'et',665518080,'2003-02-19','2004-08-06',28,'2007-12-11 17:48:37','2009-11-17 19:23:20'),('u','YBMLO','OYCOB',5,'x',1,'2002-01-12','2008-09-26',29,'2007-02-16 21:57:54','2003-09-23 00:53:40'),('c','gxetcr','ygxetcr',NULL,'xygx',2,'2008-11-23','2007-10-25',30,'2004-10-15 00:31:28','2006-01-18 05:11:12'),('ix','GPUYR','WUVPG',NULL,'z',3,'2008-02-11','2006-10-06',31,'2005-11-23 07:27:26','2007-03-28 08:53:12'),('c','o','can\'t',450101248,'SFLFT',2,'2007-05-10','2006-03-28',32,'2009-04-07 22:21:11','2003-06-22 05:56:24'),('vixygxe','if','tvixygx',NULL,'wtvi',733282304,'2005-02-05','2003-08-28',33,'2007-04-02 09:12:37','2008-03-03 05:02:18'),('RPNHP','l','bwtv',NULL,'want',2045116416,'2000-04-06','2000-11-24',34,'2002-10-01 23:00:25','2001-12-08 08:41:52'),('KZDWW','rb','i',-366346240,'QULKI',NULL,'2008-03-05','2003-11-13',35,'2004-04-07 19:05:44','2004-12-15 20:32:15');
+
+
+--disable_warnings
+DROP TABLE IF EXISTS `z`;
+--enable_warnings
+
+CREATE TABLE `z` (
+  `col_date_key` date DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_date` date DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_datetime_key` datetime DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_datetime` datetime DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx7` (`pk`, `col_date_key`) BLOCK_SIZE 16384,
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx9` (`pk`, `col_datetime_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384
+);
+INSERT INTO `z` VALUES ('2000-04-09',0,'2004-01-07',1,'his','2007-10-10 05:20:28',2,'or','SOIRU','ONJSB','2006-01-05 03:58:50'),('2001-06-15',958988288,'2008-09-08',2,'u','2007-03-11 02:05:40',-1421148160,'i','pp','u','2002-01-28 10:50:13'),('2005-01-03',NULL,'2007-09-02',3,'x','2007-11-22 09:15:02',7,'r','h','just','2008-12-21 04:01:28'),('2002-03-19',NULL,'2002-08-27',4,'x','2003-11-24 15:30:40',NULL,'from','mppiwyjxm','a','2005-07-02 22:24:23'),('2004-08-24',0,'2000-10-06',5,'fmp','2002-07-11 04:26:46',6,'GZVEY','h','this','2001-08-21 15:00:09'),('2001-06-23',NULL,'2000-01-26',6,'WCYLB','2005-09-21 02:41:26',NULL,'ATSSX','EKLBX','f','2000-10-18 07:32:01'),('2004-08-02',1017905152,'2000-05-24',7,'really','2008-04-14 14:03:46',NULL,'b','KNAWX','k','2007-11-14 06:28:44'),('2005-06-05',3,'2008-12-23',8,'it\'s','2009-10-04 02:54:14',7,'one','he','i','2009-11-16 08:39:50'),('2001-03-26',5,'2004-11-07',9,'s','2003-09-09 00:47:15',9,'z','oh','d','2002-01-15 15:25:44'),('2007-05-13',3,'2006-02-15',10,'s','2007-12-05 10:04:14',8,'b','PNZSJ','obfmp','2004-07-09 19:08:44'),('2007-02-07',NULL,'2006-01-12',11,'v','2004-04-10 09:35:06',-2144862208,'been','l','your','2003-03-12 18:30:03'),('2004-05-23',1608974336,'2004-12-25',12,'yobf','2001-04-12 13:42:47',2,'yyo','mean','NASOB','2000-04-17 03:20:12'),('2000-09-02',NULL,'2009-10-23',13,'pyyobfmppi','2004-08-05 02:35:45',NULL,'w','h','to','2005-09-23 07:42:42'),('2002-07-12',1166213120,'2009-03-01',14,'my','2004-09-16 17:39:29',NULL,'h','now','spyyo','2007-06-27 22:36:08'),('2003-07-09',0,'2003-01-14',15,'YLGQS','2000-03-21 23:35:58',-2092236800,'I\'ll','EAVOB','v','2003-03-07 20:01:44'),('2001-10-14',-1027932160,'2008-07-09',16,'o','2007-05-21 18:50:55',-417464320,'SWDCV','n','XAQXX','2006-09-18 11:03:33'),('2003-11-23',2,'2000-01-22',17,'x','2001-07-07 18:44:47',252248064,'his','DQHAF','d','2002-10-23 13:35:42'),('2006-04-24',1,'2008-04-09',18,'aspyyob','2003-08-13 14:36:20',NULL,'y','QXMEZ','WZBCB','2009-11-26 20:58:30'),('2005-06-12',-1004535808,'2007-10-16',19,'UQTYE','2004-05-15 07:01:30',9,'all','p','u','2004-12-05 19:49:36'),('2008-08-05',9,'2001-10-18',20,'uaspy','2000-11-07 22:30:56',NULL,'c','been','just','2007-10-13 12:54:36'),('2008-09-13',NULL,'2002-08-22',21,'ru','2007-07-01 21:34:32',1334575104,'jruaspyyo','and','ej','2003-10-13 08:38:26'),('2008-04-20',NULL,'2008-06-11',22,'but','2006-01-17 19:40:50',6,'been','him','e','2006-03-10 03:01:55'),('2002-09-05',NULL,'2008-09-24',23,'BQYTB','2003-07-01 01:50:49',NULL,'le','m','tell','2009-04-28 22:16:50'),('2004-02-18',NULL,'2008-04-24',24,'EFATK','2006-03-12 04:05:24',2065170432,'what','for','NIFPI','2008-01-25 17:37:16'),('2001-07-15',NULL,'2007-02-12',25,'PZSPO','2006-05-28 13:41:51',779747328,'NSPRT','yes','ZLLCA','2002-06-11 22:57:19'),('2005-09-18',NULL,'2007-11-27',26,'FYIYT','2000-03-17 11:12:00',NULL,'tml','r','j','2005-10-06 07:33:59');
+
+--disable_warnings
+DROP TABLE IF EXISTS `v`;
+--enable_warnings
+
+CREATE TABLE `v` (
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_datetime_key` datetime DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_date_key` date DEFAULT NULL,
+  `col_date` date DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_datetime` datetime DEFAULT NULL,
+  `pk` int(11) NOT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx9` (`pk`, `col_datetime_key`) BLOCK_SIZE 16384,
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx7` (`pk`, `col_date_key`) BLOCK_SIZE 16384,
+  KEY `idx5` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384
+);
+INSERT INTO `v` VALUES ('m',NULL,'2007-04-01 09:25:51',8,'2004-06-21','2002-11-11','q','2007-11-10 00:58:28',1,'d','FIWSW'),('FZSPG',382664704,'2000-09-15 09:13:43',455540736,'2007-04-07','2003-05-26','duwistnnu','2005-01-24 15:21:55',2,'u','BDAPU'),('VZPKF',NULL,'2005-04-11 02:05:54',1883504640,'2006-04-10','2000-03-13','we','2003-07-18 15:27:19',3,'j','SBMFU'),('can\'t',NULL,'2005-11-09 09:38:41',-130678784,'2004-10-17','2009-02-17','wduwis','2008-01-06 23:24:55',4,'nwduwist','AVVIS'),('knwduwist',599130112,'2007-04-06 20:18:56',1,'2008-07-17','2004-04-01','CAJPQ','2003-03-07 17:33:40',5,'s','sknwduwi'),('l',-899547136,'2007-03-09 10:13:48',3,'2008-03-17','2007-06-09','ORSLU','2003-02-07 01:06:36',6,'gsknw','XRBCN'),('FZIIX',3,'2009-12-28 08:51:58',NULL,'2006-03-14','2008-10-24','y','2002-09-20 16:49:09',7,'KWRZJ','c'),('d',NULL,'2009-07-07 06:43:35',0,'2007-05-25','2003-04-16','the','2005-05-15 11:39:29',8,'GAZND','t'),('f',9,'2004-06-24 10:37:28',NULL,'2002-11-26','2007-12-26','w','2008-01-19 23:55:48',9,'GTUDN','time'),('to',-2037907456,'2000-12-09 05:46:22',1099956224,'2003-07-18','2008-08-26','s','2003-04-09 23:42:40',10,'sgsknwduwi','are'),('of',NULL,'2008-01-20 20:49:23',684523520,'2007-11-19','2002-11-11','yeah','2008-02-05 10:16:45',11,'know','RXVNA'),('hsgsknwduw',-952238080,'2000-05-10 16:32:21',9,'2003-05-10','2005-07-19','rhsgsknw','2001-04-18 01:46:07',12,'b','VMTRE'),('o',NULL,'2002-04-05 05:50:25',NULL,'2009-06-14','2004-09-05','ADFJC','2007-12-10 00:58:52',13,'were','zrhsgsk'),('GNTRQ',NULL,'2008-07-20 07:17:05',1448935424,'2004-11-17','2002-09-14','it\'s','2004-11-25 17:32:26',14,'you','WXADI'),('were',1772879872,'2008-05-27 19:09:41',NULL,'2001-07-14','2003-03-17','j','2008-03-03 13:28:55',15,'INIHT','w'),('mzrhsgskn',1,'2002-07-18 10:50:43',-408944640,'2000-05-13','2007-02-20','VWTKJ','2006-05-18 02:32:47',16,'k','h'),('OIHCA',-1898053632,'2007-12-24 00:37:34',6,'2006-08-17','2000-09-27','THNIC','2001-02-26 21:40:27',17,'pmz','GQVVI'),('DOJIG',-2109931520,'2008-10-26 15:34:52',200998912,'2003-02-15','2001-06-19','cp','2007-11-01 06:25:32',18,'f','PRZTA'),('GBYCO',0,'2009-01-19 14:09:21',3,'2009-01-07','2003-10-05','at','2007-03-01 02:49:11',19,'m','l'),('jcpmzrhsgs',8,'2005-05-21 03:02:53',-1653473280,'2008-03-25','2007-04-09','w','2008-08-01 11:19:26',20,'you\'re','g'),('tjcpmz',1,'2003-04-08 02:16:52',NULL,'2005-07-26','2005-05-18','s','2003-10-01 16:17:20',21,'n','think'),('etjcpm',NULL,'2009-06-18 23:38:55',1,'2005-12-23','2001-01-12','XKKVY','2004-03-05 12:12:02',22,'could','MIJFZ');
+
+--disable_warnings
+DROP TABLE IF EXISTS `n`;
+--enable_warnings
+
+CREATE TABLE `n` (
+  `pk` int(11) NOT NULL,
+  `col_date` date DEFAULT NULL,
+  `col_varchar_20_key` varchar(20) DEFAULT NULL,
+  `col_varchar_10_key` varchar(10) DEFAULT NULL,
+  `col_varchar_20` varchar(20) DEFAULT NULL,
+  `col_int` int(11) DEFAULT NULL,
+  `col_datetime_key` datetime DEFAULT NULL,
+  `col_int_key` int(11) DEFAULT NULL,
+  `col_datetime` datetime DEFAULT NULL,
+  `col_date_key` date DEFAULT NULL,
+  `col_varchar_10` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx5` (`pk`, `col_varchar_20_key`) BLOCK_SIZE 16384,
+  KEY `idx3` (`pk`, `col_varchar_10_key`) BLOCK_SIZE 16384,
+  KEY `idx9` (`pk`, `col_datetime_key`) BLOCK_SIZE 16384,
+  KEY `idx1` (`pk`, `col_int_key`) BLOCK_SIZE 16384,
+  KEY `idx7` (`pk`, `col_date_key`) BLOCK_SIZE 16384
+);
+INSERT INTO `n` VALUES (1,'2006-01-08','b','nswggomunr','m',9,'2006-03-07 20:48:52',7,'2006-06-17 17:17:20','2008-03-16','you'),(2,'2003-10-10','pm','good','i',7,'2004-07-01 16:45:35',9,'2007-12-08 20:11:35','2006-11-20','o'),(3,'2008-02-27','b','qpmnsw','rqpmnswgg',NULL,'2002-10-15 07:01:56',5,'2001-05-17 12:02:11','2003-12-23','think'),(4,'2009-11-09','lrqpm','y','that',5,'2001-07-14 06:19:56',NULL,'2009-02-07 08:18:49','2006-10-16','y'),(5,'2000-09-04','i','or','j',615055360,'2008-12-08 15:39:11',NULL,'2005-06-15 09:55:36','2007-09-16','PVLWD'),(6,'2003-07-14','the','vlr','kv',NULL,'2001-06-27 23:21:05',749404160,'2008-03-14 22:21:41','2005-03-11','PKZNC'),(7,'2008-11-22','x','was','u',-1483407360,'2008-10-22 07:38:49',9,'2006-08-14 17:48:16','2000-07-03','h'),(8,'2009-11-12','SVXEM','no','p',5,'2004-02-28 14:03:04',NULL,'2008-07-21 07:59:00','2004-07-25','SLOUS'),(9,'2000-01-23','y','f','ckvlrqpmns',NULL,'2005-01-13 15:30:12',NULL,'2007-12-07 21:54:01','2001-08-25','qckvlrqpm'),(10,'2000-12-18','b','s','w',NULL,'2005-12-13 05:23:01',NULL,'2003-06-05 11:08:02','2005-01-21','NKPWJ'),(11,'2009-07-03','dwbqck','XERXF','EPNWS',-332595200,'2000-10-18 09:20:48',NULL,'2009-01-05 15:18:42','2008-10-02','in'),(12,'2007-08-21','rdwbqckvl','ardwbqck','TCYID',1884487680,'2002-05-01 14:45:18',-1155006464,'2003-08-20 01:04:37','2005-03-09','dar'),(13,'2004-11-10','m','xdar','c',1575354368,'2005-12-03 14:27:23',-1420034048,'2002-01-16 14:08:09','2003-09-12','QGSJE'),(14,'2009-10-15','your','b','p',-120848384,'2007-11-23 09:09:14',9,'2008-03-03 03:38:38','2007-10-06','tcxd');
+
+commit;
+
+SELECT GRANDPARENT1 . col_datetime_key AS G1 FROM l AS GRANDPARENT1 LEFT JOIN v AS GRANDPARENT2 ON ( GRANDPARENT2 . `col_date` <= GRANDPARENT1 . `col_datetime_key` ) WHERE GRANDPARENT1 . `col_varchar_20_key` IN ( SELECT DISTINCT PARENT1 . `col_varchar_10` AS P1 FROM ii AS PARENT1 LEFT JOIN n AS PARENT2 ON ( PARENT1 . `pk` = PARENT2 . `col_int_key` ) WHERE GRANDPARENT1 . `col_varchar_10` IN ( SELECT DISTINCT CHILD1 . `col_varchar_20` AS C1 FROM z AS CHILD1 LEFT JOIN l AS CHILD2 ON ( CHILD1 . `pk` >= CHILD2 . `pk` ) WHERE ( ( CHILD1 . `col_date` < PARENT1 . `col_date` ) OR NOT ( ( CHILD1 . `col_varchar_10` > CHILD1 . `col_varchar_10_key` ) OR NOT ( ( GRANDPARENT1 . `col_varchar_20` = 'b' OR NOT GRANDPARENT1 . `col_int` = 0 ) OR GRANDPARENT1 . `col_int_key` <= 0 ) ) ) ORDER BY CHILD1 . col_datetime_key ) AND ( GRANDPARENT1 . `col_varchar_20_key` <> 'i' ) ORDER BY PARENT1 . col_datetime_key ) AND GRANDPARENT1 . `col_int` >= 9 GROUP BY GRANDPARENT1 . col_datetime_key ORDER BY GRANDPARENT1 . col_datetime_key;
+
+--echo
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+create table t3(c1 int, c2 int) partition by hash(c1) partitions 3;
+create table t2(c1 int primary key, c2 int) partition by hash(c1) partitions 3;
+create table t1(c1 int, c2 int) partition by hash(c1) partitions 3;
+insert into t2 values(11,1),(13,3), (15,5),(16,6),(17,7),(18,8), (111,1),(112,2),(113,3),(115,5),(116,6),(117,7),(118,8),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+insert into t1 values(11,1),(12,2),(13,3),(14,4),(15,5),(16,6),(17,7),(18,8),(111,1),(112,2),(113,3),(114,4),(115,5),(116,6),(117,7),(118,8),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8), (9,9),(23,13), (25,15), (35,15);
+insert into t3 values(1,1), (3,3), (2,2);
+
+select /*+leading(t3,(t1,t2)) use_nl(t2,t1)*/* from t1, t2, t3 where t1.c1 = t2.c1 and t1.c1 = t3.c1;
+drop table t1,t2,t3;
+
+
+--echo
+--echo
+--echo ***** test not support batch semi join
+create table t1(c1 int, c2 int);
+insert/*trace*/ into t1 values(1,1),(1,2),(1,3),(2,3),(2,4);
+create table t2(c1 int, c2 int);
+create index idx on t2(c1);
+insert/*trace*/ into t2 values(1,1), (2,2), (2,2);
+select/*+leading(t1,t2) use_nl(t1, t2) index(t2, idx)*/ * from t1 where exists (select 1 from t2 where t1.c1 = t2.c1);
+drop table t1, t2;

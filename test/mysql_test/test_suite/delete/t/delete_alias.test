@@ -1,0 +1,51 @@
+# tags: optimizer,dml
+
+--disable_warnings
+drop table if exists t;
+--enable_warnings
+
+create table t(c1 int primary key, c2 int, key tc2(c2));
+
+explain basic delete/*+index(ti tc2)*/ from t as ti;
+
+explain basic delete/*+index(ti tc2)*/ from t ti;
+
+explain basic delete from t as ti;
+
+explain basic delete/*+index(ti tc2)*/ from t as ti where c1 = 1;
+
+explain basic delete/*+index(ti tc2)*/ from t ti where c1 = 1;
+
+explain basic delete from t as ti where c1 = 1;
+
+explain basic delete from t partition(p0) use index(tc2) where c1 = 2;
+
+insert into t values(1, 2);
+
+insert into t values(2, 3);
+
+insert into t values(3, 4);
+
+insert into t values(4, 5);
+
+insert into t values(5, 6);
+
+delete/*+index(ti tc2)*/ from t as ti where c1 = 1;
+
+select * from t;
+
+delete from t partition(p0) use index(tc2) where c1 = 2;
+
+delete/*+index(ti tc2)*/ from t ti where c1 = 3;
+
+delete/*+index(ti tc2)*/ from t partition(p0) ti where c1 = 4;
+
+select * from t;
+
+delete from t;
+
+select * from t;
+
+drop table t;
+
+

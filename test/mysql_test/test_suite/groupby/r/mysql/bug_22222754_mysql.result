@@ -1,0 +1,784 @@
+drop table if exists test_rollup;
+drop table if exists t1;
+drop table if exists t2;
+create table test_rollup(user_id int,user_name varchar(32),user_dept_id char(4),user_age int,comments varchar(32) not null default 'N/A') partition by hash (user_id) partitions 15;
+create table t1(c1 int, c2 int, c3 int, c4 int, primary key(c1,c2)) partition by hash(c1+c2) partitions 2;
+create table t2(c1 int, c2 int, c3 int, c4 int, primary key(c1,c2));
+explain_protocol: 0
+select /*+use_px, parallel(2)*/user_dept_id, count(*), avg(user_age) from test_rollup group by user_dept_id with rollup;
+user_dept_id	count(*)	avg(user_age)
+0000	10	30.0000
+0001	10	35.0000
+0002	10	55.0000
+NULL	30	40.0000
+select /*+no_use_px*/user_dept_id, count(*), avg(user_age) from test_rollup group by user_dept_id with rollup;
+user_dept_id	count(*)	avg(user_age)
+0000	10	30.0000
+0001	10	35.0000
+0002	10	55.0000
+NULL	30	40.0000
+select /*+use_px, parallel(2)*/sum(c4) from t1;
+sum(c4)
+19
+select /*+no_use_px*/sum(c4) from t1;
+sum(c4)
+19
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)
+NULL	NULL	19
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)
+NULL	NULL	19
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+use_px, parallel(2)*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	count(*)
+NULL	NULL	9
+1	NULL	1
+1	1	1
+2	NULL	1
+2	1	1
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	1
+5	1	1
+6	NULL	1
+6	2	1
+7	NULL	1
+7	2	1
+8	NULL	1
+8	2	1
+9	NULL	1
+9	2	1
+select /*+no_use_px*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	count(*)
+NULL	NULL	9
+1	NULL	1
+1	1	1
+2	NULL	1
+2	1	1
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	1
+5	1	1
+6	NULL	1
+6	2	1
+7	NULL	1
+7	2	1
+8	NULL	1
+8	2	1
+9	NULL	1
+9	2	1
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 order by c2;
+c2	sum(c4)
+1	7
+2	12
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 order by c2;
+c2	sum(c4)
+1	7
+2	12
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)
+NULL	19
+1	7
+2	12
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)
+NULL	19
+1	7
+2	12
+select /*+use_px, parallel(2)*/c2,count(*) from t1 group by c2 with rollup order by c2;
+c2	count(*)
+NULL	9
+1	5
+2	4
+select /*+no_use_px*/c2,count(*) from t1 group by c2 with rollup order by c2;
+c2	count(*)
+NULL	9
+1	5
+2	4
+select /*+use_px, parallel(2)*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	NULL	19	9	4	1
+1	NULL	1	1	1	1
+1	1	1	1	1	1
+2	NULL	2	1	2	2
+2	1	2	1	2	2
+3	NULL	1	1	1	1
+3	1	1	1	1	1
+4	NULL	1	1	1	1
+4	1	1	1	1	1
+5	NULL	2	1	2	2
+5	1	2	1	2	2
+6	NULL	1	1	1	1
+6	2	1	1	1	1
+7	NULL	4	1	4	4
+7	2	4	1	4	4
+8	NULL	3	1	3	3
+8	2	3	1	3	3
+9	NULL	4	1	4	4
+9	2	4	1	4	4
+select /*+no_use_px*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	NULL	19	9	4	1
+1	NULL	1	1	1	1
+1	1	1	1	1	1
+2	NULL	2	1	2	2
+2	1	2	1	2	2
+3	NULL	1	1	1	1
+3	1	1	1	1	1
+4	NULL	1	1	1	1
+4	1	1	1	1	1
+5	NULL	2	1	2	2
+5	1	2	1	2	2
+6	NULL	1	1	1	1
+6	2	1	1	1	1
+7	NULL	4	1	4	4
+7	2	4	1	4	4
+8	NULL	3	1	3	3
+8	2	3	1	3	3
+9	NULL	4	1	4	4
+9	2	4	1	4	4
+select /*+use_px, parallel(2)*/c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	19	9	4	1
+1	7	5	2	1
+2	12	4	4	1
+select /*+no_use_px*/c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	19	9	4	1
+1	7	5	2	1
+2	12	4	4	1
+select /*+use_px, parallel(2)*/sum(distinct c4) from t1;
+sum(distinct c4)
+10
+select /*+no_use_px*/sum(distinct c4) from t1;
+sum(distinct c4)
+10
+select /*+use_px, parallel(2)*/c1,c2,sum(distinct c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(distinct c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+no_use_px*/c1,c2,sum(distinct c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(distinct c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+use_px, parallel(2)*/c1,c2,sum(distinct c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(distinct c4)
+NULL	NULL	10
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+no_use_px*/c1,c2,sum(distinct c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(distinct c4)
+NULL	NULL	10
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+use_px, parallel(2)*/c2,sum(distinct c4) from t1 group by c2 order by c2;
+c2	sum(distinct c4)
+1	3
+2	8
+select /*+no_use_px*/c2,sum(distinct c4) from t1 group by c2 order by c2;
+c2	sum(distinct c4)
+1	3
+2	8
+select /*+use_px, parallel(2)*/c2,sum(distinct c4) from t1 group by c2 with rollup order by c2;
+c2	sum(distinct c4)
+NULL	10
+1	3
+2	8
+select /*+no_use_px*/c2,sum(distinct c4) from t1 group by c2 with rollup order by c2;
+c2	sum(distinct c4)
+NULL	10
+1	3
+2	8
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c2,count(*) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+c1	c2	c3	c4	c2	count(*)
+1	1	1	1	1	5
+2	2	2	2	2	4
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c2,count(*) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+c1	c2	c3	c4	c2	count(*)
+1	1	1	1	1	5
+2	2	2	2	2	4
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+c1	c2	c3	c4	c1	c2	count(*)
+1	1	1	1	1	1	1
+1	1	1	1	1	NULL	1
+2	2	2	2	2	1	1
+2	2	2	2	2	NULL	1
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c1,c2,count(*) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+c1	c2	c3	c4	c1	c2	count(*)
+1	1	1	1	1	1	1
+1	1	1	1	1	NULL	1
+2	2	2	2	2	1	1
+2	2	2	2	2	NULL	1
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c2,avg(c4) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+c1	c2	c3	c4	c2	avg(c4)
+1	1	1	1	1	1.4000
+2	2	2	2	2	3.0000
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c2,avg(c4) from t1 group by c2 with rollup order by c2) temp where t2.c2=temp.c2;
+c1	c2	c3	c4	c2	avg(c4)
+1	1	1	1	1	1.4000
+2	2	2	2	2	3.0000
+select /*+use_px, parallel(2)*/* from t2,(select /*+no_merge*/c1,c2,avg(c4) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+c1	c2	c3	c4	c1	c2	avg(c4)
+1	1	1	1	1	1	1.0000
+1	1	1	1	1	NULL	1.0000
+2	2	2	2	2	1	2.0000
+2	2	2	2	2	NULL	2.0000
+select /*+no_use_px*/* from t2,(select /*+no_merge*/c1,c2,avg(c4) from t1 group by c1,c2 with rollup order by c1,c2) temp where t2.c1=temp.c1;
+c1	c2	c3	c4	c1	c2	avg(c4)
+1	1	1	1	1	1	1.0000
+1	1	1	1	1	NULL	1.0000
+2	2	2	2	2	1	2.0000
+2	2	2	2	2	NULL	2.0000
+set _groupby_nopushdown_cut_ratio=1;
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)
+NULL	NULL	19
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)
+NULL	NULL	19
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 order by c2;
+c2	sum(c4)
+1	7
+2	12
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 order by c2;
+c2	sum(c4)
+1	7
+2	12
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)
+NULL	19
+1	7
+2	12
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)
+NULL	19
+1	7
+2	12
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)
+1	1	1
+2	1	2
+3	1	1
+4	1	1
+5	1	2
+6	2	1
+7	2	4
+8	2	3
+9	2	4
+select /*+use_px, parallel(2)*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)
+NULL	NULL	19
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+no_use_px*/c1,c2,sum(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)
+NULL	NULL	19
+1	NULL	1
+1	1	1
+2	NULL	2
+2	1	2
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	2
+5	1	2
+6	NULL	1
+6	2	1
+7	NULL	4
+7	2	4
+8	NULL	3
+8	2	3
+9	NULL	4
+9	2	4
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 order by c2;
+c2	sum(c4)
+1	7
+2	12
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 order by c2;
+c2	sum(c4)
+1	7
+2	12
+select /*+use_px, parallel(2)*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)
+NULL	19
+1	7
+2	12
+select /*+no_use_px*/c2,sum(c4) from t1 group by c2 with rollup order by c2;
+c2	sum(c4)
+NULL	19
+1	7
+2	12
+select /*+use_px, parallel(2)*/c1,c2,count(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	count(c4)
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	2	1
+7	2	1
+8	2	1
+9	2	1
+select /*+no_use_px*/c1,c2,count(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	count(c4)
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	2	1
+7	2	1
+8	2	1
+9	2	1
+select /*+use_px, parallel(2)*/c1,c2,count(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	count(c4)
+NULL	NULL	9
+1	NULL	1
+1	1	1
+2	NULL	1
+2	1	1
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	1
+5	1	1
+6	NULL	1
+6	2	1
+7	NULL	1
+7	2	1
+8	NULL	1
+8	2	1
+9	NULL	1
+9	2	1
+select /*+no_use_px*/c1,c2,count(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	count(c4)
+NULL	NULL	9
+1	NULL	1
+1	1	1
+2	NULL	1
+2	1	1
+3	NULL	1
+3	1	1
+4	NULL	1
+4	1	1
+5	NULL	1
+5	1	1
+6	NULL	1
+6	2	1
+7	NULL	1
+7	2	1
+8	NULL	1
+8	2	1
+9	NULL	1
+9	2	1
+select /*+use_px, parallel(2)*/c2,count(c4) from t1 group by c2 order by c2;
+c2	count(c4)
+1	5
+2	4
+select /*+no_use_px*/c2,count(c4) from t1 group by c2 order by c2;
+c2	count(c4)
+1	5
+2	4
+select /*+use_px, parallel(2)*/c2,count(c4) from t1 group by c2 with rollup order by c2;
+c2	count(c4)
+NULL	9
+1	5
+2	4
+select /*+no_use_px*/c2,count(c4) from t1 group by c2 with rollup order by c2;
+c2	count(c4)
+NULL	9
+1	5
+2	4
+select /*+use_px, parallel(2)*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)	count(*)	max(c4)	min(c4)
+1	1	1	1	1	1
+2	1	2	1	2	2
+3	1	1	1	1	1
+4	1	1	1	1	1
+5	1	2	1	2	2
+6	2	1	1	1	1
+7	2	4	1	4	4
+8	2	3	1	3	3
+9	2	4	1	4	4
+select /*+no_use_px*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 order by c1,c2;
+c1	c2	sum(c4)	count(*)	max(c4)	min(c4)
+1	1	1	1	1	1
+2	1	2	1	2	2
+3	1	1	1	1	1
+4	1	1	1	1	1
+5	1	2	1	2	2
+6	2	1	1	1	1
+7	2	4	1	4	4
+8	2	3	1	3	3
+9	2	4	1	4	4
+select /*+use_px, parallel(2)*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	NULL	19	9	4	1
+1	NULL	1	1	1	1
+1	1	1	1	1	1
+2	NULL	2	1	2	2
+2	1	2	1	2	2
+3	NULL	1	1	1	1
+3	1	1	1	1	1
+4	NULL	1	1	1	1
+4	1	1	1	1	1
+5	NULL	2	1	2	2
+5	1	2	1	2	2
+6	NULL	1	1	1	1
+6	2	1	1	1	1
+7	NULL	4	1	4	4
+7	2	4	1	4	4
+8	NULL	3	1	3	3
+8	2	3	1	3	3
+9	NULL	4	1	4	4
+9	2	4	1	4	4
+select /*+no_use_px*/c1,c2, sum(c4), count(*), max(c4), min(c4) from t1 group by c1,c2 with rollup order by c1,c2;
+c1	c2	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	NULL	19	9	4	1
+1	NULL	1	1	1	1
+1	1	1	1	1	1
+2	NULL	2	1	2	2
+2	1	2	1	2	2
+3	NULL	1	1	1	1
+3	1	1	1	1	1
+4	NULL	1	1	1	1
+4	1	1	1	1	1
+5	NULL	2	1	2	2
+5	1	2	1	2	2
+6	NULL	1	1	1	1
+6	2	1	1	1	1
+7	NULL	4	1	4	4
+7	2	4	1	4	4
+8	NULL	3	1	3	3
+8	2	3	1	3	3
+9	NULL	4	1	4	4
+9	2	4	1	4	4
+select /*+use_px, parallel(2)*/c2,c3,sum(c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	sum(c4)
+1	1	4
+1	2	3
+2	3	12
+select /*+no_use_px*/c2,c3,sum(c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	sum(c4)
+1	1	4
+1	2	3
+2	3	12
+select /*+use_px, parallel(2)*/c2,c3,sum(distinct c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	sum(distinct c4)
+1	1	3
+1	2	3
+2	3	8
+select /*+no_use_px*/c2,c3,sum(distinct c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	sum(distinct c4)
+1	1	3
+1	2	3
+2	3	8
+select /*+use_px, parallel(2)*/c2,c3,sum(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	sum(c4)
+NULL	NULL	19
+1	NULL	7
+1	1	4
+1	2	3
+2	NULL	12
+2	3	12
+select /*+no_use_px*/c2,c3,sum(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	sum(c4)
+NULL	NULL	19
+1	NULL	7
+1	1	4
+1	2	3
+2	NULL	12
+2	3	12
+select /*+use_px, parallel(2)*/c2,c3,sum(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	sum(distinct c4)
+NULL	NULL	10
+1	NULL	3
+1	1	3
+1	2	3
+2	NULL	8
+2	3	8
+select /*+no_use_px*/c2,c3,sum(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	sum(distinct c4)
+NULL	NULL	10
+1	NULL	3
+1	1	3
+1	2	3
+2	NULL	8
+2	3	8
+select /*+use_px, parallel(2)*/c2,c3,count(c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	count(c4)
+1	1	3
+1	2	2
+2	3	4
+select /*+no_use_px*/c2,c3,count(c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	count(c4)
+1	1	3
+1	2	2
+2	3	4
+select /*+use_px, parallel(2)*/c2,c3,count(distinct c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	count(distinct c4)
+1	1	2
+1	2	2
+2	3	3
+select /*+no_use_px*/c2,c3,count(distinct c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	count(distinct c4)
+1	1	2
+1	2	2
+2	3	3
+select /*+use_px, parallel(2)*/c2,c3,count(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	count(c4)
+NULL	NULL	9
+1	NULL	5
+1	1	3
+1	2	2
+2	NULL	4
+2	3	4
+select /*+no_use_px*/c2,c3,count(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	count(c4)
+NULL	NULL	9
+1	NULL	5
+1	1	3
+1	2	2
+2	NULL	4
+2	3	4
+select /*+use_px, parallel(2)*/c2,c3,count(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	count(distinct c4)
+NULL	NULL	4
+1	NULL	2
+1	1	2
+1	2	2
+2	NULL	3
+2	3	3
+select /*+no_use_px*/c2,c3,count(distinct c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	count(distinct c4)
+NULL	NULL	4
+1	NULL	2
+1	1	2
+1	2	2
+2	NULL	3
+2	3	3
+select /*+use_px, parallel(2)*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	sum(c4)	count(*)	max(c4)	min(c4)
+1	1	4	3	2	1
+1	2	3	2	2	1
+2	3	12	4	4	1
+select /*+no_use_px*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 order by c2,c3;
+c2	c3	sum(c4)	count(*)	max(c4)	min(c4)
+1	1	4	3	2	1
+1	2	3	2	2	1
+2	3	12	4	4	1
+select /*+use_px, parallel(2)*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	NULL	19	9	4	1
+1	NULL	7	5	2	1
+1	1	4	3	2	1
+1	2	3	2	2	1
+2	NULL	12	4	4	1
+2	3	12	4	4	1
+select /*+no_use_px*/c2,c3, sum(c4), count(*), max(c4), min(c4) from t1 group by c2,c3 with rollup order by c2,c3;
+c2	c3	sum(c4)	count(*)	max(c4)	min(c4)
+NULL	NULL	19	9	4	1
+1	NULL	7	5	2	1
+1	1	4	3	2	1
+1	2	3	2	2	1
+2	NULL	12	4	4	1
+2	3	12	4	4	1
+set _groupby_nopushdown_cut_ratio=3;
+drop table test_rollup;
+drop table t1;
+drop table t2;

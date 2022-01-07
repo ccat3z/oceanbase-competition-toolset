@@ -1,0 +1,3549 @@
+drop table t1;
+drop table t2;
+create table t1(c1 int not null,c2 int not null, c3 int);
+create table t2(c1 int not null,c2 int not null, c3 int);
+insert into t1 values(1,2,0);
+insert into t1 values(2,4,1);
+insert into t1 values(-1,5,2);
+insert into t1 values(5,1,3);
+insert into t1 values(3,3,4);
+insert into t1 values(3,4,5);
+insert into t1 values(10,2,6);
+insert into t2 values(1,2,0);
+insert into t2 values(4,4,1);
+insert into t2 values(-1,5,2);
+insert into t2 values(5,1,3);
+insert into t2 values(3,5,4);
+insert into t2 values(3,4,5);
+insert into t2 values(11,3,6);
+commit;
+alter system set _force_hash_join_spill=false;
+alter system set _enable_hash_join_processor=7;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH JOIN                       |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE JOIN                       |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH OUTER JOIN                 |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE OUTER JOIN                 |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT OUTER JOIN           |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE RIGHT OUTER JOIN           |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+===========================================
+|ID|OPERATOR                     |NAME    |
+-------------------------------------------
+|0 |PX COORDINATOR               |        |
+|1 | EXCHANGE OUT DISTR          |:EX10002|
+|2 |  HASH FULL OUTER JOIN       |        |
+|3 |   EXCHANGE IN DISTR         |        |
+|4 |    EXCHANGE OUT DISTR (HASH)|:EX10000|
+|5 |     PX BLOCK ITERATOR       |        |
+|6 |      TABLE SCAN             |a       |
+|7 |   EXCHANGE IN DISTR         |        |
+|8 |    EXCHANGE OUT DISTR (HASH)|:EX10001|
+|9 |     PX BLOCK ITERATOR       |        |
+|10|      TABLE SCAN             |b       |
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+============================================
+|ID|OPERATOR                      |NAME    |
+--------------------------------------------
+|0 |PX COORDINATOR                |        |
+|1 | EXCHANGE OUT DISTR           |:EX10002|
+|2 |  MERGE FULL OUTER JOIN       |        |
+|3 |   SORT                       |        |
+|4 |    EXCHANGE IN DISTR         |        |
+|5 |     EXCHANGE OUT DISTR (HASH)|:EX10000|
+|6 |      PX BLOCK ITERATOR       |        |
+|7 |       TABLE SCAN             |a       |
+|8 |   SORT                       |        |
+|9 |    EXCHANGE IN DISTR         |        |
+|10|     EXCHANGE OUT DISTR (HASH)|:EX10001|
+|11|      PX BLOCK ITERATOR       |        |
+|12|       TABLE SCAN             |b       |
+============================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  11 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  12 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), dop=2
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), dop=2
+  9 - output([b.c1]), filter(nil)
+  10 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  5 - output([b.c2], [b.c1]), filter(nil)
+  6 - output([b.c2], [b.c1]), filter(nil), dop=2
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c2, ASC], [a.c1, ASC])
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  5 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  6 - output([b.c2], [b.c1]), filter(nil), sort_keys([b.c2, ASC], [b.c1, ASC])
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), dop=2
+  9 - output([b.c2], [b.c1]), filter(nil)
+  10 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+alter system set _force_hash_join_spill=true;
+alter system set _enable_hash_join_processor=1;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH JOIN                       |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE JOIN                       |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH OUTER JOIN                 |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE OUTER JOIN                 |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT OUTER JOIN           |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE RIGHT OUTER JOIN           |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+===========================================
+|ID|OPERATOR                     |NAME    |
+-------------------------------------------
+|0 |PX COORDINATOR               |        |
+|1 | EXCHANGE OUT DISTR          |:EX10002|
+|2 |  HASH FULL OUTER JOIN       |        |
+|3 |   EXCHANGE IN DISTR         |        |
+|4 |    EXCHANGE OUT DISTR (HASH)|:EX10000|
+|5 |     PX BLOCK ITERATOR       |        |
+|6 |      TABLE SCAN             |a       |
+|7 |   EXCHANGE IN DISTR         |        |
+|8 |    EXCHANGE OUT DISTR (HASH)|:EX10001|
+|9 |     PX BLOCK ITERATOR       |        |
+|10|      TABLE SCAN             |b       |
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+============================================
+|ID|OPERATOR                      |NAME    |
+--------------------------------------------
+|0 |PX COORDINATOR                |        |
+|1 | EXCHANGE OUT DISTR           |:EX10002|
+|2 |  MERGE FULL OUTER JOIN       |        |
+|3 |   SORT                       |        |
+|4 |    EXCHANGE IN DISTR         |        |
+|5 |     EXCHANGE OUT DISTR (HASH)|:EX10000|
+|6 |      PX BLOCK ITERATOR       |        |
+|7 |       TABLE SCAN             |a       |
+|8 |   SORT                       |        |
+|9 |    EXCHANGE IN DISTR         |        |
+|10|     EXCHANGE OUT DISTR (HASH)|:EX10001|
+|11|      PX BLOCK ITERATOR       |        |
+|12|       TABLE SCAN             |b       |
+============================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  11 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  12 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), dop=2
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), dop=2
+  9 - output([b.c1]), filter(nil)
+  10 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  5 - output([b.c2], [b.c1]), filter(nil)
+  6 - output([b.c2], [b.c1]), filter(nil), dop=2
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c2, ASC], [a.c1, ASC])
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  5 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  6 - output([b.c2], [b.c1]), filter(nil), sort_keys([b.c2, ASC], [b.c1, ASC])
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), dop=2
+  9 - output([b.c2], [b.c1]), filter(nil)
+  10 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+alter system set _enable_hash_join_hasher=2;
+alter system set _enable_hash_join_processor=7;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH JOIN                       |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE JOIN                       |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH OUTER JOIN                 |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE OUTER JOIN                 |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT OUTER JOIN           |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE RIGHT OUTER JOIN           |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+===========================================
+|ID|OPERATOR                     |NAME    |
+-------------------------------------------
+|0 |PX COORDINATOR               |        |
+|1 | EXCHANGE OUT DISTR          |:EX10002|
+|2 |  HASH FULL OUTER JOIN       |        |
+|3 |   EXCHANGE IN DISTR         |        |
+|4 |    EXCHANGE OUT DISTR (HASH)|:EX10000|
+|5 |     PX BLOCK ITERATOR       |        |
+|6 |      TABLE SCAN             |a       |
+|7 |   EXCHANGE IN DISTR         |        |
+|8 |    EXCHANGE OUT DISTR (HASH)|:EX10001|
+|9 |     PX BLOCK ITERATOR       |        |
+|10|      TABLE SCAN             |b       |
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+============================================
+|ID|OPERATOR                      |NAME    |
+--------------------------------------------
+|0 |PX COORDINATOR                |        |
+|1 | EXCHANGE OUT DISTR           |:EX10002|
+|2 |  MERGE FULL OUTER JOIN       |        |
+|3 |   SORT                       |        |
+|4 |    EXCHANGE IN DISTR         |        |
+|5 |     EXCHANGE OUT DISTR (HASH)|:EX10000|
+|6 |      PX BLOCK ITERATOR       |        |
+|7 |       TABLE SCAN             |a       |
+|8 |   SORT                       |        |
+|9 |    EXCHANGE IN DISTR         |        |
+|10|     EXCHANGE OUT DISTR (HASH)|:EX10001|
+|11|      PX BLOCK ITERATOR       |        |
+|12|       TABLE SCAN             |b       |
+============================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  11 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  12 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), dop=2
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), dop=2
+  9 - output([b.c1]), filter(nil)
+  10 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  5 - output([b.c2], [b.c1]), filter(nil)
+  6 - output([b.c2], [b.c1]), filter(nil), dop=2
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c2, ASC], [a.c1, ASC])
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  5 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  6 - output([b.c2], [b.c1]), filter(nil), sort_keys([b.c2, ASC], [b.c1, ASC])
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), dop=2
+  9 - output([b.c2], [b.c1]), filter(nil)
+  10 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+alter system set _enable_hash_join_hasher=4;
+alter system set _enable_hash_join_processor=7;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH JOIN                       |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE JOIN                       |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH OUTER JOIN                 |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE OUTER JOIN                 |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT OUTER JOIN           |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE RIGHT OUTER JOIN           |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+===========================================
+|ID|OPERATOR                     |NAME    |
+-------------------------------------------
+|0 |PX COORDINATOR               |        |
+|1 | EXCHANGE OUT DISTR          |:EX10002|
+|2 |  HASH FULL OUTER JOIN       |        |
+|3 |   EXCHANGE IN DISTR         |        |
+|4 |    EXCHANGE OUT DISTR (HASH)|:EX10000|
+|5 |     PX BLOCK ITERATOR       |        |
+|6 |      TABLE SCAN             |a       |
+|7 |   EXCHANGE IN DISTR         |        |
+|8 |    EXCHANGE OUT DISTR (HASH)|:EX10001|
+|9 |     PX BLOCK ITERATOR       |        |
+|10|      TABLE SCAN             |b       |
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+============================================
+|ID|OPERATOR                      |NAME    |
+--------------------------------------------
+|0 |PX COORDINATOR                |        |
+|1 | EXCHANGE OUT DISTR           |:EX10002|
+|2 |  MERGE FULL OUTER JOIN       |        |
+|3 |   SORT                       |        |
+|4 |    EXCHANGE IN DISTR         |        |
+|5 |     EXCHANGE OUT DISTR (HASH)|:EX10000|
+|6 |      PX BLOCK ITERATOR       |        |
+|7 |       TABLE SCAN             |a       |
+|8 |   SORT                       |        |
+|9 |    EXCHANGE IN DISTR         |        |
+|10|     EXCHANGE OUT DISTR (HASH)|:EX10001|
+|11|      PX BLOCK ITERATOR       |        |
+|12|       TABLE SCAN             |b       |
+============================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  11 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  12 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), dop=2
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), dop=2
+  9 - output([b.c1]), filter(nil)
+  10 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  5 - output([b.c2], [b.c1]), filter(nil)
+  6 - output([b.c2], [b.c1]), filter(nil), dop=2
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c2, ASC], [a.c1, ASC])
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  5 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  6 - output([b.c2], [b.c1]), filter(nil), sort_keys([b.c2, ASC], [b.c1, ASC])
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), dop=2
+  9 - output([b.c2], [b.c1]), filter(nil)
+  10 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+alter system set _enable_hash_join_processor=2;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH JOIN                       |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE JOIN                       |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH OUTER JOIN                 |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE OUTER JOIN                 |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT OUTER JOIN           |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE RIGHT OUTER JOIN           |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+===========================================
+|ID|OPERATOR                     |NAME    |
+-------------------------------------------
+|0 |PX COORDINATOR               |        |
+|1 | EXCHANGE OUT DISTR          |:EX10002|
+|2 |  HASH FULL OUTER JOIN       |        |
+|3 |   EXCHANGE IN DISTR         |        |
+|4 |    EXCHANGE OUT DISTR (HASH)|:EX10000|
+|5 |     PX BLOCK ITERATOR       |        |
+|6 |      TABLE SCAN             |a       |
+|7 |   EXCHANGE IN DISTR         |        |
+|8 |    EXCHANGE OUT DISTR (HASH)|:EX10001|
+|9 |     PX BLOCK ITERATOR       |        |
+|10|      TABLE SCAN             |b       |
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+============================================
+|ID|OPERATOR                      |NAME    |
+--------------------------------------------
+|0 |PX COORDINATOR                |        |
+|1 | EXCHANGE OUT DISTR           |:EX10002|
+|2 |  MERGE FULL OUTER JOIN       |        |
+|3 |   SORT                       |        |
+|4 |    EXCHANGE IN DISTR         |        |
+|5 |     EXCHANGE OUT DISTR (HASH)|:EX10000|
+|6 |      PX BLOCK ITERATOR       |        |
+|7 |       TABLE SCAN             |a       |
+|8 |   SORT                       |        |
+|9 |    EXCHANGE IN DISTR         |        |
+|10|     EXCHANGE OUT DISTR (HASH)|:EX10001|
+|11|      PX BLOCK ITERATOR       |        |
+|12|       TABLE SCAN             |b       |
+============================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  11 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  12 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), dop=2
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), dop=2
+  9 - output([b.c1]), filter(nil)
+  10 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  5 - output([b.c2], [b.c1]), filter(nil)
+  6 - output([b.c2], [b.c1]), filter(nil), dop=2
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c2, ASC], [a.c1, ASC])
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  5 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  6 - output([b.c2], [b.c1]), filter(nil), sort_keys([b.c2, ASC], [b.c1, ASC])
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), dop=2
+  9 - output([b.c2], [b.c1]), filter(nil)
+  10 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+alter system set _enable_hash_join_processor=4;
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH JOIN                       |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(a)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE JOIN                       |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a, t2 b where a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH OUTER JOIN                 |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE OUTER JOIN                 |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a left outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT OUTER JOIN           |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |a       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE RIGHT OUTER JOIN           |        |
+|3 |   SORT                            |        |
+|4 |    EXCHANGE IN DISTR              |        |
+|5 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|6 |      PX BLOCK ITERATOR            |        |
+|7 |       TABLE SCAN                  |a       |
+|8 |   SORT                            |        |
+|9 |    PX BLOCK ITERATOR              |        |
+|10|     TABLE SCAN                    |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a right outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+===========================================
+|ID|OPERATOR                     |NAME    |
+-------------------------------------------
+|0 |PX COORDINATOR               |        |
+|1 | EXCHANGE OUT DISTR          |:EX10002|
+|2 |  HASH FULL OUTER JOIN       |        |
+|3 |   EXCHANGE IN DISTR         |        |
+|4 |    EXCHANGE OUT DISTR (HASH)|:EX10000|
+|5 |     PX BLOCK ITERATOR       |        |
+|6 |      TABLE SCAN             |a       |
+|7 |   EXCHANGE IN DISTR         |        |
+|8 |    EXCHANGE OUT DISTR (HASH)|:EX10001|
+|9 |     PX BLOCK ITERATOR       |        |
+|10|      TABLE SCAN             |b       |
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  7 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  8 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+Query Plan
+============================================
+|ID|OPERATOR                      |NAME    |
+--------------------------------------------
+|0 |PX COORDINATOR                |        |
+|1 | EXCHANGE OUT DISTR           |:EX10002|
+|2 |  MERGE FULL OUTER JOIN       |        |
+|3 |   SORT                       |        |
+|4 |    EXCHANGE IN DISTR         |        |
+|5 |     EXCHANGE OUT DISTR (HASH)|:EX10000|
+|6 |      PX BLOCK ITERATOR       |        |
+|7 |       TABLE SCAN             |a       |
+|8 |   SORT                       |        |
+|9 |    EXCHANGE IN DISTR         |        |
+|10|     EXCHANGE OUT DISTR (HASH)|:EX10001|
+|11|      PX BLOCK ITERATOR       |        |
+|12|       TABLE SCAN             |b       |
+============================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3], [b.c1], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - (#keys=1, [a.c1]), output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  6 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  8 - output([b.c1], [b.c2], [b.c3]), filter(nil), sort_keys([b.c1, ASC])
+  9 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  10 - (#keys=1, [b.c1]), output([b.c1], [b.c2], [b.c3]), filter(nil), dop=2
+  11 - output([b.c1], [b.c2], [b.c3]), filter(nil)
+  12 - output([b.c1], [b.c2], [b.c3]), filter(nil), 
+      access([b.c1], [b.c2], [b.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a full outer join t2 b on a.c1=b.c1;
+c1	c2	c3	c1	c2	c3
+-1	5	2	-1	5	2
+1	2	0	1	2	0
+10	2	6	NULL	NULL	NULL
+2	4	1	NULL	NULL	NULL
+3	3	4	3	4	5
+3	3	4	3	5	4
+3	4	5	3	4	5
+3	4	5	3	5	4
+5	1	3	5	1	3
+NULL	NULL	NULL	11	3	6
+NULL	NULL	NULL	4	4	1
+explain basic select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_hash(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH RIGHT SEMI JOIN            |        |
+|3 |   EXCHANGE IN DISTR              |        |
+|4 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|5 |     PX BLOCK ITERATOR            |        |
+|6 |      TABLE SCAN                  |b       |
+|7 |   PX BLOCK ITERATOR              |        |
+|8 |    TABLE SCAN                    |a       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([b.c1]), filter(nil)
+  4 - output([b.c1]), filter(nil), dop=2
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  7 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  8 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(b a) use_merge(a)*/*from t1 a where a.c1 in (select c1 from t2 b);
+c1	c2	c3
+-1	5	2
+1	2	0
+3	3	4
+3	4	5
+5	1	3
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  5 - output([b.c1]), filter(nil)
+  6 - output([b.c1]), filter(nil), dop=2
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c1, ASC])
+  4 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  5 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      access([a.c1], [a.c2], [a.c3]), partitions(p0)
+  6 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  7 - output([b.c1]), filter(nil)
+  8 - output([b.c1]), filter(nil), dop=2
+  9 - output([b.c1]), filter(nil)
+  10 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b);
+c1	c2	c3
+10	2	6
+2	4	1
+explain basic select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+================================================
+|ID|OPERATOR                          |NAME    |
+------------------------------------------------
+|0 |PX COORDINATOR                    |        |
+|1 | EXCHANGE OUT DISTR               |:EX10001|
+|2 |  HASH ANTI JOIN                  |        |
+|3 |   PX BLOCK ITERATOR              |        |
+|4 |    TABLE SCAN                    |a       |
+|5 |   EXCHANGE IN DISTR              |        |
+|6 |    EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|7 |     PX BLOCK ITERATOR            |        |
+|8 |      TABLE SCAN                  |b       |
+================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  5 - output([b.c2], [b.c1]), filter(nil)
+  6 - output([b.c2], [b.c1]), filter(nil), dop=2
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_hash(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+explain basic select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+Query Plan
+=================================================
+|ID|OPERATOR                           |NAME    |
+-------------------------------------------------
+|0 |PX COORDINATOR                     |        |
+|1 | EXCHANGE OUT DISTR                |:EX10001|
+|2 |  MERGE ANTI JOIN                  |        |
+|3 |   SORT                            |        |
+|4 |    PX BLOCK ITERATOR              |        |
+|5 |     TABLE SCAN                    |a       |
+|6 |   SORT                            |        |
+|7 |    EXCHANGE IN DISTR              |        |
+|8 |     EXCHANGE OUT DISTR (BROADCAST)|:EX10000|
+|9 |      PX BLOCK ITERATOR            |        |
+|10|       TABLE SCAN                  |b       |
+=================================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [a.c2], [a.c3]), filter(nil)
+  1 - output([a.c1], [a.c2], [a.c3]), filter(nil), dop=2
+  2 - output([a.c1], [a.c2], [a.c3]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c1 = b.c1]), other_conds(nil)
+  3 - output([a.c1], [a.c2], [a.c3]), filter(nil), sort_keys([a.c2, ASC], [a.c1, ASC])
+  4 - output([a.c2], [a.c1], [a.c3]), filter(nil)
+  5 - output([a.c2], [a.c1], [a.c3]), filter(nil), 
+      access([a.c2], [a.c1], [a.c3]), partitions(p0)
+  6 - output([b.c2], [b.c1]), filter(nil), sort_keys([b.c2, ASC], [b.c1, ASC])
+  7 - output([b.c2], [b.c1]), filter(nil)
+  8 - output([b.c2], [b.c1]), filter(nil), dop=2
+  9 - output([b.c2], [b.c1]), filter(nil)
+  10 - output([b.c2], [b.c1]), filter(nil), 
+      access([b.c2], [b.c1]), partitions(p0)
+
+select /*+ use_px parallel(2) leading(a b) use_merge(b)*/*from t1 a where a.c1 not in (select c1 from t2 b where a.c2=b.c2);
+c1	c2	c3
+10	2	6
+2	4	1
+3	3	4
+alter system set _force_hash_join_spill=false;
+alter system set _enable_hash_join_processor=7;
+drop table t1;
+drop table t2;

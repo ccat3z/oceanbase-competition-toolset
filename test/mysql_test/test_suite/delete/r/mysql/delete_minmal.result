@@ -1,0 +1,6 @@
+set @@binlog_row_image = 'MINIMAL';
+drop table if exists test;
+create table test(c1 int primary key, c2 int, index i2 (c2));
+delete from test where c1 = 1;
+set @@binlog_row_image = 'FULL';
+drop table test;

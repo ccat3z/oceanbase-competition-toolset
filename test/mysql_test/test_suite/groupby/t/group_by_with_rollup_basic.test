@@ -1,0 +1,36 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+##测试基本函数(avg,min,max,sum,count)的rollup功能
+create table t1(c1 int primary key, c2 int, c3 int, c4 int);
+insert into t1 values (1,1,1,1),(2,1,1,2),(3,1,1,1),(4,1,2,1),(5,1,2,2),(6,2,3,1),(7,2,3,4),(8,2,3,3),(9,2,3,4);
+select c2, c3, sum(c4), min(c4), max(c4), avg(c4), count(c4), count(*) from t1 group by c2, c3 with rollup; 
+##测试基本函数(avg,min,max,sum,count)中出现distinct的rollup功能
+select c2, c3, sum(distinct c4), min(distinct c4), max(distinct c4), avg(distinct c4), count(distinct c4) from t1 group by c2, c3 with rollup;
+##测试基本函数(avg,min,max,sum,count)中出现表达式的rollup功能 
+select c2, c3, sum(c1+c4), sum(distinct(c1+c4)) from t1 group by c2, c3 with rollup;
+##测试输出列中出现不包括group by列的rollup功能  
+select c2, c3, c1, avg(c4) from t1 group by c2, c3 with rollup;
+##测试输出列缺少group by列的roll功能
+select c2, avg(c4) from t1 group by c2, c3 with rollup;
+##测试group_concat函数的rollup功能 
+select c2, c3, group_concat(c4), group_concat(distinct c4) from t1 group by c2, c3 with rollup;
+select c2, c3, group_concat(c4 order by c4), group_concat(distinct c4 order by c4) from t1 group by c2, c3 with rollup;
+select c2, c3, group_concat(c4 order by c4 separator ':'), group_concat(distinct c4 order by c4 separator ':') from t1 group by c2, c3 with rollup;
+##测试聚合列中出现空值的rollup功能
+create table t2(c1 int primary key, c2 int, c3 int, c4 int);
+insert into t2 values (1,1,1,1),(2,1,1,null),(3,1,1,1),(4,1,2,null),(5,1,2,null),(6,2,3,1),(7,2,3,4),(8,2,3,null),(9,2,3,4);
+select c2, c3, sum(c4), min(c4), max(c4), avg(c4), count(c4), count(*), group_concat(c4) from t2 group by c2, c3 with rollup;
+##测试group by列中出现空值的rollup功能 
+create table t3(c1 int primary key, c2 int, c3 int, c4 int);
+insert into t3 values (1,1,1,1),(2,1,1,2),(3,1,1,1),(4,1,null,1),(5,1,null,2),(6,2,3,1),(7,2,3,4),(8,2,3,3),(9,2,3,4);
+select c2, c3, sum(c4), min(c4), avg(c4) from t3 group by c2, c3 with rollup;
+##测试rollup和order by同时出现的情况 
+select c2, c3, sum(c4), min(c4), avg(c4) from t3 group by c2, c3 with rollup order by c2, c3;
+select * from (select c2, c3, sum(c4), min(c4), avg(c4) from t3 group by c2, c3 with rollup) as derived order by c2, c3;
+drop table t1, t2, t3;

@@ -1,0 +1,13 @@
+# Bug: previous gorup's group by column returned.
+
+--disable_abort_on_error
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 char(1), c2 char(1), c3 decimal(20), c4 int, primary key (c1, c2, c3));
+insert into t1 (c1, c2, c3, c4) values ('I', '(', 0, 0);
+insert into t1 (c1, c2, c3, c4) values ('J', 'K', 0, 0);
+insert into t1 (c1, c2, c3, c4) values ('j', 'u', 0, 0);
+insert into t1 (c1, c2, c3, c4) values ('K', ')', 0, 0);
+select c1, c2, sum(c3) from t1 group by c1, c2 order by c1, c2;

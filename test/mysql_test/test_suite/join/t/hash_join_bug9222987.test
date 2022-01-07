@@ -1,0 +1,36 @@
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+connect (obsys,$OBMYSQL_MS0,admin,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection obsys;
+alter system enable_sql_operator_dump=true;
+connection default;
+CREATE TABLE `t1` (
+    `c1` varchar(262144) DEFAULT NULL,
+    `c2` varchar(65536) DEFAULT NULL,
+    `c3` varchar(65535) DEFAULT NULL,
+    `c4` bigint DEFAULT 0,
+    `c5` varchar(1) DEFAULT 'a'
+    ) COMPRESSION='none';
+
+--disable_query_log
+--disable_result_log
+let $i=10;
+while($i>0)
+{
+  insert into t1(c1,c2,c3) values(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000)),(repeat(rand(),10000),repeat('0',1000),repeat(rand(),1000));
+  dec $i;
+}
+--enable_query_log
+--enable_result_log
+set ob_trx_timeout=1000000000;
+select count(1) from (select /*+use_hash(t1 t2) query_timeout(1000000000)*/ t1.c1,t1.c2,t1.c3, t2.c1 as t2c1,t2.c2 as t2c2,t2.c3 as t2c3 from t1 join t1 as t2 where t1.c3=t2.c3 limit 1000) as join_test;
+select count(1) from (select /*+use_hash(t1 t2) query_timeout(1000000000)*/ t1.c1,t1.c2,t1.c3, t2.c1 as t2c1,t2.c2 as t2c2,t2.c3 as t2c3 from t1 join t1 as t2 where t1.c4=t2.c4) as join_test;
+select count(1) from (select /*+use_hash(t1 t2) query_timeout(1000000000)*/ t1.c1,t1.c2,t1.c3, t2.c1 as t2c1,t2.c2 as t2c2,t2.c3 as t2c3 from t1 join t1 as t2 where t1.c5=t2.c5) as join_test;
+
+drop table t1;
+
+connection obsys;
+alter system enable_sql_operator_dump=false;
+connection default;

@@ -1,0 +1,40 @@
+# description: 本case是为了测试update ignore的情况，只测试单行更新，指定主键
+#tags: dml,dml_ignore
+
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+create table test (c1 int primary key, c2 int unique key, c3 int, c4 char(3));
+
+insert into test values(1,2,3,4);
+insert into test values(3,3,3,3);
+insert into test values(4,4,4,4);
+select * from test;
+#主键冲突；
+update test set c1 = 1  where c1 = 1;
+select * from test;
+--error 1062
+update test set c1 = 1 where c1 = 3;
+#单行冲突
+update ignore test set c1 = 1 where c1 = 3;
+select * from test;
+#多行冲突；
+update ignore test set c1 = c1 + 1, c2 = c1 + 1;
+select * from test;
+#索引建冲突
+--error 1062
+update test set c2 = 2 where c1 = 3;
+update ignore test set c2 = 2 where c1 = 3;
+update ignore test set c2 = 2 where c2 = 3;
+select * from test;
+#数据类型错误；
+--error 1406
+update test set c4 = 'abcdef';
+update ignore test set c4 = 'esefes';
+select * from test;
+set sql_mode='';
+update ignore test set c4 = 'esdefes', c3 = 5;
+set sql_mode='strict_all_tables';
+select * from test;
+drop table test;
+

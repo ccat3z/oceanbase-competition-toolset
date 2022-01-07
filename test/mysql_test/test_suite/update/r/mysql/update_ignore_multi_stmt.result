@@ -1,0 +1,61 @@
+drop table if exists test;
+create table test (c1 int primary key, c2 time, c3 char(3))|
+insert into test values(5, 0, 'ni');insert into test values(6, 0, 'nihoaaw');update test set c1 = 2 where c3 = 'ni';|
+ERROR 22001: Data too long for column 'c3' at row 1
+select * from test|
+c1	c2	c3
+5	00:00:00	ni
+delete from test|
+insert into test values(1, 0, 'ni');insert ignore into test values(2, 0, 'nihoaaw');update test set c1 = 2 where c3 = 'ni'; update ignore test set c3 = 'nihaoels';|
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+select * from test|
+c1	c2	c3
+1	00:00:00	ni
+2	00:00:00	nih
+delete from test|
+insert into test values(1, 0, 'ni');insert ignore into test values(2, 0, 'nihoaaw');insert into test values(3,0, 'hes');update test set c1 = 2 where c3 = 'ni'; update ignore test set c3 = 'eehaoels';|
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+select * from test|
+c1	c2	c3
+1	00:00:00	ni
+2	00:00:00	nih
+3	00:00:00	hes
+delete from test|
+insert into test values(1, 0, 'ni');insert ignore into test values(2, 0, 'nihoaaw');insert into test values(3,0, 'hes');update ignore test set c1 = 2 where c3 = 'ni'; update ignore test set c3 = 'nihaoels';|
+select * from test|
+c1	c2	c3
+1	00:00:00	nih
+2	00:00:00	nih
+3	00:00:00	nih
+delete from test|
+insert into test values(1,0,'ni');insert into test values(3,2,'3');update ignore test set c1=3; insert into test values(4,32,'ef');|
+select * from test|
+c1	c2	c3
+1	00:00:00	ni
+3	00:00:02	3
+4	00:00:32	ef
+delete from test|
+insert into test values(1,0,'ni');insert into test values(3,2,'3'); update ignore test set c3 = 'aaaaaaa'; select * from test;update ignore test set c3 = 'sssss';|
+c1	c2	c3
+1	00:00:00	aaa
+3	00:00:02	aaa
+select * from test|
+c1	c2	c3
+1	00:00:00	sss
+3	00:00:02	sss
+drop table test;
+drop table if exists test;
+create table test(c1 int primary key, c2 int, c3 char(3));
+insert into test values(1,1,1),(2,2,2);
+start transaction;
+update test set c2 = 5 where c1 = 1;
+insert into test values(3,3,3);
+update test set c2= 5; select * from test; update ignore test set c1 = 1;select * from test;|
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+commit;
+select * from test;
+c1	c2	c3
+1	5	1
+2	2	2
+3	3	3
+drop table test;

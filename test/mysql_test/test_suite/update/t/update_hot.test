@@ -1,0 +1,32 @@
+#owner: guoping.wgp
+#owner group: SQL1
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+create table t1(c1 int primary key, c2 varchar(20));
+insert into t1 values (1,1),(2,2);
+
+update /*+ hotspot */ t1 set c2='aaaa' where c1=1;
+select * from t1;
+
+update /*+ hotspot */ t1 set c2='aaaa';
+select * from t1;
+
+replace into t1 values (0,'zzzz'),(1,'aaaa'),(2,'aaaa'),(3,'aaaa');
+select * from t1;
+update /*+ hotspot */ t1 set c2='aaaa' where c1=1;
+select * from t1;
+update /*+ hotspot */ t1 set c2='aaab' where c1=1;
+select * from t1;
+update /*+ hotspot */ t1 set c2='aaac' where c1=1;
+select * from t1;
+
+update /*+ hotspot*/ t1 set c2='aaad' where c2='aaaa';
+select * from t1;
+
+
+drop table t1;

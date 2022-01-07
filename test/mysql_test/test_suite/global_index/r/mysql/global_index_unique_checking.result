@@ -1,0 +1,283 @@
+result_format: 4
+##--explain_protocol 2
+## test selection from global index which has only one partition
+drop table if exists t1, t2;
+create table t1 (c1 int, c2 int, c3 int, c4 int, primary key (c1)) partition by hash(c1) partitions 4;
+insert into t1 values (1,1,1,1),(2,2,2,2),(3,3,3,3),(4,4,4,4),(5,5,NULL,1),(6,6,NULL,NULL);
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 0
+create unique index gkey on t1(c3,c4) global;
+affected rows: 0
+insert into t1 values(7,7,1,1);
+ERROR 23000: Duplicate entry '1-1' for key 'gkey'
+insert into t1 values(7,7,NULL,1);
+affected rows: 1
+insert into t1 values(8,8,NULL,NULL);
+affected rows: 1
+drop table t1;
+affected rows: 0
+
+##check null
+create table t1(a int primary key, b int, c int) partition by hash(a) partitions 2;
+affected rows: 0
+create unique index guk on t1(b) partition by range(b)
+  (partition p0 values less than (3), partition p1 values less than (maxvalue));
+affected rows: 0
+insert into t1 values(1, null, null), (2, null, null);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+select /*+index(t1 guk)*/ a, b from t1 where b is null;
++---+------+
+| a | b    |
++---+------+
+| 1 | NULL |
+| 2 | NULL |
++---+------+
+affected rows: 2
+update t1 set b=1 where b is null;
+ERROR 23000: Duplicate entry '1' for key 'guk'
+##update row not accross partition in global unique index
+update t1 set b=a where b is null;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select /*+index(t1 guk)*/ b from t1;
++------+
+| b    |
++------+
+|    1 |
+|    2 |
++------+
+affected rows: 2
+
+delete from t1;
+affected rows: 2
+insert into t1 values(1, null, null), (2, null, null), (3, null, null), (4, 4, 4), (5, null, null);
+affected rows: 5
+info: Records: 5  Duplicates: 0  Warnings: 0
+select * from t1;
++---+------+------+
+| a | b    | c    |
++---+------+------+
+| 2 | NULL | NULL |
+| 4 |    4 |    4 |
+| 1 | NULL | NULL |
+| 3 | NULL | NULL |
+| 5 | NULL | NULL |
++---+------+------+
+affected rows: 5
+##update row accross partition in global unique index
+update t1 set b=4 where a=1;
+ERROR 23000: Duplicate entry '4' for key 'guk'
+update t1 set b=4 where b is null;
+ERROR 23000: Duplicate entry '4' for key 'guk'
+update t1 set b=6 where a=1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select /*+index(t1 guk)*/ b from t1;
++------+
+| b    |
++------+
+| NULL |
+| NULL |
+| NULL |
+|    4 |
+|    6 |
++------+
+affected rows: 5
+
+delete from t1;
+affected rows: 5
+insert into t1 values(1, null, null), (2, null, null);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into t1 values(1, null, null), (2, null, null) on duplicate key update b=1;
+ERROR 23000: Duplicate entry '1' for key 'guk'
+insert into t1 values(1, null, null) on duplicate key update b=1;
+affected rows: 2
+select /*+index(t1 guk)*/ b from t1;
++------+
+| b    |
++------+
+| NULL |
+|    1 |
++------+
+affected rows: 2
+
+delete from t1;
+affected rows: 2
+insert into t1 values(1, null, null), (2, null, null), (3, null, null), (4, 4, 4), (5, null, null);
+affected rows: 5
+info: Records: 5  Duplicates: 0  Warnings: 0
+insert into t1 values(1, null, null) on duplicate key update b=4;
+ERROR 23000: Duplicate entry '4' for key 'guk'
+insert into t1 values(1, null, null) on duplicate key update b=6;
+affected rows: 2
+select /*+index(t1 guk)*/ b from t1;
++------+
+| b    |
++------+
+| NULL |
+| NULL |
+| NULL |
+|    4 |
+|    6 |
++------+
+affected rows: 5
+drop table t1;
+affected rows: 0
+
+create table t1 (pk1 int, pk2 int, a int, b int, primary key (pk1, pk2))
+partition by range (pk1)
+(
+  partition p_tiny values less than (2),
+  partition p_big values less than (maxvalue)
+);
+affected rows: 0
+create unique index t1_a on t1 (a) global;
+affected rows: 0
+
+insert into t1 (pk1, pk2) values (1, 1);
+affected rows: 1
+insert into t1 (pk1, pk2) select pk1+1, pk2+1 from t1;
+affected rows: 1
+insert into t1 (pk1, pk2) select pk1+2, pk2+2 from t1;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+insert into t1 (pk1, pk2) select pk1+4, pk2+4 from t1;
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+insert into t1 (pk1, pk2) select pk1+8, pk2+8 from t1;
+affected rows: 8
+info: Records: 8  Duplicates: 0  Warnings: 0
+insert into t1 (pk1, pk2) select pk1+16, pk2+16 from t1;
+affected rows: 16
+info: Records: 16  Duplicates: 0  Warnings: 0
+select * from t1;
++-----+-----+------+------+
+| pk1 | pk2 | a    | b    |
++-----+-----+------+------+
+|   1 |   1 | NULL | NULL |
+|   2 |   2 | NULL | NULL |
+|   3 |   3 | NULL | NULL |
+|   4 |   4 | NULL | NULL |
+|   5 |   5 | NULL | NULL |
+|   6 |   6 | NULL | NULL |
+|   7 |   7 | NULL | NULL |
+|   8 |   8 | NULL | NULL |
+|   9 |   9 | NULL | NULL |
+|  10 |  10 | NULL | NULL |
+|  11 |  11 | NULL | NULL |
+|  12 |  12 | NULL | NULL |
+|  13 |  13 | NULL | NULL |
+|  14 |  14 | NULL | NULL |
+|  15 |  15 | NULL | NULL |
+|  16 |  16 | NULL | NULL |
+|  17 |  17 | NULL | NULL |
+|  18 |  18 | NULL | NULL |
+|  19 |  19 | NULL | NULL |
+|  20 |  20 | NULL | NULL |
+|  21 |  21 | NULL | NULL |
+|  22 |  22 | NULL | NULL |
+|  23 |  23 | NULL | NULL |
+|  24 |  24 | NULL | NULL |
+|  25 |  25 | NULL | NULL |
+|  26 |  26 | NULL | NULL |
+|  27 |  27 | NULL | NULL |
+|  28 |  28 | NULL | NULL |
+|  29 |  29 | NULL | NULL |
+|  30 |  30 | NULL | NULL |
+|  31 |  31 | NULL | NULL |
+|  32 |  32 | NULL | NULL |
++-----+-----+------+------+
+affected rows: 32
+update t1 set a=pk1%2, b=pk2 where pk1<300;
+ERROR 23000: Duplicate entry '1' for key 't1_a'
+update t1 set a=pk1%3, b=pk2 where pk1<300;
+ERROR 23000: Duplicate entry '1' for key 't1_a'
+drop table t1;
+affected rows: 0
+
+##test global index partition by null
+create table t1(a int primary key, b int, c int);
+affected rows: 0
+create unique index guk on t1(b) partition by hash(b) partitions 2;
+affected rows: 0
+insert into t1 values(1, null, 1), (2, null, 3), (3, null, 3);
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+update /*+index(t1 guk)*/ t1 set b=1 where b is null and a=1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select /*+index(t1 guk)*/ * from t1 where b is null;
++---+------+------+
+| a | b    | c    |
++---+------+------+
+| 2 | NULL |    3 |
+| 3 | NULL |    3 |
++---+------+------+
+affected rows: 2
+select /*+index(t1 guk)*/ * from t1 where b=null;
++---+------+------+
+| a | b    | c    |
++---+------+------+
++---+------+------+
+affected rows: 0
+select /*+index(t1 guk)*/ * from t1 where b=1;
++---+------+------+
+| a | b    | c    |
++---+------+------+
+| 1 |    1 |    1 |
++---+------+------+
+affected rows: 1
+drop table t1;
+affected rows: 0
+
+##test unique global index with null check
+create table t1(a int, b int, c int, primary key(a, b)) partition by hash(a) partitions 2;
+affected rows: 0
+create unique index i1 on t1(b, c);
+affected rows: 0
+insert into t1 values(1, 1, null);
+affected rows: 1
+insert into t1 values(2, 2, 2);
+affected rows: 1
+update t1 set b=b+1 where b>0;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select /*+index(t1 primary)*/ * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 | NULL |
+| 2 | 3 |    2 |
++---+---+------+
+affected rows: 2
+select /*+index(t1 i1)*/ * from t1;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 | NULL |
+| 2 | 3 |    2 |
++---+---+------+
+affected rows: 2
+insert into t1 values(3, 3, 2);
+ERROR 23000: Duplicate entry '3-2' for key 'i1'
+update t1 set b=b+2 where a=2;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select /*+index(t1 primary)*/ * from t1 order by a, b;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 | NULL |
+| 2 | 5 |    2 |
++---+---+------+
+affected rows: 2
+select /*+index(t1 i1)*/ * from t1;
++---+---+------+
+| a | b | c    |
++---+---+------+
+| 1 | 2 | NULL |
+| 2 | 5 |    2 |
++---+---+------+
+affected rows: 2

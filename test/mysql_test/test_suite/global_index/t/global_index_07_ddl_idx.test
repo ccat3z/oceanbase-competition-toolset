@@ -1,0 +1,49 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description:
+# tags: global_index, ddl
+####
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 int, c2 varchar(1024), c3 int, c4 double, c5 float, c6 bool, c7  timestamp(6) default "2012-01-01 12:00:00", c8 int, primary key(c1, c2));
+create index i1 on t1(c3) storing(c5,c6) partition by hash(c3) partitions 2;
+####table doesn't allowed drop primary col and index col, index table doesn't add col
+create index i11 on t1(c1 asc,c2 asc) partition by hash(c1) partitions 2;
+--error 1060
+create index i12 on t1(c1 asc,c1 asc) partition by hash(c1) partitions 2; 
+--error 1060
+create index ii3 on t1(c1 asc,c1 asc) partition by hash(c1) partitions 2; 
+--error 1060
+create index ii4 on t1(c1 ,c1 );
+connect (obsys,$OBMYSQL_MS0,admin,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection obsys;
+let $idx1 = query_get_value(select a.table_name from oceanbase.__all_virtual_table as a inner join (select * from oceanbase.__all_virtual_table where table_name='t1') b on a.data_table_id=b.table_id order by a.table_name, table_name, 1);
+disconnect obsys;
+connection default;
+alter table t1 add c9 int;
+sleep 1;
+desc t1;
+--disable_query_log
+--enable_query_log
+
+alter table t1 drop c8;
+sleep 1;
+desc t1;
+--disable_query_log
+--enable_query_log
+
+alter table t1 drop c6;
+sleep 1;
+desc t1;
+--disable_query_log
+--enable_query_log
+
+alter table t1 drop c4;
+--error 5071
+alter table t1 drop c2;
+sleep 1;
+desc t1;
+drop table t1;

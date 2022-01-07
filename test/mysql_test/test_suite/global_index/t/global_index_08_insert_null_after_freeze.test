@@ -1,0 +1,52 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+#### owner: yuchen.wyc
+#### owner group: sql1
+#### description: 测试
+#### tags: global_index
+--disable_query_log
+--source mysql_test/include/index_quick_major.inc
+--real_sleep 1
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+--enable_query_log
+
+create table t1(c1 int, c2 char(255), c3 int, c4 varchar(1024), primary key(c1,c2));
+create index i1 on t1(c3) partition by hash(c3) partitions 2;
+create index i2 on t1(c3,c4) partition by hash(c3) partitions 2;
+
+let $index_name = __idx_3003_i2;
+--source  mysql_test/include/check_all_idx_ok.inc
+
+insert into t1 values(1,'a',1,'a');
+insert into t1 values(2,'b',null,null);
+insert into t1 values(3,'c',null,'c');
+insert into t1 values(4,'d',4,null);
+insert into t1 values(5,'ll',5,'e');
+insert into t1 values(6,'null',6,'f');
+insert into t1 values(7,'ull',7,'g');
+
+let $t_tab=oceanbase.gv\$table;
+let $t_db=oceanbase.gv\$database;
+let $tableid = query_get_value(select table_id from \$t_tab as a inner join \$t_db b where a.table_name='t1' and a.database_id=b.database_id and b.database_name='test', table_id, 1);
+connect (my_obsys,$OBMYSQL_MS0,admin,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection my_obsys;
+let $idx1 = query_get_value(select a.table_name from oceanbase.__all_virtual_table as a where a.data_table_id=$tableid order by a.table_id, table_name, 1);
+let $idx2 = query_get_value(select a.table_name from oceanbase.__all_virtual_table as a where a.data_table_id=$tableid order by a.table_id, table_name, 2);
+connection default;
+
+select * from t1;
+--disable_query_log
+--replace_column 1 index_name
+connection my_obsys;
+eval select table_name, index_status from oceanbase.__all_virtual_table where data_table_id = $tableid;
+connection default;
+set ob_enable_index_direct_select = 1;
+eval select * from $idx1;
+eval select * from $idx2;
+set ob_enable_index_direct_select = 0;
+--enable_query_log
+
+drop table t1;

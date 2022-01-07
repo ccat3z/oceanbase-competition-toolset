@@ -1,0 +1,21 @@
+drop table if exists t1;
+alter system enable_sql_operator_dump=true;
+CREATE TABLE `t1` (
+`c1` varchar(262144) DEFAULT NULL,
+`c2` varchar(65536) DEFAULT NULL,
+`c3` varchar(65535) DEFAULT NULL,
+`c4` bigint DEFAULT 0,
+`c5` varchar(1) DEFAULT 'a'
+    ) COMPRESSION='none';
+set ob_trx_timeout=1000000000;
+select count(1) from (select /*+use_hash(t1 t2) query_timeout(1000000000)*/ t1.c1,t1.c2,t1.c3, t2.c1 as t2c1,t2.c2 as t2c2,t2.c3 as t2c3 from t1 join t1 as t2 where t1.c3=t2.c3 limit 1000) as join_test;
+count(1)
+1000
+select count(1) from (select /*+use_hash(t1 t2) query_timeout(1000000000)*/ t1.c1,t1.c2,t1.c3, t2.c1 as t2c1,t2.c2 as t2c2,t2.c3 as t2c3 from t1 join t1 as t2 where t1.c4=t2.c4) as join_test;
+count(1)
+1000000
+select count(1) from (select /*+use_hash(t1 t2) query_timeout(1000000000)*/ t1.c1,t1.c2,t1.c3, t2.c1 as t2c1,t2.c2 as t2c2,t2.c3 as t2c3 from t1 join t1 as t2 where t1.c5=t2.c5) as join_test;
+count(1)
+1000000
+drop table t1;
+alter system enable_sql_operator_dump=false;

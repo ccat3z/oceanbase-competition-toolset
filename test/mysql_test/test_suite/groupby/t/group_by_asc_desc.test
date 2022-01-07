@@ -1,0 +1,53 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+#tags: optimizer
+
+##
+## Test Name: group_by_asc_desc
+##
+## Scope: Test change between group by order items and order by order items 
+##
+## Date: 2019-09-10
+##
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1(a int, b int);
+insert into t1 values(1,2),(1,3),(5,0),(4,5),(7,8),(4,2),(5,3);
+
+
+##group by没有显示指出order item
+select a from t1 group by a;
+
+##group by显示指出order item
+select a from t1 group by a desc;
+
+##group by没有显示指出order items
+select a,b from t1 group by a,b;
+
+##group by显示指出order items
+select a,b from t1 group by a,b desc;
+
+##group by没有显示指出order item，存在order by item
+select a from t1 group by a order by a desc;
+
+##group by显示指出order item，存在order by item
+select a from t1 group by a desc order by a asc;
+
+##group by没有显示指出order items，存在order by items
+select a,b from t1 group by a,b order by a desc, b asc;
+
+##group by有显示指出order items，存在order by items
+select a,b from t1 group by a,b desc order by a desc, b asc;
+
+drop table t1;
+
+
+
+
+
+
+

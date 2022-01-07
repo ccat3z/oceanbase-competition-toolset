@@ -1,0 +1,1119 @@
+drop table if exists tbl1 ,tbl2;
+create table tbl1 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1));
+create table tbl2 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1));
+insert into tbl1 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl1 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl1 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl2 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl2 values(2,'now1','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl2 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl2 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',1.677);
+explain basic select count(*) from tbl1;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_COUNT(*)]), filter(nil), 
+      group(nil), agg_func([T_FUN_COUNT(*)])
+  1 - output([1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+explain basic select count(*) from tbl1 where i1<=3;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_COUNT(*)]), filter(nil), 
+      group(nil), agg_func([T_FUN_COUNT(*)])
+  1 - output([1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+explain basic select count(*) from tbl1 where i1=3;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE GET     |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_COUNT(*)]), filter(nil), 
+      group(nil), agg_func([T_FUN_COUNT(*)])
+  1 - output([1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+explain basic select count(*) from tbl1 group by v2;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH GROUP BY|    |
+|1 | TABLE SCAN  |tbl1|
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_COUNT(*)]), filter(nil), 
+      group([tbl1.v2]), agg_func([T_FUN_COUNT(*)])
+  1 - output([tbl1.v2]), filter(nil), 
+      access([tbl1.v2]), partitions(p0)
+
+explain basic select count(*) from tbl1 order by v2;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_COUNT(*)]), filter(nil), 
+      group(nil), agg_func([T_FUN_COUNT(*)])
+  1 - output([1]), filter(nil), 
+      access([tbl1.v2]), partitions(p0)
+
+explain basic select sum(i1) from tbl1;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_SUM(tbl1.i1)]), filter(nil), 
+      group(nil), agg_func([T_FUN_SUM(tbl1.i1)])
+  1 - output([tbl1.i1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+explain basic select sum(i1) from tbl1 where i1<=3;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_SUM(tbl1.i1)]), filter(nil), 
+      group(nil), agg_func([T_FUN_SUM(tbl1.i1)])
+  1 - output([tbl1.i1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+explain basic select sum(i1) from tbl1 group by v2;
+Query Plan
+
+
+      access([tbl1.i1], [tbl1.v2]), partitions(p0)
+      group([tbl1.v2]), agg_func([T_FUN_SUM(tbl1.i1)])
+  0 - output([T_FUN_SUM(tbl1.i1)]), filter(nil), 
+  1 - output([tbl1.i1], [tbl1.v2]), filter(nil), 
+-----------------------
+-------------------------------------
+=======================
+=======================
+Outputs & filters: 
+|0 |HASH GROUP BY|    |
+|1 | TABLE SCAN  |tbl1|
+|ID|OPERATOR     |NAME|
+explain basic select avg(i1) from tbl1;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_SUM(tbl1.i1) / cast(T_FUN_COUNT(tbl1.i1), DECIMAL(20, 0))]), filter(nil), 
+      group(nil), agg_func([T_FUN_SUM(tbl1.i1)], [T_FUN_COUNT(tbl1.i1)])
+  1 - output([tbl1.i1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+explain basic select avg(i1) from tbl1 group by v2;
+Query Plan
+
+
+      access([tbl1.i1], [tbl1.v2]), partitions(p0)
+      group([tbl1.v2]), agg_func([T_FUN_SUM(tbl1.i1)], [T_FUN_COUNT(tbl1.i1)])
+  0 - output([T_FUN_SUM(tbl1.i1) / cast(T_FUN_COUNT(tbl1.i1), DECIMAL(20, 0))]), filter(nil), 
+  1 - output([tbl1.i1], [tbl1.v2]), filter(nil), 
+-----------------------
+-------------------------------------
+=======================
+=======================
+Outputs & filters: 
+|0 |HASH GROUP BY|    |
+|1 | TABLE SCAN  |tbl1|
+|ID|OPERATOR     |NAME|
+explain basic select avg(i1) from tbl1 where i1<=3;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |SCALAR GROUP BY|    |
+|1 | TABLE SCAN    |tbl1|
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_SUM(tbl1.i1) / cast(T_FUN_COUNT(tbl1.i1), DECIMAL(20, 0))]), filter(nil), 
+      group(nil), agg_func([T_FUN_SUM(tbl1.i1)], [T_FUN_COUNT(tbl1.i1)])
+  1 - output([tbl1.i1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain basic select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl1|
+|2 | TABLE GET      |tbl2|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl1.i1])
+  1 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      access([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+  2 - output([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      access([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i4>1.25;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00.000000	-10.235	1	now	haha	1.6256	2014-05-04 12:00:00.000000	3.450
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain basic select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i4>1.25;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl1|
+|2 | TABLE GET      |tbl2|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl1.i1])
+  1 - output([tbl1.i1], [tbl1.i4], [tbl1.v2], [tbl1.i3], [tbl1.d4], [tbl1.i5]), filter([cast(tbl1.i4, DOUBLE(-1, -1)) > ?]), 
+      access([tbl1.i1], [tbl1.i4], [tbl1.v2], [tbl1.i3], [tbl1.d4], [tbl1.i5]), partitions(p0)
+  2 - output([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      access([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+
+select * from tbl2 join tbl1 on tbl2.v2=tbl1.v2 where tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00.000000	3.450	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+explain basic select * from tbl2 join tbl1 on  tbl2.v2=tbl1.v2 where tbl1.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|tbl1|
+|2 | TABLE SCAN|tbl2|
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5], [tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      equal_conds([tbl2.v2 = tbl1.v2]), other_conds(nil)
+  1 - output([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      access([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+  2 - output([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      access([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+
+test alias 
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where a.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |a   |
+|2 | TABLE GET      |b   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      conds(nil), nl_params_([a.i1])
+  1 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  2 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1  join tbl2 b on tbl1.i1=b.i1 where tbl1.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where a.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |a   |
+|2 | TABLE GET      |b   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      conds(nil), nl_params_([a.i1])
+  1 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  2 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1  join tbl2 b on tbl1.i1=b.i1 where tbl1.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain basic select tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1  join tbl2 b on  tbl1.i1=b.i1 where tbl1.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl1|
+|2 | TABLE GET      |b   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [b.i1], [b.v2]), filter(nil), 
+      conds(nil), nl_params_([tbl1.i1])
+  1 - output([tbl1.i1], [tbl1.v2]), filter(nil), 
+      access([tbl1.i1], [tbl1.v2]), partitions(p0)
+  2 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+test join with self 
+select * from tbl1 as i00 join tbl1  on  tbl1.i1=i00.i1 where tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+explain basic select * from tbl1 as i00 join tbl1  on tbl1.i1=i00.i1 where tbl1.i1>2;
+Query Plan
+====================
+|ID|OPERATOR  |NAME|
+--------------------
+|0 |TABLE SCAN|i00 |
+====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([i00.i1], [i00.v2], [i00.i3], [i00.i4], [i00.d4], [i00.i5], [i00.i1], [i00.v2], [i00.i3], [i00.i4], [i00.d4], [i00.i5]), filter(nil), 
+      access([i00.i1], [i00.v2], [i00.i3], [i00.i4], [i00.d4], [i00.i5]), partitions(p0)
+
+select * from tbl1 as i00 join tbl1  on  tbl1.v2=i00.v2 where tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+1	now	haha	1.6256	2014-05-04 12:00:00.000000	-10.235	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+2	now	haha	-1.6256	2014-05-04 12:00:00.000000	1.243	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450
+explain basic select * from tbl1 as i00 join tbl1  on tbl1.v2=i00.v2 where tbl1.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|tbl1|
+|2 | TABLE SCAN|i00 |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([i00.i1], [i00.v2], [i00.i3], [i00.i4], [i00.d4], [i00.i5], [tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      equal_conds([tbl1.v2 = i00.v2]), other_conds(nil)
+  1 - output([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      access([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+  2 - output([i00.v2], [i00.i1], [i00.i3], [i00.i4], [i00.d4], [i00.i5]), filter(nil), 
+      access([i00.v2], [i00.i1], [i00.i3], [i00.i4], [i00.d4], [i00.i5]), partitions(p0)
+
+test null in  join condition 
+insert into tbl1 values(1111,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl2 values(111,'now','haha',1.6256,'2014-05-04 12:00:00',3.45) ;
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain basic select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|tbl1|
+|2 | TABLE SCAN|tbl2|
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      equal_conds([tbl1.i1 = tbl2.i1]), other_conds(nil)
+  1 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      access([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+  2 - output([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      access([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+
+select * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1 is null and tbl1.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl1 join tbl2 on (tbl1.i1=tbl2.i1) where tbl1.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|tbl1|
+|2 | TABLE SCAN|tbl2|
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      equal_conds([tbl1.i1 = tbl2.i1]), other_conds(nil)
+  1 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter(nil), 
+      access([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+  2 - output([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      access([tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+
+test index condition in where order 
+explain basic select * from tbl1 join tbl2 on tbl1.v2=tbl2.v2 where tbl1.i1=2 and tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+Query Plan
+====================================
+|ID|OPERATOR                  |NAME|
+------------------------------------
+|0 |NESTED-LOOP JOIN CARTESIAN|    |
+|1 | TABLE GET                |tbl2|
+|2 | TABLE SCAN               |tbl1|
+====================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      conds(nil), nl_params_(nil)
+  1 - output([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter([tbl2.v2 = 'now']), 
+      access([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+  2 - output([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter([tbl1.v2 = 'now']), 
+      access([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+
+explain basic select count(*) from tbl1 join tbl2 on tbl1.v2='now' and  (tbl1.i1=tbl2.i1) where tbl1.i1>2;
+Query Plan
+===========================
+|ID|OPERATOR         |NAME|
+---------------------------
+|0 |SCALAR GROUP BY  |    |
+|1 | NESTED-LOOP JOIN|    |
+|2 |  TABLE SCAN     |tbl1|
+|3 |  TABLE GET      |tbl2|
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([T_FUN_COUNT(*)]), filter(nil), 
+      group(nil), agg_func([T_FUN_COUNT(*)])
+  1 - output([1]), filter(nil), 
+      conds(nil), nl_params_([tbl1.i1])
+  2 - output([tbl1.i1]), filter([tbl1.v2 = 'now']), 
+      access([tbl1.v2], [tbl1.i1]), partitions(p0)
+  3 - output([1]), filter(nil), 
+      access([tbl2.i1]), partitions(p0)
+
+explain basic select * from tbl1 join tbl2 on (tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now') and  (tbl1.i1=tbl2.i1) where tbl1.i1>2;
+Query Plan
+====================================
+|ID|OPERATOR                  |NAME|
+------------------------------------
+|0 |NESTED-LOOP JOIN CARTESIAN|    |
+|1 | TABLE GET                |tbl2|
+|2 | TABLE SCAN               |tbl1|
+====================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      conds(nil), nl_params_(nil)
+  1 - output([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter([tbl2.v2 = 'now']), 
+      access([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+  2 - output([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter([tbl1.v2 = 'now']), 
+      access([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+
+explain basic select * from tbl1 join tbl2 on tbl1.v2=tbl2.v2 and (tbl1.i1=2 and tbl1.v2='now' and  tbl1.i1=tbl2.i1) where tbl1.i1>2;
+Query Plan
+====================================
+|ID|OPERATOR                  |NAME|
+------------------------------------
+|0 |NESTED-LOOP JOIN CARTESIAN|    |
+|1 | TABLE GET                |tbl2|
+|2 | TABLE SCAN               |tbl1|
+====================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1], [tbl1.v2], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5], [tbl2.i1], [tbl2.v2], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter(nil), 
+      conds(nil), nl_params_(nil)
+  1 - output([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), filter([tbl2.v2 = 'now']), 
+      access([tbl2.v2], [tbl2.i1], [tbl2.i3], [tbl2.i4], [tbl2.d4], [tbl2.i5]), partitions(p0)
+  2 - output([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), filter([tbl1.v2 = 'now']), 
+      access([tbl1.v2], [tbl1.i1], [tbl1.i3], [tbl1.i4], [tbl1.d4], [tbl1.i5]), partitions(p0)
+
+use column alias 
+select tbl1.i1 as col1 from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1>2;
+col1
+3
+explain basic select tbl1.i1 as col1 from tbl1 join tbl2 on tbl1.i1=tbl2.i1 where tbl1.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|tbl1|
+|2 | TABLE SCAN|tbl2|
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl1.i1]), filter(nil), 
+      equal_conds([tbl1.i1 = tbl2.i1]), other_conds(nil)
+  1 - output([tbl1.i1]), filter(nil), 
+      access([tbl1.i1]), partitions(p0)
+  2 - output([tbl2.i1]), filter(nil), 
+      access([tbl2.i1]), partitions(p0)
+
+test join in ps'
+test union,except,... 
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where a.i1>2 union select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 where a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 where a.i1>2 union select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 where a.i1>2;
+Query Plan
+==============================
+|ID|OPERATOR            |NAME|
+------------------------------
+|0 |MERGE UNION DISTINCT|    |
+|1 | MERGE JOIN         |    |
+|2 |  TABLE SCAN        |a   |
+|3 |  TABLE SCAN        |b   |
+|4 | MERGE JOIN         |    |
+|5 |  TABLE SCAN        |a   |
+|6 |  TABLE SCAN        |b   |
+==============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([UNION([1])], [UNION([2])], [UNION([3])], [UNION([4])]), filter(nil)
+  1 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.i1 = b.i1]), other_conds(nil)
+  2 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  3 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+  4 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.i1 = b.i1]), other_conds(nil)
+  5 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  6 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1  where  a.i1>2 except select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1  where a.i1>2;
+i1	v2	i1	v2
+explain basic select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where   a.i1>2 except select a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on a.i1=b.i1 where a.i1>2;
+Query Plan
+===============================
+|ID|OPERATOR             |NAME|
+-------------------------------
+|0 |MERGE EXCEPT DISTINCT|    |
+|1 | MERGE JOIN          |    |
+|2 |  TABLE SCAN         |a   |
+|3 |  TABLE SCAN         |b   |
+|4 | MERGE JOIN          |    |
+|5 |  TABLE SCAN         |a   |
+|6 |  TABLE SCAN         |b   |
+===============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([EXCEPT([1])], [EXCEPT([2])], [EXCEPT([3])], [EXCEPT([4])]), filter(nil)
+  1 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.i1 = b.i1]), other_conds(nil)
+  2 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  3 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+  4 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.i1 = b.i1]), other_conds(nil)
+  5 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  6 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+test hint,condition use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain basic select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.i1=b.i1 where a.i1>2 ;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|a   |
+|2 | TABLE SCAN|b   |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.i1 = b.i1]), other_conds(nil)
+  1 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  2 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+test hint,condition not use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.v2=b.v2 and a.i1>2;
+i1	v2	i1	v2
+1111	now	1	now
+3	now	1	now
+1111	now	111	now
+3	now	111	now
+explain basic select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a join tbl2 b on  a.v2=b.v2 where  a.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|a   |
+|2 | TABLE SCAN|b   |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.v2 = b.v2]), other_conds(nil)
+  1 - output([a.v2], [a.i1]), filter(nil), 
+      access([a.v2], [a.i1]), partitions(p0)
+  2 - output([b.v2], [b.i1]), filter(nil), 
+      access([b.v2], [b.i1]), partitions(p0)
+
+test muti columns primary 
+drop table if exists tbl3,tbl4;
+create table tbl3 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1,v2,i3,d4));
+create table tbl4 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1,v2,i3,d4));
+insert into tbl3 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl3 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl3 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl4 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl4 values(2,'now','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl4 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl4 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',-1.45);
+where condition hava first column of primay,not have all primary columns 
+select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain basic select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 and tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.i1])
+  1 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      access([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.i1], [tbl3.v2])
+  1 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      access([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.i1], [tbl3.v2], [tbl3.i4])
+  1 - output([tbl3.i1], [tbl3.v2], [tbl3.i4], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.i1], [tbl3.v2], [tbl3.i4], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.i1], [tbl4.v2], [tbl4.i4], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter([? = tbl4.i4]), 
+      access([tbl4.i1], [tbl4.v2], [tbl4.i4], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+have frist column of pk,but where condition is disorder 
+select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1  and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.v2], [tbl3.i4], [tbl3.i1])
+  1 - output([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter([? = tbl4.i4]), 
+      access([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1)  and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 and  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.v2], [tbl3.i4], [tbl3.i1])
+  1 - output([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter([? = tbl4.i4]), 
+      access([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+where condition not hava first column of primay,but have other column of  primary key 
+select * from tbl3 join tbl4 on tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|tbl3|
+|2 | TABLE SCAN|tbl4|
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      equal_conds([tbl3.v2 = tbl4.v2], [tbl3.i4 = tbl4.i4]), other_conds(nil)
+  1 - output([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      access([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+test hint,condition use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+i1	v2	i1	v2
+3	now	3	now2
+explain basic select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|a   |
+|2 | TABLE SCAN|b   |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.i1 = b.i1]), other_conds(nil)
+  1 - output([a.i1], [a.v2]), filter(nil), 
+      access([a.i1], [a.v2]), partitions(p0)
+  2 - output([b.i1], [b.v2]), filter(nil), 
+      access([b.i1], [b.v2]), partitions(p0)
+
+test hint,condition not use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+i1	v2	i1	v2
+1111	now	1	now
+3	now	1	now
+1111	now	111	now
+3	now	111	now
+explain basic select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|a   |
+|2 | TABLE SCAN|b   |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.i1], [a.v2], [b.i1], [b.v2]), filter(nil), 
+      equal_conds([a.v2 = b.v2]), other_conds(nil)
+  1 - output([a.v2], [a.i1]), filter(nil), 
+      access([a.v2], [a.i1]), partitions(p0)
+  2 - output([b.v2], [b.i1]), filter(nil), 
+      access([b.v2], [b.i1]), partitions(p0)
+
+test muti columns primary 
+drop table if exists tbl3,tbl4;
+create table tbl3 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1,v2,i3,d4));
+create table tbl4 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1,v2,i3,d4));
+insert into tbl3 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl3 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl3 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl4 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl4 values(2,'now','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl4 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl4 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',-1.45);
+where condition hava first column of primay,not have all primary columns 
+select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 where tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+3	now	haha	1.656	2014-05-04 12:00:00.000000	-1.450	3	now2	haha	1.6256	2014-05-04 12:00:00.000000	0.253
+explain basic select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 where tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.i1])
+  1 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      access([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 where  tbl3.v2=tbl4.v2 and  tbl3.i1>2 ;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 where  tbl3.v2=tbl4.v2 and  tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.v2], [tbl3.i1])
+  1 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      access([tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 where  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and  tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on tbl3.i1=tbl4.i1 where  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and   tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.v2], [tbl3.i4], [tbl3.i1])
+  1 - output([tbl3.i1], [tbl3.v2], [tbl3.i4], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.i1], [tbl3.v2], [tbl3.i4], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.i1], [tbl4.v2], [tbl4.i4], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter([? = tbl4.i4]), 
+      access([tbl4.i1], [tbl4.v2], [tbl4.i4], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+have frist column of pk,but where condition is disorder 
+select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 where  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and  tbl3.i1>2 ;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 where  tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1 and  tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.i4], [tbl3.i1], [tbl3.v2])
+  1 - output([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter([? = tbl4.i4]), 
+      access([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 where  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and  tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on  tbl3.v2=tbl4.v2 where  (tbl3.i4=tbl4.i4 and tbl3.i1=tbl4.i1) and  tbl3.i1>2;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |NESTED-LOOP JOIN|    |
+|1 | TABLE SCAN     |tbl3|
+|2 | TABLE SCAN     |tbl4|
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      conds(nil), nl_params_([tbl3.i4], [tbl3.i1], [tbl3.v2])
+  1 - output([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter(nil), 
+      access([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter([? = tbl4.i4]), 
+      access([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+where condition not hava first column of primay,but have other column of  primary key 
+select * from tbl3 join tbl4 on tbl3.v2=tbl4.v2 where tbl3.i4=tbl4.i4 and  tbl3.i1>2;
+i1	v2	i3	i4	d4	i5	i1	v2	i3	i4	d4	i5
+explain basic select * from tbl3 join tbl4 on tbl3.v2=tbl4.v2 where  tbl3.i4=tbl4.i4 and tbl3.i4>1.25;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|tbl3|
+|2 | TABLE SCAN|tbl4|
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([tbl3.i1], [tbl3.v2], [tbl3.i3], [tbl3.i4], [tbl3.d4], [tbl3.i5], [tbl4.i1], [tbl4.v2], [tbl4.i3], [tbl4.i4], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      equal_conds([tbl3.i4 = tbl4.i4], [tbl3.v2 = tbl4.v2]), other_conds(nil)
+  1 - output([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), filter([cast(tbl3.i4, DOUBLE(-1, -1)) > ?]), 
+      access([tbl3.v2], [tbl3.i4], [tbl3.i1], [tbl3.i3], [tbl3.d4], [tbl3.i5]), partitions(p0)
+  2 - output([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), filter(nil), 
+      access([tbl4.v2], [tbl4.i4], [tbl4.i1], [tbl4.i3], [tbl4.d4], [tbl4.i5]), partitions(p0)
+
+drop table if exists t1,t2;
+create table t1 (id int primary key, i2 int);
+create table t2 (id int primary key, i2 int);
+insert into t1(id) values (75);
+insert into t1(id) values (79);
+insert into t1(id) values (78);
+insert into t1(id) values (77);
+insert into t1(id) values (104);
+insert into t1(id) values (103);
+insert into t1(id) values (102);
+insert into t1(id) values (101);
+insert into t1(id) values (105);
+insert into t1(id) values (106);
+insert into t1(id) values (107);
+insert into t2(id) values (107),(75),(1000);
+select t1.id, t2.id from t1 join t2 on t2.id = t1.id where t1.id>100;
+id	id
+107	107
+explain basic select t1.id, t2.id from t1 join t2 on t2.id = t1.id where t1.id>100;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|t1  |
+|2 | TABLE SCAN|t2  |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.id], [t2.id]), filter(nil), 
+      equal_conds([t2.id = t1.id]), other_conds(nil)
+  1 - output([t1.id]), filter(nil), 
+      access([t1.id]), partitions(p0)
+  2 - output([t2.id]), filter(nil), 
+      access([t2.id]), partitions(p0)
+
+explain basic select t1.id, t2.id from t1 join t2 on t2.i2 = t1.i2 where t1.id>100;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|t2  |
+|2 | TABLE SCAN|t1  |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.id], [t2.id]), filter(nil), 
+      equal_conds([t2.i2 = t1.i2]), other_conds(nil)
+  1 - output([t2.i2], [t2.id]), filter(nil), 
+      access([t2.i2], [t2.id]), partitions(p0)
+  2 - output([t1.i2], [t1.id]), filter(nil), 
+      access([t1.i2], [t1.id]), partitions(p0)
+
+explain basic select t1.id, count(t2.id) from t1 join t2 on t2.id = t1.id  where t1.id>100 group by t1.id order by t1.id;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |MERGE JOIN |    |
+|1 | TABLE SCAN|t1  |
+|2 | TABLE SCAN|t2  |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.id], [CASE WHEN (T_OP_IS_NOT, t2.id, NULL, 0) THEN 1 ELSE 0 END]), filter(nil), 
+      equal_conds([t2.id = t1.id]), other_conds(nil)
+  1 - output([t1.id]), filter(nil), 
+      access([t1.id]), partitions(p0)
+  2 - output([t2.id]), filter(nil), 
+      access([t2.id]), partitions(p0)
+
+use with limit 
+select * from t1 join t2 on t2.id = t1.id where t1.id>100 limit 3;
+id	i2	id	i2
+107	NULL	107	NULL
+select * from t1 join t2 on t2.id = t1.id where  t1.id>100 limit 1,5;
+id	i2	id	i2
+explain basic select * from t1 join t2 on t2.id = t1.id where t1.id>100 limit 3;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |LIMIT       |    |
+|1 | MERGE JOIN |    |
+|2 |  TABLE SCAN|t1  |
+|3 |  TABLE SCAN|t2  |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.id], [t1.i2], [t2.id], [t2.i2]), filter(nil), limit(3), offset(nil)
+  1 - output([t1.id], [t1.i2], [t2.id], [t2.i2]), filter(nil), 
+      equal_conds([t2.id = t1.id]), other_conds(nil)
+  2 - output([t1.id], [t1.i2]), filter(nil), 
+      access([t1.id], [t1.i2]), partitions(p0)
+  3 - output([t2.id], [t2.i2]), filter(nil), 
+      access([t2.id], [t2.i2]), partitions(p0)
+
+explain basic select * from t1 join t2 on t2.id = t1.id where t1.id>100 limit 1,5;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |LIMIT       |    |
+|1 | MERGE JOIN |    |
+|2 |  TABLE SCAN|t1  |
+|3 |  TABLE SCAN|t2  |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.id], [t1.i2], [t2.id], [t2.i2]), filter(nil), limit(5), offset(1)
+  1 - output([t1.id], [t1.i2], [t2.id], [t2.i2]), filter(nil), 
+      equal_conds([t2.id = t1.id]), other_conds(nil)
+  2 - output([t1.id], [t1.i2]), filter(nil), 
+      access([t1.id], [t1.i2]), partitions(p0)
+  3 - output([t2.id], [t2.i2]), filter(nil), 
+      access([t2.id], [t2.i2]), partitions(p0)
+
+2.from select join normal table 
+drop table if exists t,b;
+create table t(x int primary key, c int, c1 int);
+create table b(x int primary key, c int);
+insert into t values(1,2,1),(2,2,2),(3,3,3);
+insert into b values(1,99),(2,98),(3,97);
+select a.c1 as a_c, b.c as b_c from b join (select c, sum(c1) as c1 from t group by c) a  on  a.c = b.x where b.x>2;
+a_c	b_c
+3	97
+explain basic select a.c1 as a_c, b.c as b_c from b join (select c, sum(c1) as c1 from t group by c) a  on a.c = b.x where b.x>2;
+Query Plan
+
+
+      access([a.c], [a.c1])
+      access([b.c]), partitions(p0)
+      access([t.c], [t.c1]), partitions(p0)
+      conds(nil), nl_params_([a.c])
+      group([t.c]), agg_func([T_FUN_SUM(t.c1)])
+  0 - output([a.c1], [b.c]), filter(nil), 
+  1 - output([a.c], [a.c1]), filter(nil), 
+  2 - output([t.c], [T_FUN_SUM(t.c1)]), filter(nil), 
+  3 - output([t.c], [t.c1]), filter(nil), sort_keys([t.c, ASC])
+  4 - output([t.c], [t.c1]), filter([t.c > 2]), 
+  5 - output([b.c]), filter(nil), 
+--------------------------
+-------------------------------------
+==========================
+==========================
+Outputs & filters: 
+|0 |NESTED-LOOP JOIN|    |
+|1 | SUBPLAN SCAN   |a   |
+|2 |  MERGE GROUP BY|    |
+|3 |   SORT         |    |
+|4 |    TABLE SCAN  |t   |
+|5 | TABLE GET      |b   |
+|ID|OPERATOR        |NAME|
+select a.c1 as a_c, b.c as b_c from b join (select c, sum(c1) as c1 from t group by c) a  on a.c = b.x where b.x>2;
+a_c	b_c
+3	97

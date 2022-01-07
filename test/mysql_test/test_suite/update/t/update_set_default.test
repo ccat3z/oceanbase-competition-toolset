@@ -1,0 +1,119 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# owner: yuchen.wyc
+# owner group: SQL3
+# description: 本case是为了测试DML操作时，啥时候用显式default值，什么时候用隐式default值
+# tags: dml,default_value
+
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+create table test (c1 int auto_increment primary key, c2 int not null, c3 int not null default 3,
+    c4 char(10) not null, c5 char(10) not null default 'hello',
+    c6 timestamp not null, c7 timestamp not null default '1998-09-23 12:34:12',
+    c8 time not null, c9 time not null default '12:23:23',
+    c10 datetime not null, c11 datetime not null default '1998-09-23 12:34:12');
+
+set @@sql_mode='strict_all_tables,strict_trans_tables';
+
+echo 'strict + not null';
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+    '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+--error 1364
+update test set c2=default,c3=default,c4=default,c5=default,c6=default,c7=default,c8=default,c9=default,c10=default,c11=default;
+--error 1364
+update test set c3=default,c4=default,c5=default,c6=default,c7=default,c8=default,c9=default,c10=default,c11=default;
+--error 1364
+update test set c3=default,c5=default,c6=default,c7=default,c8=default,c9=default,c10=default,c11=default;
+--error 1364
+update test set c3=default,c5=default,c6=default,c7=default,c9=default,c10=default,c11=default;
+update test set c3=default,c5=default,c6=default,c7=default,c9=default,c11=default;
+
+delete from test;
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+        '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+--error 1364
+update test set c2=default(c2),c3=default(c3),c4=default(c4),c5=default(c5),c6=default(c6),c7=default(c7),
+       c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+--error 1364
+update test set c3=default(c3),c4=default(c4),c5=default(c5),c6=default(c6),c7=default(c7),
+              c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+--error 1364
+update test set c3=default(c3),c5=default(c5),c6=default(c6),c7=default(c7),
+              c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+--error 1364
+update test set c3=default(c3),c5=default(c5),c6=default(c6),c7=default(c7),
+              c9=default(c9),c10=default(c10),c11=default(c11);
+update test set c3=default(c3),c5=default(c5),c6=default(c6),c7=default(c7),
+              c9=default(c9),c11=default(c11);
+
+
+
+
+####
+echo 'strict + null ';
+drop table test;
+create table test (c1 int auto_increment primary key, c2 int  , c3 int   default 3,
+    c4 char(10)  , c5 char(10)   default 'hello',
+    c6 timestamp  , c7 timestamp   default '1998-09-23 12:34:12',
+    c8 time  , c9 time   default '12:23:23',
+    c10 datetime  , c11 datetime   default '1998-09-23 12:34:12');
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+            '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+
+update test set c2=default,c3=default,c4=default,c5=default,c6=default,c7=default,c8=default,c9=default,c10=default,c11=default;
+select c1,c2,c3,c4,c5,c7,c8,c9,c10,c11 from test;
+
+delete from test;
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+                    '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+update test set c2=default(c2),c3=default(c3),c4=default(c4),c5=default(c5),c6=default(c6),c7=default(c7),
+              c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+select * from test;
+
+set @@sql_mode='';
+delete from test;
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+                '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+update test set c2=default,c3=default,c4=default,c5=default,c6=default,c7=default,c8=default,c9=default,c10=default,c11=default;
+select c1,c2,c3,c4,c5,c7,c8,c9,c10,c11 from test;
+delete from test;
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+                    '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+update test set c2=default(c2),c3=default(c3),c4=default(c4),c5=default(c5),c6=default(c6),c7=default(c7),
+              c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+select * from test;
+
+drop table test;
+echo 'not strict + not null';
+create table test (c1 int auto_increment primary key, c2 int not null, c3 int not null default 3,
+    c4 char(10) not null, c5 char(10) not null default 'hello',
+    c6 timestamp not null, c7 timestamp not null default '1998-09-23 12:34:12',
+    c8 time not null, c9 time not null default '12:23:23',
+    c10 datetime not null, c11 datetime not null default '1998-09-23 12:34:12');
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+                    '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+
+update test set c2=default,c3=default,c4=default,c5=default,c6=default,c7=default,c8=default,c9=default,c10=default,c11=default;
+select c1,c2,c3,c4,c5,c7,c8,c9,c10,c11 from test;
+delete from test;
+insert into test(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11) values(1, 100, 100,'y','y','1999-09-09 12:09:09', '1999-09-09 12:09:09',
+                        '12:12:12','12:12:12', '1999-09-09 12:09:09', '1999-09-09 12:09:09');
+--error 1364
+update test set c2=default(c2),c3=default(c3),c4=default(c4),c5=default(c5),c6=default(c6),c7=default(c7),
+                     c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+select * from test;
+--error 1364
+update test set c3=default(c3),c4=default(c4),c5=default(c5),c6=default(c6),c7=default(c7),
+              c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+--error 1364
+update test set c3=default(c3),c5=default(c5),c6=default(c6),c7=default(c7),
+              c8=default(c8),c9=default(c9),c10=default(c10),c11=default(c11);
+--error 1364
+update test set c3=default(c3),c5=default(c5),c6=default(c6),c7=default(c7),
+              c9=default(c9),c10=default(c10),c11=default(c11);
+update test set c3=default(c3),c5=default(c5),c6=default(c6),c7=default(c7),
+              c9=default(c9),c11=default(c11);
+
+

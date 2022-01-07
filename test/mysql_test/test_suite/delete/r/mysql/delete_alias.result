@@ -1,0 +1,129 @@
+drop table if exists t;
+create table t(c1 int primary key, c2 int, key tc2(c2));
+explain basic delete/*+index(ti tc2)*/ from t as ti;
+Query Plan
+========================
+|ID|OPERATOR   |NAME   |
+------------------------
+|0 |DELETE     |       |
+|1 | TABLE SCAN|ti(tc2)|
+========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (ti.c1, ti.c2)})}])
+  1 - output([ti.c1], [ti.c2]), filter(nil), 
+      access([ti.c1], [ti.c2]), partitions(p0)
+
+explain basic delete/*+index(ti tc2)*/ from t ti;
+Query Plan
+========================
+|ID|OPERATOR   |NAME   |
+------------------------
+|0 |DELETE     |       |
+|1 | TABLE SCAN|ti(tc2)|
+========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (ti.c1, ti.c2)})}])
+  1 - output([ti.c1], [ti.c2]), filter(nil), 
+      access([ti.c1], [ti.c2]), partitions(p0)
+
+explain basic delete from t as ti;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |DELETE     |    |
+|1 | TABLE SCAN|ti  |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (ti.c1, ti.c2)})}])
+  1 - output([ti.c1], [ti.c2]), filter(nil), 
+      access([ti.c1], [ti.c2]), partitions(p0)
+
+explain basic delete/*+index(ti tc2)*/ from t as ti where c1 = 1;
+Query Plan
+========================
+|ID|OPERATOR   |NAME   |
+------------------------
+|0 |DELETE     |       |
+|1 | TABLE SCAN|ti(tc2)|
+========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (ti.c1, ti.c2)})}])
+  1 - output([ti.c1], [ti.c2]), filter([ti.c1 = 1]), 
+      access([ti.c1], [ti.c2]), partitions(p0)
+
+explain basic delete/*+index(ti tc2)*/ from t ti where c1 = 1;
+Query Plan
+========================
+|ID|OPERATOR   |NAME   |
+------------------------
+|0 |DELETE     |       |
+|1 | TABLE SCAN|ti(tc2)|
+========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (ti.c1, ti.c2)})}])
+  1 - output([ti.c1], [ti.c2]), filter([ti.c1 = 1]), 
+      access([ti.c1], [ti.c2]), partitions(p0)
+
+explain basic delete from t as ti where c1 = 1;
+Query Plan
+====================
+|ID|OPERATOR  |NAME|
+--------------------
+|0 |DELETE    |    |
+|1 | TABLE GET|ti  |
+====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (ti.c1, ti.c2)})}])
+  1 - output([ti.c1], [ti.c2]), filter(nil), 
+      access([ti.c1], [ti.c2]), partitions(p0)
+
+explain basic delete from t partition(p0) use index(tc2) where c1 = 2;
+Query Plan
+=======================
+|ID|OPERATOR   |NAME  |
+-----------------------
+|0 |DELETE     |      |
+|1 | TABLE SCAN|t(tc2)|
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output(nil), filter(nil), table_columns([{t: ({t: (t.c1, t.c2)})}])
+  1 - output([t.c1], [t.c2]), filter([t.c1 = 2]), 
+      access([t.c1], [t.c2]), partitions(p0)
+
+insert into t values(1, 2);
+insert into t values(2, 3);
+insert into t values(3, 4);
+insert into t values(4, 5);
+insert into t values(5, 6);
+delete/*+index(ti tc2)*/ from t as ti where c1 = 1;
+select * from t;
+c1	c2
+2	3
+3	4
+4	5
+5	6
+delete from t partition(p0) use index(tc2) where c1 = 2;
+delete/*+index(ti tc2)*/ from t ti where c1 = 3;
+delete/*+index(ti tc2)*/ from t partition(p0) ti where c1 = 4;
+select * from t;
+c1	c2
+5	6
+delete from t;
+select * from t;
+c1	c2
+drop table t;

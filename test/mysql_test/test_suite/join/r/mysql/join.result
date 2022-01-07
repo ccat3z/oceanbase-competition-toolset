@@ -1,0 +1,1002 @@
+drop table if exists t1,t2,t3;
+CREATE TABLE t1 (S1 INT primary key, S2 int);
+CREATE TABLE t2 (S1 INT primary key, S2 int);
+INSERT INTO t1(S1) VALUES (1);
+INSERT INTO t2(S1) VALUES (2);
+SELECT * FROM t1,t2 where t1.S1 = t2.S1;
+S1	S2	S1	S2
+SELECT * FROM t1 INNER JOIN t2 on t1.S1=t2.S1;
+S1	S2	S1	S2
+SELECT * from t1 JOIN t2 on t1.S1 = t2.S1;
+S1	S2	S1	S2
+SELECT * from t1 CROSS JOIN t2 on t1.S1=t2.S1;
+S1	S2	S1	S2
+SELECT * from t1 LEFT JOIN t2 on t1.S1=t2.S1;
+S1	S2	S1	S2
+1	NULL	NULL	NULL
+SELECT * from t1 RIGHT JOIN t2 on t1.S1=t2.S1;
+S1	S2	S1	S2
+NULL	NULL	2	NULL
+drop table t1,t2;
+create table t1 (id int primary key, i2 int);
+create table t2 (id int primary key, i2 int);
+insert into t1(id) values (75);
+insert into t1(id) values (79);
+insert into t1(id) values (78);
+insert into t1(id) values (77);
+insert into t1(id) values (104);
+insert into t1(id) values (103);
+insert into t1(id) values (102);
+insert into t1(id) values (101);
+insert into t1(id) values (105);
+insert into t1(id) values (106);
+insert into t1(id) values (107);
+insert into t2(id) values (107),(75),(1000);
+select t1.id, t2.id from t1, t2 where t2.id = t1.id;
+id	id
+107	107
+75	75
+select t1.id, count(t2.id) from t1,t2 where t2.id = t1.id group by t1.id order by t1.id;
+id	count(t2.id)
+75	1
+107	1
+select t1.id, count(t2.id) from t1,t2 where t2.id = t1.id group by t2.id order by t2.id;
+id	count(t2.id)
+75	1
+107	1
+select distinct t1.id from t1 join t1 as t_alias;
+id
+101
+102
+103
+104
+105
+106
+107
+75
+77
+78
+79
+drop table t1,t2;
+CREATE TABLE t1 (
+a int NOT NULL,
+b int NOT NULL,
+c int,
+PRIMARY KEY  (a,b)
+) ;
+INSERT INTO t1(a,b) VALUES (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(2,3);
+CREATE TABLE t2 (
+a int primary key,
+d int
+) ;
+INSERT INTO t2(a) VALUES (2),(3);
+SELECT t1.a,t2.a,b FROM t1,t2 WHERE t1.a=t2.a AND (t1.a=1 OR t1.a=2) AND b>=1 AND b<=3;
+a	a	b
+2	2	3
+SELECT t1.a,t2.a,b FROM t1,t2 WHERE t1.a=t2.a ;
+a	a	b
+2	2	3
+DROP TABLE t1, t2;
+CREATE TABLE t1 (d DATETIME primary key, d2 DATETIME);
+CREATE TABLE t2 (d DATETIME primary key, d2 DATETIME);
+INSERT INTO t1 (d) VALUES ('2001-08-01'),('1970-01-01');
+SELECT * from t1 WHERE t1.d IS NULL;
+d	d2
+SELECT * FROM t1 WHERE 1/0 IS NULL;
+d	d2
+1970-01-01 00:00:00	NULL
+2001-08-01 00:00:00	NULL
+DROP TABLE t1,t2;
+CREATE TABLE t1 (
+Document_ID varchar(50) NOT NULL ,
+Contractor_ID varchar(6) NOT NULL ,
+Language_ID char(3) NOT NULL ,
+Expiration_Date datetime ,
+Publishing_Date datetime ,
+Title varchar(256),
+Column_ID varchar(50) NOT NULL ,
+PRIMARY KEY  (Language_ID,Document_ID,Contractor_ID)
+);
+INSERT INTO t1 VALUES ('xep80','1','ger','2001-12-31 20:00:00','2001-11-12 10:58:00','Kartenbestellung - jetzt auch online','anle'),('','999998','',NULL,NULL,NULL,'');
+CREATE TABLE t2 (
+Contractor_ID char(6) NOT NULL ,
+Language_ID char(3) NOT NULL default '',
+Document_ID char(50) NOT NULL default '',
+CanRead char(1) default NULL,
+Customer_ID int NOT NULL default '0',
+PRIMARY KEY  (Contractor_ID,Language_ID,Document_ID,Customer_ID)
+);
+INSERT INTO t2 VALUES ('5','ger','xep80','1',999999),('1','ger','xep80','1',999999);
+CREATE TABLE t3 (
+Language_ID char(3) NOT NULL default '',
+Column_ID char(50) NOT NULL default '',
+Contractor_ID char(6) NOT NULL default '',
+CanRead char(1) default NULL,
+Active char(1) default NULL,
+PRIMARY KEY  (Language_ID,Column_ID,Contractor_ID)
+);
+INSERT INTO t3 VALUES ('ger','home','1','1','1'),('ger','Test','1','0','0'),('ger','derclu','1','0','0'),('ger','clubne','1','0','0'),('ger','philos','1','0','0'),('ger','clubko','1','0','0'),('ger','clubim','1','1','1'),('ger','progra','1','0','0'),('ger','progvo','1','0','0'),('ger','progsp','1','0','0'),('ger','progau','1','0','0'),('ger','progku','1','0','0'),('ger','progss','1','0','0'),('ger','nachl','1','0','0'),('ger','mitgli','1','0','0'),('ger','mitsu','1','0','0'),('ger','mitbus','1','0','0'),('ger','ergmar','1','1','1'),('ger','home','4','1','1'),('ger','derclu','4','1','1'),('ger','clubne','4','0','0'),('ger','philos','4','1','1'),('ger','clubko','4','1','1'),('ger','clubim','4','1','1'),('ger','progra','4','1','1'),('ger','progvo','4','1','1'),('ger','progsp','4','1','1'),('ger','progau','4','0','0'),('ger','progku','4','1','1'),('ger','progss','4','1','1'),('ger','nachl','4','1','1'),('ger','mitgli','4','0','0'),('ger','mitsu','4','0','0'),('ger','mitbus','4','0','0'),('ger','ergmar','4','1','1'),('ger','progra2','1','0','0'),('ger','archiv','4','1','1'),('ger','anmeld','4','1','1'),('ger','thema','4','1','1'),('ger','edito','4','1','1'),('ger','madis','4','1','1'),('ger','enma','4','1','1'),('ger','madis','1','1','1'),('ger','enma','1','1','1'),('ger','vorsch','4','0','0'),('ger','veranst','4','0','0'),('ger','anle','4','1','1'),('ger','redak','4','1','1'),('ger','nele','4','1','1'),('ger','aukt','4','1','1'),('ger','callcenter','4','1','1'),('ger','anle','1','0','0');
+SELECT DISTINCT COUNT(t1.Title) FROM t1,
+t2, t3 WHERE
+t1.Document_ID='xep80' AND t1.Contractor_ID='1' AND
+t1.Language_ID='ger' AND '2001-12-21 23:14:24' >=
+Publishing_Date AND '2001-12-21 23:14:24' <= Expiration_Date AND
+t1.Document_ID = t2.Document_ID AND
+t1.Language_ID = t2.Language_ID AND
+t1.Contractor_ID = t2.Contractor_ID AND (
+t2.Customer_ID = '4'  OR
+t2.Customer_ID = '999999'  OR
+t2.Customer_ID = '1' )AND t2.CanRead
+= '1'  AND t1.Column_ID=t3.Column_ID AND
+t1.Language_ID=t3.Language_ID AND (
+t3.Contractor_ID = '4'  OR
+t3.Contractor_ID = '999999'  OR
+t3.Contractor_ID = '1') AND
+t3.CanRead='1' AND t3.Active='1';
+COUNT(t1.Title)
+1
+SELECT DISTINCT COUNT(t1.Title) FROM t1,
+t2, t3 WHERE
+t1.Document_ID='xep80' AND t1.Contractor_ID='1' AND
+t1.Language_ID='ger' AND '2001-12-21 23:14:24' >=
+Publishing_Date AND '2001-12-21 23:14:24' <= Expiration_Date AND
+t1.Document_ID = t2.Document_ID AND
+t1.Language_ID = t2.Language_ID AND
+t1.Contractor_ID = t2.Contractor_ID AND (
+t2.Customer_ID = '4'  OR
+t2.Customer_ID = '999999'  OR
+t2.Customer_ID = '1' )AND t2.CanRead
+= '1'  AND t1.Column_ID=t3.Column_ID AND
+t1.Language_ID=t3.Language_ID AND (
+t3.Contractor_ID = '4'  OR
+t3.Contractor_ID = '999999'  OR
+t3.Contractor_ID = '1') AND
+t3.CanRead='1' AND t3.Active='1';
+COUNT(t1.Title)
+1
+drop table t1,t2,t3;
+CREATE TABLE t1 (
+t1_id int,
+t2_id int default NULL,
+type varchar(20),
+cost_unit varchar(20),
+min_value double default NULL,
+max_value double default NULL,
+t3_id int default NULL,
+item_id int default NULL,
+primary key(t1_id)
+);
+INSERT INTO t1 VALUES (12,5,'Percent','Cost',-1,0,-1,-1),(14,4,'Percent','Cost',-1,0,-1,-1),(18,5,'Percent','Cost',-1,0,-1,-1),(19,4,'Percent','Cost',-1,0,-1,-1),(20,5,'Percent','Cost',100,-1,22,291),(21,5,'Percent','Cost',100,-1,18,291),(22,1,'Percent','Cost',100,-1,6,291),(23,1,'Percent','Cost',100,-1,21,291),(24,1,'Percent','Cost',100,-1,9,291),(25,1,'Percent','Cost',100,-1,4,291),(26,1,'Percent','Cost',100,-1,20,291),(27,4,'Percent','Cost',100,-1,7,202),(28,1,'Percent','Cost',50,-1,-1,137),(29,2,'Percent','Cost',100,-1,4,354),(30,2,'Percent','Cost',100,-1,9,137),(93,2,'Cost','Cost',-1,10000000,-1,-1);
+CREATE TABLE t2 (
+id int,
+name varchar(255) default NULL,
+PRIMARY KEY  (id)
+);
+INSERT INTO t2 VALUES (1,'s1'),(2,'s2'),(3,'s3'),(4,'s4'),(5,'s5');
+select/*+USE_MERGE(t1,t2)*/ t1.*, t2.*  from t1, t2 where t2.id=t1.t2_id limit 2;
+t1_id	t2_id	type	cost_unit	min_value	max_value	t3_id	item_id	id	name
+22	1	Percent	Cost	100	-1	6	291	1	s1
+23	1	Percent	Cost	100	-1	21	291	1	s1
+select * from t1,t1 a;
+t1_id	t2_id	type	cost_unit	min_value	max_value	t3_id	item_id	t1_id	t2_id	type	cost_unit	min_value	max_value	t3_id	item_id
+12	5	Percent	Cost	-1	0	-1	-1	12	5	Percent	Cost	-1	0	-1	-1
+12	5	Percent	Cost	-1	0	-1	-1	14	4	Percent	Cost	-1	0	-1	-1
+12	5	Percent	Cost	-1	0	-1	-1	18	5	Percent	Cost	-1	0	-1	-1
+12	5	Percent	Cost	-1	0	-1	-1	19	4	Percent	Cost	-1	0	-1	-1
+12	5	Percent	Cost	-1	0	-1	-1	20	5	Percent	Cost	100	-1	22	291
+12	5	Percent	Cost	-1	0	-1	-1	21	5	Percent	Cost	100	-1	18	291
+12	5	Percent	Cost	-1	0	-1	-1	22	1	Percent	Cost	100	-1	6	291
+12	5	Percent	Cost	-1	0	-1	-1	23	1	Percent	Cost	100	-1	21	291
+12	5	Percent	Cost	-1	0	-1	-1	24	1	Percent	Cost	100	-1	9	291
+12	5	Percent	Cost	-1	0	-1	-1	25	1	Percent	Cost	100	-1	4	291
+12	5	Percent	Cost	-1	0	-1	-1	26	1	Percent	Cost	100	-1	20	291
+12	5	Percent	Cost	-1	0	-1	-1	27	4	Percent	Cost	100	-1	7	202
+12	5	Percent	Cost	-1	0	-1	-1	28	1	Percent	Cost	50	-1	-1	137
+12	5	Percent	Cost	-1	0	-1	-1	29	2	Percent	Cost	100	-1	4	354
+12	5	Percent	Cost	-1	0	-1	-1	30	2	Percent	Cost	100	-1	9	137
+12	5	Percent	Cost	-1	0	-1	-1	93	2	Cost	Cost	-1	10000000	-1	-1
+14	4	Percent	Cost	-1	0	-1	-1	12	5	Percent	Cost	-1	0	-1	-1
+14	4	Percent	Cost	-1	0	-1	-1	14	4	Percent	Cost	-1	0	-1	-1
+14	4	Percent	Cost	-1	0	-1	-1	18	5	Percent	Cost	-1	0	-1	-1
+14	4	Percent	Cost	-1	0	-1	-1	19	4	Percent	Cost	-1	0	-1	-1
+14	4	Percent	Cost	-1	0	-1	-1	20	5	Percent	Cost	100	-1	22	291
+14	4	Percent	Cost	-1	0	-1	-1	21	5	Percent	Cost	100	-1	18	291
+14	4	Percent	Cost	-1	0	-1	-1	22	1	Percent	Cost	100	-1	6	291
+14	4	Percent	Cost	-1	0	-1	-1	23	1	Percent	Cost	100	-1	21	291
+14	4	Percent	Cost	-1	0	-1	-1	24	1	Percent	Cost	100	-1	9	291
+14	4	Percent	Cost	-1	0	-1	-1	25	1	Percent	Cost	100	-1	4	291
+14	4	Percent	Cost	-1	0	-1	-1	26	1	Percent	Cost	100	-1	20	291
+14	4	Percent	Cost	-1	0	-1	-1	27	4	Percent	Cost	100	-1	7	202
+14	4	Percent	Cost	-1	0	-1	-1	28	1	Percent	Cost	50	-1	-1	137
+14	4	Percent	Cost	-1	0	-1	-1	29	2	Percent	Cost	100	-1	4	354
+14	4	Percent	Cost	-1	0	-1	-1	30	2	Percent	Cost	100	-1	9	137
+14	4	Percent	Cost	-1	0	-1	-1	93	2	Cost	Cost	-1	10000000	-1	-1
+18	5	Percent	Cost	-1	0	-1	-1	12	5	Percent	Cost	-1	0	-1	-1
+18	5	Percent	Cost	-1	0	-1	-1	14	4	Percent	Cost	-1	0	-1	-1
+18	5	Percent	Cost	-1	0	-1	-1	18	5	Percent	Cost	-1	0	-1	-1
+18	5	Percent	Cost	-1	0	-1	-1	19	4	Percent	Cost	-1	0	-1	-1
+18	5	Percent	Cost	-1	0	-1	-1	20	5	Percent	Cost	100	-1	22	291
+18	5	Percent	Cost	-1	0	-1	-1	21	5	Percent	Cost	100	-1	18	291
+18	5	Percent	Cost	-1	0	-1	-1	22	1	Percent	Cost	100	-1	6	291
+18	5	Percent	Cost	-1	0	-1	-1	23	1	Percent	Cost	100	-1	21	291
+18	5	Percent	Cost	-1	0	-1	-1	24	1	Percent	Cost	100	-1	9	291
+18	5	Percent	Cost	-1	0	-1	-1	25	1	Percent	Cost	100	-1	4	291
+18	5	Percent	Cost	-1	0	-1	-1	26	1	Percent	Cost	100	-1	20	291
+18	5	Percent	Cost	-1	0	-1	-1	27	4	Percent	Cost	100	-1	7	202
+18	5	Percent	Cost	-1	0	-1	-1	28	1	Percent	Cost	50	-1	-1	137
+18	5	Percent	Cost	-1	0	-1	-1	29	2	Percent	Cost	100	-1	4	354
+18	5	Percent	Cost	-1	0	-1	-1	30	2	Percent	Cost	100	-1	9	137
+18	5	Percent	Cost	-1	0	-1	-1	93	2	Cost	Cost	-1	10000000	-1	-1
+19	4	Percent	Cost	-1	0	-1	-1	12	5	Percent	Cost	-1	0	-1	-1
+19	4	Percent	Cost	-1	0	-1	-1	14	4	Percent	Cost	-1	0	-1	-1
+19	4	Percent	Cost	-1	0	-1	-1	18	5	Percent	Cost	-1	0	-1	-1
+19	4	Percent	Cost	-1	0	-1	-1	19	4	Percent	Cost	-1	0	-1	-1
+19	4	Percent	Cost	-1	0	-1	-1	20	5	Percent	Cost	100	-1	22	291
+19	4	Percent	Cost	-1	0	-1	-1	21	5	Percent	Cost	100	-1	18	291
+19	4	Percent	Cost	-1	0	-1	-1	22	1	Percent	Cost	100	-1	6	291
+19	4	Percent	Cost	-1	0	-1	-1	23	1	Percent	Cost	100	-1	21	291
+19	4	Percent	Cost	-1	0	-1	-1	24	1	Percent	Cost	100	-1	9	291
+19	4	Percent	Cost	-1	0	-1	-1	25	1	Percent	Cost	100	-1	4	291
+19	4	Percent	Cost	-1	0	-1	-1	26	1	Percent	Cost	100	-1	20	291
+19	4	Percent	Cost	-1	0	-1	-1	27	4	Percent	Cost	100	-1	7	202
+19	4	Percent	Cost	-1	0	-1	-1	28	1	Percent	Cost	50	-1	-1	137
+19	4	Percent	Cost	-1	0	-1	-1	29	2	Percent	Cost	100	-1	4	354
+19	4	Percent	Cost	-1	0	-1	-1	30	2	Percent	Cost	100	-1	9	137
+19	4	Percent	Cost	-1	0	-1	-1	93	2	Cost	Cost	-1	10000000	-1	-1
+20	5	Percent	Cost	100	-1	22	291	12	5	Percent	Cost	-1	0	-1	-1
+20	5	Percent	Cost	100	-1	22	291	14	4	Percent	Cost	-1	0	-1	-1
+20	5	Percent	Cost	100	-1	22	291	18	5	Percent	Cost	-1	0	-1	-1
+20	5	Percent	Cost	100	-1	22	291	19	4	Percent	Cost	-1	0	-1	-1
+20	5	Percent	Cost	100	-1	22	291	20	5	Percent	Cost	100	-1	22	291
+20	5	Percent	Cost	100	-1	22	291	21	5	Percent	Cost	100	-1	18	291
+20	5	Percent	Cost	100	-1	22	291	22	1	Percent	Cost	100	-1	6	291
+20	5	Percent	Cost	100	-1	22	291	23	1	Percent	Cost	100	-1	21	291
+20	5	Percent	Cost	100	-1	22	291	24	1	Percent	Cost	100	-1	9	291
+20	5	Percent	Cost	100	-1	22	291	25	1	Percent	Cost	100	-1	4	291
+20	5	Percent	Cost	100	-1	22	291	26	1	Percent	Cost	100	-1	20	291
+20	5	Percent	Cost	100	-1	22	291	27	4	Percent	Cost	100	-1	7	202
+20	5	Percent	Cost	100	-1	22	291	28	1	Percent	Cost	50	-1	-1	137
+20	5	Percent	Cost	100	-1	22	291	29	2	Percent	Cost	100	-1	4	354
+20	5	Percent	Cost	100	-1	22	291	30	2	Percent	Cost	100	-1	9	137
+20	5	Percent	Cost	100	-1	22	291	93	2	Cost	Cost	-1	10000000	-1	-1
+21	5	Percent	Cost	100	-1	18	291	12	5	Percent	Cost	-1	0	-1	-1
+21	5	Percent	Cost	100	-1	18	291	14	4	Percent	Cost	-1	0	-1	-1
+21	5	Percent	Cost	100	-1	18	291	18	5	Percent	Cost	-1	0	-1	-1
+21	5	Percent	Cost	100	-1	18	291	19	4	Percent	Cost	-1	0	-1	-1
+21	5	Percent	Cost	100	-1	18	291	20	5	Percent	Cost	100	-1	22	291
+21	5	Percent	Cost	100	-1	18	291	21	5	Percent	Cost	100	-1	18	291
+21	5	Percent	Cost	100	-1	18	291	22	1	Percent	Cost	100	-1	6	291
+21	5	Percent	Cost	100	-1	18	291	23	1	Percent	Cost	100	-1	21	291
+21	5	Percent	Cost	100	-1	18	291	24	1	Percent	Cost	100	-1	9	291
+21	5	Percent	Cost	100	-1	18	291	25	1	Percent	Cost	100	-1	4	291
+21	5	Percent	Cost	100	-1	18	291	26	1	Percent	Cost	100	-1	20	291
+21	5	Percent	Cost	100	-1	18	291	27	4	Percent	Cost	100	-1	7	202
+21	5	Percent	Cost	100	-1	18	291	28	1	Percent	Cost	50	-1	-1	137
+21	5	Percent	Cost	100	-1	18	291	29	2	Percent	Cost	100	-1	4	354
+21	5	Percent	Cost	100	-1	18	291	30	2	Percent	Cost	100	-1	9	137
+21	5	Percent	Cost	100	-1	18	291	93	2	Cost	Cost	-1	10000000	-1	-1
+22	1	Percent	Cost	100	-1	6	291	12	5	Percent	Cost	-1	0	-1	-1
+22	1	Percent	Cost	100	-1	6	291	14	4	Percent	Cost	-1	0	-1	-1
+22	1	Percent	Cost	100	-1	6	291	18	5	Percent	Cost	-1	0	-1	-1
+22	1	Percent	Cost	100	-1	6	291	19	4	Percent	Cost	-1	0	-1	-1
+22	1	Percent	Cost	100	-1	6	291	20	5	Percent	Cost	100	-1	22	291
+22	1	Percent	Cost	100	-1	6	291	21	5	Percent	Cost	100	-1	18	291
+22	1	Percent	Cost	100	-1	6	291	22	1	Percent	Cost	100	-1	6	291
+22	1	Percent	Cost	100	-1	6	291	23	1	Percent	Cost	100	-1	21	291
+22	1	Percent	Cost	100	-1	6	291	24	1	Percent	Cost	100	-1	9	291
+22	1	Percent	Cost	100	-1	6	291	25	1	Percent	Cost	100	-1	4	291
+22	1	Percent	Cost	100	-1	6	291	26	1	Percent	Cost	100	-1	20	291
+22	1	Percent	Cost	100	-1	6	291	27	4	Percent	Cost	100	-1	7	202
+22	1	Percent	Cost	100	-1	6	291	28	1	Percent	Cost	50	-1	-1	137
+22	1	Percent	Cost	100	-1	6	291	29	2	Percent	Cost	100	-1	4	354
+22	1	Percent	Cost	100	-1	6	291	30	2	Percent	Cost	100	-1	9	137
+22	1	Percent	Cost	100	-1	6	291	93	2	Cost	Cost	-1	10000000	-1	-1
+23	1	Percent	Cost	100	-1	21	291	12	5	Percent	Cost	-1	0	-1	-1
+23	1	Percent	Cost	100	-1	21	291	14	4	Percent	Cost	-1	0	-1	-1
+23	1	Percent	Cost	100	-1	21	291	18	5	Percent	Cost	-1	0	-1	-1
+23	1	Percent	Cost	100	-1	21	291	19	4	Percent	Cost	-1	0	-1	-1
+23	1	Percent	Cost	100	-1	21	291	20	5	Percent	Cost	100	-1	22	291
+23	1	Percent	Cost	100	-1	21	291	21	5	Percent	Cost	100	-1	18	291
+23	1	Percent	Cost	100	-1	21	291	22	1	Percent	Cost	100	-1	6	291
+23	1	Percent	Cost	100	-1	21	291	23	1	Percent	Cost	100	-1	21	291
+23	1	Percent	Cost	100	-1	21	291	24	1	Percent	Cost	100	-1	9	291
+23	1	Percent	Cost	100	-1	21	291	25	1	Percent	Cost	100	-1	4	291
+23	1	Percent	Cost	100	-1	21	291	26	1	Percent	Cost	100	-1	20	291
+23	1	Percent	Cost	100	-1	21	291	27	4	Percent	Cost	100	-1	7	202
+23	1	Percent	Cost	100	-1	21	291	28	1	Percent	Cost	50	-1	-1	137
+23	1	Percent	Cost	100	-1	21	291	29	2	Percent	Cost	100	-1	4	354
+23	1	Percent	Cost	100	-1	21	291	30	2	Percent	Cost	100	-1	9	137
+23	1	Percent	Cost	100	-1	21	291	93	2	Cost	Cost	-1	10000000	-1	-1
+24	1	Percent	Cost	100	-1	9	291	12	5	Percent	Cost	-1	0	-1	-1
+24	1	Percent	Cost	100	-1	9	291	14	4	Percent	Cost	-1	0	-1	-1
+24	1	Percent	Cost	100	-1	9	291	18	5	Percent	Cost	-1	0	-1	-1
+24	1	Percent	Cost	100	-1	9	291	19	4	Percent	Cost	-1	0	-1	-1
+24	1	Percent	Cost	100	-1	9	291	20	5	Percent	Cost	100	-1	22	291
+24	1	Percent	Cost	100	-1	9	291	21	5	Percent	Cost	100	-1	18	291
+24	1	Percent	Cost	100	-1	9	291	22	1	Percent	Cost	100	-1	6	291
+24	1	Percent	Cost	100	-1	9	291	23	1	Percent	Cost	100	-1	21	291
+24	1	Percent	Cost	100	-1	9	291	24	1	Percent	Cost	100	-1	9	291
+24	1	Percent	Cost	100	-1	9	291	25	1	Percent	Cost	100	-1	4	291
+24	1	Percent	Cost	100	-1	9	291	26	1	Percent	Cost	100	-1	20	291
+24	1	Percent	Cost	100	-1	9	291	27	4	Percent	Cost	100	-1	7	202
+24	1	Percent	Cost	100	-1	9	291	28	1	Percent	Cost	50	-1	-1	137
+24	1	Percent	Cost	100	-1	9	291	29	2	Percent	Cost	100	-1	4	354
+24	1	Percent	Cost	100	-1	9	291	30	2	Percent	Cost	100	-1	9	137
+24	1	Percent	Cost	100	-1	9	291	93	2	Cost	Cost	-1	10000000	-1	-1
+25	1	Percent	Cost	100	-1	4	291	12	5	Percent	Cost	-1	0	-1	-1
+25	1	Percent	Cost	100	-1	4	291	14	4	Percent	Cost	-1	0	-1	-1
+25	1	Percent	Cost	100	-1	4	291	18	5	Percent	Cost	-1	0	-1	-1
+25	1	Percent	Cost	100	-1	4	291	19	4	Percent	Cost	-1	0	-1	-1
+25	1	Percent	Cost	100	-1	4	291	20	5	Percent	Cost	100	-1	22	291
+25	1	Percent	Cost	100	-1	4	291	21	5	Percent	Cost	100	-1	18	291
+25	1	Percent	Cost	100	-1	4	291	22	1	Percent	Cost	100	-1	6	291
+25	1	Percent	Cost	100	-1	4	291	23	1	Percent	Cost	100	-1	21	291
+25	1	Percent	Cost	100	-1	4	291	24	1	Percent	Cost	100	-1	9	291
+25	1	Percent	Cost	100	-1	4	291	25	1	Percent	Cost	100	-1	4	291
+25	1	Percent	Cost	100	-1	4	291	26	1	Percent	Cost	100	-1	20	291
+25	1	Percent	Cost	100	-1	4	291	27	4	Percent	Cost	100	-1	7	202
+25	1	Percent	Cost	100	-1	4	291	28	1	Percent	Cost	50	-1	-1	137
+25	1	Percent	Cost	100	-1	4	291	29	2	Percent	Cost	100	-1	4	354
+25	1	Percent	Cost	100	-1	4	291	30	2	Percent	Cost	100	-1	9	137
+25	1	Percent	Cost	100	-1	4	291	93	2	Cost	Cost	-1	10000000	-1	-1
+26	1	Percent	Cost	100	-1	20	291	12	5	Percent	Cost	-1	0	-1	-1
+26	1	Percent	Cost	100	-1	20	291	14	4	Percent	Cost	-1	0	-1	-1
+26	1	Percent	Cost	100	-1	20	291	18	5	Percent	Cost	-1	0	-1	-1
+26	1	Percent	Cost	100	-1	20	291	19	4	Percent	Cost	-1	0	-1	-1
+26	1	Percent	Cost	100	-1	20	291	20	5	Percent	Cost	100	-1	22	291
+26	1	Percent	Cost	100	-1	20	291	21	5	Percent	Cost	100	-1	18	291
+26	1	Percent	Cost	100	-1	20	291	22	1	Percent	Cost	100	-1	6	291
+26	1	Percent	Cost	100	-1	20	291	23	1	Percent	Cost	100	-1	21	291
+26	1	Percent	Cost	100	-1	20	291	24	1	Percent	Cost	100	-1	9	291
+26	1	Percent	Cost	100	-1	20	291	25	1	Percent	Cost	100	-1	4	291
+26	1	Percent	Cost	100	-1	20	291	26	1	Percent	Cost	100	-1	20	291
+26	1	Percent	Cost	100	-1	20	291	27	4	Percent	Cost	100	-1	7	202
+26	1	Percent	Cost	100	-1	20	291	28	1	Percent	Cost	50	-1	-1	137
+26	1	Percent	Cost	100	-1	20	291	29	2	Percent	Cost	100	-1	4	354
+26	1	Percent	Cost	100	-1	20	291	30	2	Percent	Cost	100	-1	9	137
+26	1	Percent	Cost	100	-1	20	291	93	2	Cost	Cost	-1	10000000	-1	-1
+27	4	Percent	Cost	100	-1	7	202	12	5	Percent	Cost	-1	0	-1	-1
+27	4	Percent	Cost	100	-1	7	202	14	4	Percent	Cost	-1	0	-1	-1
+27	4	Percent	Cost	100	-1	7	202	18	5	Percent	Cost	-1	0	-1	-1
+27	4	Percent	Cost	100	-1	7	202	19	4	Percent	Cost	-1	0	-1	-1
+27	4	Percent	Cost	100	-1	7	202	20	5	Percent	Cost	100	-1	22	291
+27	4	Percent	Cost	100	-1	7	202	21	5	Percent	Cost	100	-1	18	291
+27	4	Percent	Cost	100	-1	7	202	22	1	Percent	Cost	100	-1	6	291
+27	4	Percent	Cost	100	-1	7	202	23	1	Percent	Cost	100	-1	21	291
+27	4	Percent	Cost	100	-1	7	202	24	1	Percent	Cost	100	-1	9	291
+27	4	Percent	Cost	100	-1	7	202	25	1	Percent	Cost	100	-1	4	291
+27	4	Percent	Cost	100	-1	7	202	26	1	Percent	Cost	100	-1	20	291
+27	4	Percent	Cost	100	-1	7	202	27	4	Percent	Cost	100	-1	7	202
+27	4	Percent	Cost	100	-1	7	202	28	1	Percent	Cost	50	-1	-1	137
+27	4	Percent	Cost	100	-1	7	202	29	2	Percent	Cost	100	-1	4	354
+27	4	Percent	Cost	100	-1	7	202	30	2	Percent	Cost	100	-1	9	137
+27	4	Percent	Cost	100	-1	7	202	93	2	Cost	Cost	-1	10000000	-1	-1
+28	1	Percent	Cost	50	-1	-1	137	12	5	Percent	Cost	-1	0	-1	-1
+28	1	Percent	Cost	50	-1	-1	137	14	4	Percent	Cost	-1	0	-1	-1
+28	1	Percent	Cost	50	-1	-1	137	18	5	Percent	Cost	-1	0	-1	-1
+28	1	Percent	Cost	50	-1	-1	137	19	4	Percent	Cost	-1	0	-1	-1
+28	1	Percent	Cost	50	-1	-1	137	20	5	Percent	Cost	100	-1	22	291
+28	1	Percent	Cost	50	-1	-1	137	21	5	Percent	Cost	100	-1	18	291
+28	1	Percent	Cost	50	-1	-1	137	22	1	Percent	Cost	100	-1	6	291
+28	1	Percent	Cost	50	-1	-1	137	23	1	Percent	Cost	100	-1	21	291
+28	1	Percent	Cost	50	-1	-1	137	24	1	Percent	Cost	100	-1	9	291
+28	1	Percent	Cost	50	-1	-1	137	25	1	Percent	Cost	100	-1	4	291
+28	1	Percent	Cost	50	-1	-1	137	26	1	Percent	Cost	100	-1	20	291
+28	1	Percent	Cost	50	-1	-1	137	27	4	Percent	Cost	100	-1	7	202
+28	1	Percent	Cost	50	-1	-1	137	28	1	Percent	Cost	50	-1	-1	137
+28	1	Percent	Cost	50	-1	-1	137	29	2	Percent	Cost	100	-1	4	354
+28	1	Percent	Cost	50	-1	-1	137	30	2	Percent	Cost	100	-1	9	137
+28	1	Percent	Cost	50	-1	-1	137	93	2	Cost	Cost	-1	10000000	-1	-1
+29	2	Percent	Cost	100	-1	4	354	12	5	Percent	Cost	-1	0	-1	-1
+29	2	Percent	Cost	100	-1	4	354	14	4	Percent	Cost	-1	0	-1	-1
+29	2	Percent	Cost	100	-1	4	354	18	5	Percent	Cost	-1	0	-1	-1
+29	2	Percent	Cost	100	-1	4	354	19	4	Percent	Cost	-1	0	-1	-1
+29	2	Percent	Cost	100	-1	4	354	20	5	Percent	Cost	100	-1	22	291
+29	2	Percent	Cost	100	-1	4	354	21	5	Percent	Cost	100	-1	18	291
+29	2	Percent	Cost	100	-1	4	354	22	1	Percent	Cost	100	-1	6	291
+29	2	Percent	Cost	100	-1	4	354	23	1	Percent	Cost	100	-1	21	291
+29	2	Percent	Cost	100	-1	4	354	24	1	Percent	Cost	100	-1	9	291
+29	2	Percent	Cost	100	-1	4	354	25	1	Percent	Cost	100	-1	4	291
+29	2	Percent	Cost	100	-1	4	354	26	1	Percent	Cost	100	-1	20	291
+29	2	Percent	Cost	100	-1	4	354	27	4	Percent	Cost	100	-1	7	202
+29	2	Percent	Cost	100	-1	4	354	28	1	Percent	Cost	50	-1	-1	137
+29	2	Percent	Cost	100	-1	4	354	29	2	Percent	Cost	100	-1	4	354
+29	2	Percent	Cost	100	-1	4	354	30	2	Percent	Cost	100	-1	9	137
+29	2	Percent	Cost	100	-1	4	354	93	2	Cost	Cost	-1	10000000	-1	-1
+30	2	Percent	Cost	100	-1	9	137	12	5	Percent	Cost	-1	0	-1	-1
+30	2	Percent	Cost	100	-1	9	137	14	4	Percent	Cost	-1	0	-1	-1
+30	2	Percent	Cost	100	-1	9	137	18	5	Percent	Cost	-1	0	-1	-1
+30	2	Percent	Cost	100	-1	9	137	19	4	Percent	Cost	-1	0	-1	-1
+30	2	Percent	Cost	100	-1	9	137	20	5	Percent	Cost	100	-1	22	291
+30	2	Percent	Cost	100	-1	9	137	21	5	Percent	Cost	100	-1	18	291
+30	2	Percent	Cost	100	-1	9	137	22	1	Percent	Cost	100	-1	6	291
+30	2	Percent	Cost	100	-1	9	137	23	1	Percent	Cost	100	-1	21	291
+30	2	Percent	Cost	100	-1	9	137	24	1	Percent	Cost	100	-1	9	291
+30	2	Percent	Cost	100	-1	9	137	25	1	Percent	Cost	100	-1	4	291
+30	2	Percent	Cost	100	-1	9	137	26	1	Percent	Cost	100	-1	20	291
+30	2	Percent	Cost	100	-1	9	137	27	4	Percent	Cost	100	-1	7	202
+30	2	Percent	Cost	100	-1	9	137	28	1	Percent	Cost	50	-1	-1	137
+30	2	Percent	Cost	100	-1	9	137	29	2	Percent	Cost	100	-1	4	354
+30	2	Percent	Cost	100	-1	9	137	30	2	Percent	Cost	100	-1	9	137
+30	2	Percent	Cost	100	-1	9	137	93	2	Cost	Cost	-1	10000000	-1	-1
+93	2	Cost	Cost	-1	10000000	-1	-1	12	5	Percent	Cost	-1	0	-1	-1
+93	2	Cost	Cost	-1	10000000	-1	-1	14	4	Percent	Cost	-1	0	-1	-1
+93	2	Cost	Cost	-1	10000000	-1	-1	18	5	Percent	Cost	-1	0	-1	-1
+93	2	Cost	Cost	-1	10000000	-1	-1	19	4	Percent	Cost	-1	0	-1	-1
+93	2	Cost	Cost	-1	10000000	-1	-1	20	5	Percent	Cost	100	-1	22	291
+93	2	Cost	Cost	-1	10000000	-1	-1	21	5	Percent	Cost	100	-1	18	291
+93	2	Cost	Cost	-1	10000000	-1	-1	22	1	Percent	Cost	100	-1	6	291
+93	2	Cost	Cost	-1	10000000	-1	-1	23	1	Percent	Cost	100	-1	21	291
+93	2	Cost	Cost	-1	10000000	-1	-1	24	1	Percent	Cost	100	-1	9	291
+93	2	Cost	Cost	-1	10000000	-1	-1	25	1	Percent	Cost	100	-1	4	291
+93	2	Cost	Cost	-1	10000000	-1	-1	26	1	Percent	Cost	100	-1	20	291
+93	2	Cost	Cost	-1	10000000	-1	-1	27	4	Percent	Cost	100	-1	7	202
+93	2	Cost	Cost	-1	10000000	-1	-1	28	1	Percent	Cost	50	-1	-1	137
+93	2	Cost	Cost	-1	10000000	-1	-1	29	2	Percent	Cost	100	-1	4	354
+93	2	Cost	Cost	-1	10000000	-1	-1	30	2	Percent	Cost	100	-1	9	137
+93	2	Cost	Cost	-1	10000000	-1	-1	93	2	Cost	Cost	-1	10000000	-1	-1
+select * from t1,t2 b;
+t1_id	t2_id	type	cost_unit	min_value	max_value	t3_id	item_id	id	name
+12	5	Percent	Cost	-1	0	-1	-1	1	s1
+12	5	Percent	Cost	-1	0	-1	-1	2	s2
+12	5	Percent	Cost	-1	0	-1	-1	3	s3
+12	5	Percent	Cost	-1	0	-1	-1	4	s4
+12	5	Percent	Cost	-1	0	-1	-1	5	s5
+14	4	Percent	Cost	-1	0	-1	-1	1	s1
+14	4	Percent	Cost	-1	0	-1	-1	2	s2
+14	4	Percent	Cost	-1	0	-1	-1	3	s3
+14	4	Percent	Cost	-1	0	-1	-1	4	s4
+14	4	Percent	Cost	-1	0	-1	-1	5	s5
+18	5	Percent	Cost	-1	0	-1	-1	1	s1
+18	5	Percent	Cost	-1	0	-1	-1	2	s2
+18	5	Percent	Cost	-1	0	-1	-1	3	s3
+18	5	Percent	Cost	-1	0	-1	-1	4	s4
+18	5	Percent	Cost	-1	0	-1	-1	5	s5
+19	4	Percent	Cost	-1	0	-1	-1	1	s1
+19	4	Percent	Cost	-1	0	-1	-1	2	s2
+19	4	Percent	Cost	-1	0	-1	-1	3	s3
+19	4	Percent	Cost	-1	0	-1	-1	4	s4
+19	4	Percent	Cost	-1	0	-1	-1	5	s5
+20	5	Percent	Cost	100	-1	22	291	1	s1
+20	5	Percent	Cost	100	-1	22	291	2	s2
+20	5	Percent	Cost	100	-1	22	291	3	s3
+20	5	Percent	Cost	100	-1	22	291	4	s4
+20	5	Percent	Cost	100	-1	22	291	5	s5
+21	5	Percent	Cost	100	-1	18	291	1	s1
+21	5	Percent	Cost	100	-1	18	291	2	s2
+21	5	Percent	Cost	100	-1	18	291	3	s3
+21	5	Percent	Cost	100	-1	18	291	4	s4
+21	5	Percent	Cost	100	-1	18	291	5	s5
+22	1	Percent	Cost	100	-1	6	291	1	s1
+22	1	Percent	Cost	100	-1	6	291	2	s2
+22	1	Percent	Cost	100	-1	6	291	3	s3
+22	1	Percent	Cost	100	-1	6	291	4	s4
+22	1	Percent	Cost	100	-1	6	291	5	s5
+23	1	Percent	Cost	100	-1	21	291	1	s1
+23	1	Percent	Cost	100	-1	21	291	2	s2
+23	1	Percent	Cost	100	-1	21	291	3	s3
+23	1	Percent	Cost	100	-1	21	291	4	s4
+23	1	Percent	Cost	100	-1	21	291	5	s5
+24	1	Percent	Cost	100	-1	9	291	1	s1
+24	1	Percent	Cost	100	-1	9	291	2	s2
+24	1	Percent	Cost	100	-1	9	291	3	s3
+24	1	Percent	Cost	100	-1	9	291	4	s4
+24	1	Percent	Cost	100	-1	9	291	5	s5
+25	1	Percent	Cost	100	-1	4	291	1	s1
+25	1	Percent	Cost	100	-1	4	291	2	s2
+25	1	Percent	Cost	100	-1	4	291	3	s3
+25	1	Percent	Cost	100	-1	4	291	4	s4
+25	1	Percent	Cost	100	-1	4	291	5	s5
+26	1	Percent	Cost	100	-1	20	291	1	s1
+26	1	Percent	Cost	100	-1	20	291	2	s2
+26	1	Percent	Cost	100	-1	20	291	3	s3
+26	1	Percent	Cost	100	-1	20	291	4	s4
+26	1	Percent	Cost	100	-1	20	291	5	s5
+27	4	Percent	Cost	100	-1	7	202	1	s1
+27	4	Percent	Cost	100	-1	7	202	2	s2
+27	4	Percent	Cost	100	-1	7	202	3	s3
+27	4	Percent	Cost	100	-1	7	202	4	s4
+27	4	Percent	Cost	100	-1	7	202	5	s5
+28	1	Percent	Cost	50	-1	-1	137	1	s1
+28	1	Percent	Cost	50	-1	-1	137	2	s2
+28	1	Percent	Cost	50	-1	-1	137	3	s3
+28	1	Percent	Cost	50	-1	-1	137	4	s4
+28	1	Percent	Cost	50	-1	-1	137	5	s5
+29	2	Percent	Cost	100	-1	4	354	1	s1
+29	2	Percent	Cost	100	-1	4	354	2	s2
+29	2	Percent	Cost	100	-1	4	354	3	s3
+29	2	Percent	Cost	100	-1	4	354	4	s4
+29	2	Percent	Cost	100	-1	4	354	5	s5
+30	2	Percent	Cost	100	-1	9	137	1	s1
+30	2	Percent	Cost	100	-1	9	137	2	s2
+30	2	Percent	Cost	100	-1	9	137	3	s3
+30	2	Percent	Cost	100	-1	9	137	4	s4
+30	2	Percent	Cost	100	-1	9	137	5	s5
+93	2	Cost	Cost	-1	10000000	-1	-1	1	s1
+93	2	Cost	Cost	-1	10000000	-1	-1	2	s2
+93	2	Cost	Cost	-1	10000000	-1	-1	3	s3
+93	2	Cost	Cost	-1	10000000	-1	-1	4	s4
+93	2	Cost	Cost	-1	10000000	-1	-1	5	s5
+drop table t1,t2;
+CREATE TABLE t1 (ID INTEGER NOT NULL PRIMARY KEY, Value1 VARCHAR(255));
+CREATE TABLE t2 (ID INTEGER NOT NULL PRIMARY KEY, Value2 VARCHAR(255));
+INSERT INTO t1 VALUES (1, 'A');
+INSERT INTO t2 VALUES (1, 'B');
+drop table t1,t2;
+create table t1 (i int primary key,j int);
+create table t2 (i int primary key,j int);
+create table t3 (i int primary key,j int);
+insert into t1(i) values(1),(2);
+insert into t2(i) values(2),(3);
+insert into t3(i) values (2),(4);
+select * from t1 left join t2 on (t1.i=t2.i);
+i	j	i	j
+1	NULL	NULL	NULL
+2	NULL	2	NULL
+select * from t1 left join t2 on (t1.i=t2.i) left join t3 on (t2.i=t3.i);
+i	j	i	j	i	j
+1	NULL	NULL	NULL	NULL	NULL
+2	NULL	2	NULL	2	NULL
+select * from t3 right join t2 on (t3.i=t2.i);
+i	j	i	j
+2	NULL	2	NULL
+NULL	NULL	3	NULL
+select * from t3 right join t2 on (t3.i=t2.i) right join t1 on (t2.i=t1.i);
+i	j	i	j	i	j
+2	NULL	2	NULL	2	NULL
+NULL	NULL	NULL	NULL	1	NULL
+drop table t1,t2,t3;
+drop table if exists dyr_test,dyr_test_1;
+create  table dyr_test(c1 int primary key,c2 varchar(10),c3 int);
+create  table dyr_test_1(c1 int primary key,c2 varchar(10),c3 int);
+insert into dyr_test values(1, 'saf', 2);
+insert into dyr_test_1 values(3, 'saf', 4), (1, 'saf', 5);
+select '1' as tmp from dyr_test;
+tmp
+1
+select '1' as tmp from dyr_test A inner join dyr_test_1 B on A.c1=B.c1;
+tmp
+1
+select 1 as tmp from dyr_test A,dyr_test_1 B where A.c1=B.c1 and A.c1>tmp and B.c1>tmp;
+ERROR 42S22: Unknown column 'tmp' in 'where clause'
+select t1.c1, t2.c1, 100 const_val from dyr_test t1,dyr_test_1 t2 where t1.c1=t2.c1 and t1.c3<const_val and t2.c3<const_val;
+ERROR 42S22: Unknown column 'const_val' in 'where clause'
+select t1.c1, t2.c1, 100 const_val from dyr_test t1,dyr_test_1 t2 where t1.c1=t2.c1 and t1.c3<100 and t2.c3<100;
+c1	c1	const_val
+1	1	100
+drop table if exists dyr_test,dyr_test_1;
+drop table if exists t1,t2,t3;
+DROP TABLE IF EXISTS t000, t001;
+create table t000 (c0 varchar(7) PRIMARY KEY);
+create table t001 (c1 binary(4));
+INSERT INTO t000 VALUES ('J'), ('K'),('M');
+INSERT INTO t001 VALUES ('J'), ('K'),('L'),('N');
+select c1,c0 from t000, t001 WHERE c0 <= c1 order by 1,2;
+c1	c0
+J   	J
+K   	J
+K   	K
+L   	J
+L   	K
+N   	J
+N   	K
+N   	M
+DROP TABLE IF EXISTS t000, t001;
+drop table if exists t1, t2, t3;
+create table t1 (pk int primary key, c1 int) partition by hash(pk) partitions 5;
+create table t2 (pk int primary key, c1 int);
+create table t3 (pk int primary key, c1 int);
+insert into t1 values (0, 10);
+insert into t1 values (1, 11);
+insert into t1 values (2, 12);
+insert into t1 values (3, 13);
+insert into t1 values (4, 14);
+insert into t1 values (5, 15);
+insert into t2 values (0, 20), (1, 21);
+insert into t3 values (0, 30), (1, 31);
+select * from t1 as s1 join t1 as s2 order by s1.pk, s1.c1, s2.pk, s2.c1;
+pk	c1	pk	c1
+0	10	0	10
+0	10	1	11
+0	10	2	12
+0	10	3	13
+0	10	4	14
+0	10	5	15
+1	11	0	10
+1	11	1	11
+1	11	2	12
+1	11	3	13
+1	11	4	14
+1	11	5	15
+2	12	0	10
+2	12	1	11
+2	12	2	12
+2	12	3	13
+2	12	4	14
+2	12	5	15
+3	13	0	10
+3	13	1	11
+3	13	2	12
+3	13	3	13
+3	13	4	14
+3	13	5	15
+4	14	0	10
+4	14	1	11
+4	14	2	12
+4	14	3	13
+4	14	4	14
+4	14	5	15
+5	15	0	10
+5	15	1	11
+5	15	2	12
+5	15	3	13
+5	15	4	14
+5	15	5	15
+select s1.pk, s1.c1, s4.c1 from t1 as s1 join (select s2.c1 from t2 as s2 join t3 s3) as s4 order by s1.pk, s1.c1, s4.c1;
+pk	c1	c1
+0	10	20
+0	10	20
+0	10	21
+0	10	21
+1	11	20
+1	11	20
+1	11	21
+1	11	21
+2	12	20
+2	12	20
+2	12	21
+2	12	21
+3	13	20
+3	13	20
+3	13	21
+3	13	21
+4	14	20
+4	14	20
+4	14	21
+4	14	21
+5	15	20
+5	15	20
+5	15	21
+5	15	21
+drop table if exists t1, t2, t3;
+drop table if exists t1, t2;
+create table t1 (a int primary key) partition by range columns(a) (partition p_100 values less than (100), partition p_max_value values less than (MAXVALUE));
+create table t2 (b int primary key) partition by range columns(b) (partition p_100 values less than (100), partition p_max_value values less than (MAXVALUE));
+insert into t1 values (1), (5), (38), (138), (188), (345);
+insert into t2 values (1), (9), (38), (67), (128), (188), (369);
+select * from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+select /*+use_nl(s1 s2)*/  * from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+a	b
+345	NULL
+188	188
+138	NULL
+38	38
+5	NULL
+1	1
+NULL	9
+NULL	67
+NULL	128
+NULL	369
+explain  basic select * from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    MERGE FULL OUTER JOIN |           |
+|5 |     TABLE SCAN           |s1(Reverse)|
+|6 |     TABLE SCAN           |s2(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.a], [s2.b]), filter(nil), sort_keys([s1.a, DESC], [s2.b, ASC])
+  1 - output([s1.a], [s2.b]), filter(nil), dop=1
+  2 - output([s1.a], [s2.b]), filter(nil), sort_keys([s1.a, DESC], [s2.b, ASC])
+  3 - output([s1.a], [s2.b]), filter(nil)
+  4 - output([s1.a], [s2.b]), filter(nil), 
+      equal_conds([s1.a = s2.b]), other_conds(nil)
+  5 - output([s1.a]), filter(nil), 
+      access([s1.a]), partitions(p[0-1])
+  6 - output([s2.b]), filter(nil), 
+      access([s2.b]), partitions(p[0-1])
+
+explain  basic select /*+use_nl(s1 s2)*/  * from t1 as s1 full outer join t2 as s2 on s1.a = s2.b order by s1.a desc, s2.b asc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    MERGE FULL OUTER JOIN |           |
+|5 |     TABLE SCAN           |s1(Reverse)|
+|6 |     TABLE SCAN           |s2(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.a], [s2.b]), filter(nil), sort_keys([s1.a, DESC], [s2.b, ASC])
+  1 - output([s1.a], [s2.b]), filter(nil), dop=1
+  2 - output([s1.a], [s2.b]), filter(nil), sort_keys([s1.a, DESC], [s2.b, ASC])
+  3 - output([s1.a], [s2.b]), filter(nil)
+  4 - output([s1.a], [s2.b]), filter(nil), 
+      equal_conds([s1.a = s2.b]), other_conds(nil)
+  5 - output([s1.a]), filter(nil), 
+      access([s1.a]), partitions(p[0-1])
+  6 - output([s2.b]), filter(nil), 
+      access([s2.b]), partitions(p[0-1])
+
+drop table if exists t1, t2;
+create table t1 (pk int primary key, c1 int) partition by hash(pk) partitions 2;
+create table t2 (pk int primary key, c1 int) partition by hash(pk) partitions 2;
+insert into t1 values (1, 1), (2, 2), (3, 3);
+insert into t2 values (2, 2), (3, 3), (4, 4), (5, 5);
+select * from t1 as s1 full outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+pk	c1	pk	c1
+3	3	3	3
+2	2	2	2
+1	1	NULL	NULL
+NULL	NULL	4	4
+NULL	NULL	5	5
+select /*+use_nl(s1 s2)*/ * from t1 as s1 left outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+pk	c1	pk	c1
+3	3	3	3
+2	2	2	2
+1	1	NULL	NULL
+select * from t1 as s1 left outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+pk	c1	pk	c1
+3	3	3	3
+2	2	2	2
+1	1	NULL	NULL
+select * from t1 as s1 right outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+pk	c1	pk	c1
+3	3	3	3
+2	2	2	2
+NULL	NULL	4	4
+NULL	NULL	5	5
+explain  basic select * from t1 as s1 full outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    MERGE FULL OUTER JOIN |           |
+|5 |     TABLE SCAN           |s1(Reverse)|
+|6 |     TABLE SCAN           |s2(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC], [s2.pk, ASC])
+  1 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), dop=1
+  2 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC], [s2.pk, ASC])
+  3 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil)
+  4 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), 
+      equal_conds([s1.pk = s2.pk]), other_conds(nil)
+  5 - output([s1.pk], [s1.c1]), filter(nil), 
+      access([s1.pk], [s1.c1]), partitions(p[0-1])
+  6 - output([s2.pk], [s2.c1]), filter(nil), 
+      access([s2.pk], [s2.c1]), partitions(p[0-1])
+
+explain  basic select /*+use_nl(s1 s2)*/ * from t1 as s1 left outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    NESTED-LOOP OUTER JOIN|           |
+|5 |     TABLE SCAN           |s1(Reverse)|
+|6 |     TABLE GET            |s2(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC])
+  1 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), dop=1
+  2 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC]), local merge sort
+  3 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil)
+  4 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), 
+      conds(nil), nl_params_([s1.pk])
+  5 - output([s1.pk], [s1.c1]), filter(nil), 
+      access([s1.pk], [s1.c1]), partitions(p[0-1])
+  6 - output([s2.pk], [s2.c1]), filter(nil), 
+      access([s2.pk], [s2.c1]), partitions(p[0-1])
+
+explain  basic select * from t1 as s1 left outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    MERGE OUTER JOIN      |           |
+|5 |     TABLE SCAN           |s1(Reverse)|
+|6 |     TABLE SCAN           |s2(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC])
+  1 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), dop=1
+  2 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC]), local merge sort
+  3 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil)
+  4 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), 
+      equal_conds([s1.pk = s2.pk]), other_conds(nil)
+  5 - output([s1.pk], [s1.c1]), filter(nil), 
+      access([s1.pk], [s1.c1]), partitions(p[0-1])
+  6 - output([s2.pk], [s2.c1]), filter(nil), 
+      access([s2.pk], [s2.c1]), partitions(p[0-1])
+
+explain  basic select * from t1 as s1 right outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc, s2.pk asc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    MERGE OUTER JOIN      |           |
+|5 |     TABLE SCAN           |s2(Reverse)|
+|6 |     TABLE SCAN           |s1(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC], [s2.pk, ASC])
+  1 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), dop=1
+  2 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC], [s2.pk, ASC])
+  3 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil)
+  4 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), 
+      equal_conds([s1.pk = s2.pk]), other_conds(nil)
+  5 - output([s2.pk], [s2.c1]), filter(nil), 
+      access([s2.pk], [s2.c1]), partitions(p[0-1])
+  6 - output([s1.pk], [s1.c1]), filter(nil), 
+      access([s1.pk], [s1.c1]), partitions(p[0-1])
+
+drop table if exists t1, t2;
+create table t1 (pk int primary key, c1 int) partition by hash(pk) partitions 2;
+create table t2 (pk int primary key, c1 int) partition by hash(pk) partitions 2;
+explain  basic select * from t1 as s1 full outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc;
+Query Plan
+===========================================
+|ID|OPERATOR                  |NAME       |
+-------------------------------------------
+|0 |PX COORDINATOR MERGE SORT |           |
+|1 | EXCHANGE OUT DISTR       |:EX10000   |
+|2 |  SORT                    |           |
+|3 |   PX PARTITION ITERATOR  |           |
+|4 |    MERGE FULL OUTER JOIN |           |
+|5 |     TABLE SCAN           |s1(Reverse)|
+|6 |     TABLE SCAN           |s2(Reverse)|
+===========================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC])
+  1 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), dop=1
+  2 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), sort_keys([s1.pk, DESC])
+  3 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil)
+  4 - output([s1.pk], [s1.c1], [s2.pk], [s2.c1]), filter(nil), 
+      equal_conds([s1.pk = s2.pk]), other_conds(nil)
+  5 - output([s1.pk], [s1.c1]), filter(nil), 
+      access([s1.pk], [s1.c1]), partitions(p[0-1])
+  6 - output([s2.pk], [s2.c1]), filter(nil), 
+      access([s2.pk], [s2.c1]), partitions(p[0-1])
+
+select * from t1 as s1 full outer join t2 as s2 on s1.pk = s2.pk order by s1.pk desc;
+pk	c1	pk	c1
+drop table if exists t1, t2;
+drop table if exists a, b;
+create table a(a1 int primary key,a2 int,a3 int);
+create table b(b1 int primary key,b2 int,b3 int, KEY idx_b2(b2,b3));
+insert into a values(1,1,1),(2,1,2);
+insert into b values(1,1,1),(2,1,2);
+explain basic select /*+use_merge(a b)*/a1,b2,b3 from a,b where a2=b2 order by b2,b3;
+Query Plan
+===========================
+|ID|OPERATOR    |NAME     |
+---------------------------
+|0 |MERGE JOIN  |         |
+|1 | TABLE SCAN |b(idx_b2)|
+|2 | SORT       |         |
+|3 |  TABLE SCAN|a        |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.a1], [b.b2], [b.b3]), filter(nil), 
+      equal_conds([a.a2 = b.b2]), other_conds(nil)
+  1 - output([b.b2], [b.b3]), filter(nil), 
+      access([b.b2], [b.b3]), partitions(p0)
+  2 - output([a.a1], [a.a2]), filter(nil), sort_keys([a.a2, ASC])
+  3 - output([a.a2], [a.a1]), filter(nil), 
+      access([a.a2], [a.a1]), partitions(p0)
+
+select /*+use_merge(a b)*/a1,b2,b3 from a,b where a2=b2 order by b2,b3;
+a1	b2	b3
+1	1	1
+2	1	1
+1	1	2
+2	1	2
+explain basic select /*+leading(a b), use_merge(a b)*/a1,b2,b3 from a,b where a2=b2 order by b2,b3;
+Query Plan
+============================
+|ID|OPERATOR     |NAME     |
+----------------------------
+|0 |SORT         |         |
+|1 | MERGE JOIN  |         |
+|2 |  SORT       |         |
+|3 |   TABLE SCAN|a        |
+|4 |  TABLE SCAN |b(idx_b2)|
+============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.a1], [b.b2], [b.b3]), filter(nil), sort_keys([b.b2, ASC], [b.b3, ASC]), prefix_pos(1)
+  1 - output([a.a1], [b.b2], [b.b3]), filter(nil), 
+      equal_conds([a.a2 = b.b2]), other_conds(nil)
+  2 - output([a.a1], [a.a2]), filter(nil), sort_keys([a.a2, ASC])
+  3 - output([a.a2], [a.a1]), filter(nil), 
+      access([a.a2], [a.a1]), partitions(p0)
+  4 - output([b.b2], [b.b3]), filter(nil), 
+      access([b.b2], [b.b3]), partitions(p0)
+
+select /*+leading(a b), use_merge(a b)*/a1,b2,b3 from a,b where a2=b2 order by b2,b3;
+a1	b2	b3
+1	1	1
+2	1	1
+1	1	2
+2	1	2
+explain basic select /*+leading(b a), use_merge(a b)*/a1,b2,b3 from a,b where a2=b2 order by b2,b3;
+Query Plan
+===========================
+|ID|OPERATOR    |NAME     |
+---------------------------
+|0 |MERGE JOIN  |         |
+|1 | TABLE SCAN |b(idx_b2)|
+|2 | SORT       |         |
+|3 |  TABLE SCAN|a        |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.a1], [b.b2], [b.b3]), filter(nil), 
+      equal_conds([a.a2 = b.b2]), other_conds(nil)
+  1 - output([b.b2], [b.b3]), filter(nil), 
+      access([b.b2], [b.b3]), partitions(p0)
+  2 - output([a.a1], [a.a2]), filter(nil), sort_keys([a.a2, ASC])
+  3 - output([a.a2], [a.a1]), filter(nil), 
+      access([a.a2], [a.a1]), partitions(p0)
+
+select /*+leading(b a), use_merge(a b)*/a1,b2,b3 from a,b where a2=b2 order by b2,b3;
+a1	b2	b3
+1	1	1
+2	1	1
+1	1	2
+2	1	2
+drop table if exists a, b;

@@ -1,0 +1,42 @@
+drop table if exists t1;
+CREATE TABLE t1 (
+AUFNR varchar(12) NOT NULL default '' primary key,
+PLNFL varchar(6) NOT NULL default '',
+VORNR varchar(4) NOT NULL default '',
+xstatus_vor smallint  NOT NULL default '0'
+);
+INSERT INTO t1 VALUES ('40004712','000001','0010',9);
+INSERT INTO t1 VALUES ('40004714','000001','0020',0);
+UPDATE t1 SET t1.xstatus_vor = Greatest(t1.xstatus_vor,1) WHERE t1.aufnr ='40004712' AND t1.plnfl = '000001' AND t1.vornr > '0010';
+select * from t1;
+AUFNR	PLNFL	VORNR	xstatus_vor
+40004712	000001	0010	9
+40004714	000001	0020	0
+UPDATE t1 SET t1.xstatus_vor = Greatest(t1.xstatus_vor,1) WHERE t1.aufnr ='40004712' AND t1.plnfl = '000001' AND t1.vornr >= '0010';
+select * from t1;
+AUFNR	PLNFL	VORNR	xstatus_vor
+40004712	000001	0010	9
+40004714	000001	0020	0
+UPDATE t1 SET t1.xstatus_vor = Greatest(t1.xstatus_vor,1) WHERE t1.aufnr = '40004714' AND t1.plnfl = '000001' AND t1.vornr >= '0010';
+select * from t1;
+AUFNR	PLNFL	VORNR	xstatus_vor
+40004712	000001	0010	9
+40004714	000001	0020	1
+update t1 set t1.xstatus_vor=3;
+select * from t1;
+AUFNR	PLNFL	VORNR	xstatus_vor
+40004712	000001	0010	3
+40004714	000001	0020	3
+update t1 t2 set t2.xstatus_vor=3;
+select * from t1;
+AUFNR	PLNFL	VORNR	xstatus_vor
+40004712	000001	0010	3
+40004714	000001	0020	3
+update t1 t2 set t2.xstatus_vor=100;
+update t1 t2 set t2.xstatus_vor=100 where t1.aufnr='40004712';
+ERROR 42S22: Unknown column 't1.aufnr' in 'where clause'
+update t1 t2 set t2.xstatus_vor=101 where t2.aufnr='40004712';
+select * from t1;
+AUFNR	PLNFL	VORNR	xstatus_vor
+40004712	000001	0010	101
+40004714	000001	0020	100

@@ -1,0 +1,14 @@
+# tags: error code
+# description: 测试当自查询返回多行数据的错误码
+
+--disable_warnings
+drop table if exists t;
+--enable_warnings
+
+create table t(c0 varchar(20), c1 varchar(20));
+
+insert into t values('asa', 'adqwef');
+insert into t values('sawf', 'asdaqwe');
+
+--error 1242
+select length(t.c0), (select length(t.c1) from t) from t;

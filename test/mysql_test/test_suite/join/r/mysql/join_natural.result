@@ -1,0 +1,2036 @@
+CREATE TABLE t1 (c1 INT NOT NULL);
+CREATE TABLE t2 (c1 INT NOT NULL);
+CREATE TABLE t3 (c1 INT NOT NULL);
+CREATE TABLE t4 (c1 INT NOT NULL);
+CREATE TABLE t5 (c1 INT NOT NULL);
+CREATE TABLE t6 (c1 INT NOT NULL);
+INSERT INTO t1 (c1) VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO t2 (c1) VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO t3 (c1) VALUES(1),(3),(5),(7),(9);
+INSERT INTO t4 (c1) VALUES(10);
+INSERT INTO t5 (c1) VALUES(10),(11),(12),(13),(14);
+CREATE TABLE t7 (c1 int, c2 int, c3 int);
+CREATE TABLE t8 (c2 int, c3 int, c4 int);
+CREATE TABLE t9 (c3 int, c4 int, c5 int);
+insert into t7 values (0, 1, 2);
+insert into t7 values (1, 2, 3);
+insert into t7 values (2, 3, 4);
+insert into t7 values (4, 5, 6);
+insert into t7 values (5, 6, 7);
+insert into t7 values (6, 7, 8);
+insert into t7 values (7, 8, 9);
+insert into t8 values (0, 1, 2);
+insert into t8 values (1, 2, 3);
+insert into t8 values (2, 3, 4);
+insert into t8 values (3, 4, 5);
+insert into t8 values (5, 6, 7);
+insert into t8 values (6, 7, 8);
+insert into t8 values (7, 8, 9);
+insert into t9 values (0, 1, 2);
+insert into t9 values (1, 2, 3);
+insert into t9 values (2, 3, 4);
+insert into t9 values (3, 4, 5);
+insert into t9 values (4, 5, 6);
+insert into t9 values (6, 7, 8);
+insert into t9 values (7, 8, 9);
+create table t10 (
+c1 int,
+c2 int AS (c1 + 1),
+c3 int AS (c1 + 2)
+);
+insert into t10(c1) values (0);
+insert into t10(c1) values (1);
+insert into t10(c1) values (2);
+insert into t10(c1) values (3);
+insert into t10(c1) values (4);
+insert into t10(c1) values (5);
+insert into t10(c1) values (6);
+insert into t10(c1) values (7);
+explain basic select * from t1 a natural join t3 b order by a.c1, b.c1;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |SORT        |    |
+|1 | HASH JOIN  |    |
+|2 |  TABLE SCAN|b   |
+|3 |  TABLE SCAN|a   |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1]), filter(nil), sort_keys([a.c1, ASC])
+  1 - output([a.c1]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  2 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  3 - output([a.c1]), filter(nil), 
+      access([a.c1]), partitions(p0)
+
+select * from t1 a natural join t3 b order by a.c1, b.c1;
+c1
+1
+3
+5
+7
+9
+explain basic select a.c1, b.c1 from t1 a natural join t3 b order by a.c1, b.c1;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |SORT        |    |
+|1 | HASH JOIN  |    |
+|2 |  TABLE SCAN|b   |
+|3 |  TABLE SCAN|a   |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1], [b.c1]), filter(nil), sort_keys([a.c1, ASC])
+  1 - output([a.c1], [b.c1]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  2 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  3 - output([a.c1]), filter(nil), 
+      access([a.c1]), partitions(p0)
+
+select a.c1, b.c1 from t1 a natural join t3 b order by a.c1, b.c1;
+c1	c1
+1	1
+3	3
+5	5
+7	7
+9	9
+select * from t1 natural join t7;
+c1	c2	c3
+0	1	2
+1	2	3
+2	3	4
+4	5	6
+5	6	7
+6	7	8
+7	8	9
+select * from (select a.c1, b.c1 from t1 a natural join t3 b order by a.c1, b.c1);
+ERROR 42S21: Duplicate column name 'c1'
+explain basic select * from t10 natural join t7;
+Query Plan
+=====================
+|ID|OPERATOR   |NAME|
+---------------------
+|0 |HASH JOIN  |    |
+|1 | TABLE SCAN|t7  |
+|2 | TABLE SCAN|t10 |
+=====================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t10.c1], [t10.c2], [t10.c3]), filter(nil), 
+      equal_conds([t10.c1 = t7.c1], [t10.c2 = t7.c2], [t10.c3 = t7.c3]), other_conds(nil)
+  1 - output([t7.c1], [t7.c2], [t7.c3]), filter(nil), 
+      access([t7.c1], [t7.c2], [t7.c3]), partitions(p0)
+  2 - output([t10.c1], [t10.c2], [t10.c3]), filter(nil), 
+      access([t10.c1], [t10.c2], [t10.c3]), partitions(p0)
+
+select * from t10 natural join t7;
+c1	c2	c3
+0	1	2
+1	2	3
+2	3	4
+4	5	6
+5	6	7
+6	7	8
+7	8	9
+explain basic select * from t1 a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |MERGE JOIN   |    |
+|1 | SORT        |    |
+|2 |  HASH JOIN  |    |
+|3 |   TABLE SCAN|c   |
+|4 |   TABLE SCAN|a   |
+|5 | SORT        |    |
+|6 |  TABLE SCAN |b   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  1 - output([a.c1]), filter(nil), sort_keys([a.c1, ASC])
+  2 - output([a.c1]), filter(nil), 
+      equal_conds([a.c1 = c.c1]), other_conds(nil)
+  3 - output([c.c1]), filter(nil), 
+      access([c.c1]), partitions(p0)
+  4 - output([a.c1]), filter(nil), 
+      access([a.c1]), partitions(p0)
+  5 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select * from t1 a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+c1
+1
+3
+5
+7
+9
+explain basic select * from t1 a join t2 b using(c1) natural join t3 c order by a.c1, b.c1, c.c1;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |MERGE JOIN   |    |
+|1 | SORT        |    |
+|2 |  HASH JOIN  |    |
+|3 |   TABLE SCAN|c   |
+|4 |   TABLE SCAN|a   |
+|5 | SORT        |    |
+|6 |  TABLE SCAN |b   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c1]), filter(nil), 
+      equal_conds([a.c1 = b.c1]), other_conds(nil)
+  1 - output([a.c1]), filter(nil), sort_keys([a.c1, ASC])
+  2 - output([a.c1]), filter(nil), 
+      equal_conds([a.c1 = c.c1]), other_conds(nil)
+  3 - output([c.c1]), filter(nil), 
+      access([c.c1]), partitions(p0)
+  4 - output([a.c1]), filter(nil), 
+      access([a.c1]), partitions(p0)
+  5 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select * from t1 a join t2 b using(c1) natural join t3 c order by a.c1, b.c1, c.c1;
+c1
+1
+3
+5
+7
+9
+explain basic select * from t7 natural join t8 natural join t9;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |HASH JOIN   |    |
+|1 | TABLE SCAN |t8  |
+|2 | HASH JOIN  |    |
+|3 |  TABLE SCAN|t7  |
+|4 |  TABLE SCAN|t9  |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t7.c3], [t8.c4], [t7.c2], [t7.c1], [t9.c5]), filter(nil), 
+      equal_conds([t8.c4 = t9.c4], [t7.c2 = t8.c2], [t7.c3 = t8.c3]), other_conds(nil)
+  1 - output([t8.c2], [t8.c3], [t8.c4]), filter(nil), 
+      access([t8.c2], [t8.c3], [t8.c4]), partitions(p0)
+  2 - output([t7.c3], [t7.c2], [t7.c1], [t9.c5], [t9.c4]), filter(nil), 
+      equal_conds([t7.c3 = t9.c3]), other_conds(nil)
+  3 - output([t7.c2], [t7.c3], [t7.c1]), filter(nil), 
+      access([t7.c2], [t7.c3], [t7.c1]), partitions(p0)
+  4 - output([t9.c3], [t9.c4], [t9.c5]), filter(nil), 
+      access([t9.c3], [t9.c4], [t9.c5]), partitions(p0)
+
+select * from t7 natural join t8 natural join t9;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+select * from t7 a left join t8 b on a.c2 = b.c2 natural join t9 c;
+ERROR 23000: Column 'c3' in from clause is ambiguous
+select * from t7 a full join t8 b using (c2) natural join t9 c;
+ERROR 23000: Column 'c3' in from clause is ambiguous
+select * from t7 a left join t8 b using (c2) natural join t9 c;
+ERROR 23000: Column 'c3' in from clause is ambiguous
+select * from t7 a right join t8 b using (c2) natural join t9 c;
+ERROR 23000: Column 'c3' in from clause is ambiguous
+explain basic select * from t7 a full join t8 b using (c2, c3) natural join t9 c;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |HASH JOIN       |    |
+|1 | TABLE SCAN     |c   |
+|2 | HASH OUTER JOIN|    |
+|3 |  TABLE SCAN    |b   |
+|4 |  TABLE SCAN    |a   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c3, b.c3)], [b.c4], [(a.c2, b.c2)], [a.c1], [c.c5]), filter(nil), 
+      equal_conds([(a.c3, b.c3) = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([c.c3], [c.c4], [c.c5]), filter(nil), 
+      access([c.c3], [c.c4], [c.c5]), partitions(p0)
+  2 - output([b.c4], [a.c2], [b.c2], [a.c1], [(a.c3, b.c3)]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+
+select * from t7 a full join t8 b using (c2, c3) natural join t9 c;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+1	2	0	NULL	3
+explain basic select * from t7 a left join t8 b using (c2, c3) natural join t9 c;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |HASH JOIN   |    |
+|1 | TABLE SCAN |b   |
+|2 | HASH JOIN  |    |
+|3 |  TABLE SCAN|a   |
+|4 |  TABLE SCAN|c   |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c3], [b.c4], [a.c2], [a.c1], [c.c5]), filter(nil), 
+      equal_conds([b.c4 = c.c4], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  1 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  2 - output([a.c3], [a.c2], [a.c1], [c.c5], [c.c4]), filter(nil), 
+      equal_conds([a.c3 = c.c3]), other_conds(nil)
+  3 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  4 - output([c.c3], [c.c4], [c.c5]), filter(nil), 
+      access([c.c3], [c.c4], [c.c5]), partitions(p0)
+
+select * from t7 a left join t8 b using (c2, c3) natural join t9 c;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+explain basic select * from t7 a right join t8 b using (c2, c3) natural join t9 c;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |HASH JOIN       |    |
+|1 | TABLE SCAN     |c   |
+|2 | HASH OUTER JOIN|    |
+|3 |  TABLE SCAN    |b   |
+|4 |  TABLE SCAN    |a   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([b.c3], [b.c4], [b.c2], [a.c1], [c.c5]), filter(nil), 
+      equal_conds([b.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([c.c3], [c.c4], [c.c5]), filter(nil), 
+      access([c.c3], [c.c4], [c.c5]), partitions(p0)
+  2 - output([b.c3], [b.c4], [b.c2], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+
+select * from t7 a right join t8 b using (c2, c3) natural join t9 c;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+1	2	0	NULL	3
+explain basic select * from t7 a natural full join t8 b natural join t9 c;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |HASH JOIN       |    |
+|1 | TABLE SCAN     |c   |
+|2 | HASH OUTER JOIN|    |
+|3 |  TABLE SCAN    |b   |
+|4 |  TABLE SCAN    |a   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c3, b.c3)], [b.c4], [(a.c2, b.c2)], [a.c1], [c.c5]), filter(nil), 
+      equal_conds([(a.c3, b.c3) = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([c.c3], [c.c4], [c.c5]), filter(nil), 
+      access([c.c3], [c.c4], [c.c5]), partitions(p0)
+  2 - output([b.c4], [a.c2], [b.c2], [a.c1], [(a.c3, b.c3)]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+
+select * from t7 a natural full join t8 b natural join t9 c;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+1	2	0	NULL	3
+explain basic select * from t7 a natural left join t8 b natural join t9 c;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |HASH JOIN   |    |
+|1 | TABLE SCAN |b   |
+|2 | HASH JOIN  |    |
+|3 |  TABLE SCAN|a   |
+|4 |  TABLE SCAN|c   |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c3], [b.c4], [a.c2], [a.c1], [c.c5]), filter(nil), 
+      equal_conds([b.c4 = c.c4], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  1 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  2 - output([a.c3], [a.c2], [a.c1], [c.c5], [c.c4]), filter(nil), 
+      equal_conds([a.c3 = c.c3]), other_conds(nil)
+  3 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  4 - output([c.c3], [c.c4], [c.c5]), filter(nil), 
+      access([c.c3], [c.c4], [c.c5]), partitions(p0)
+
+select * from t7 a natural left join t8 b natural join t9 c;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+explain basic select * from t7 a natural right join t8 b natural join t9 c;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |HASH JOIN       |    |
+|1 | TABLE SCAN     |c   |
+|2 | HASH OUTER JOIN|    |
+|3 |  TABLE SCAN    |b   |
+|4 |  TABLE SCAN    |a   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([b.c3], [b.c4], [b.c2], [a.c1], [c.c5]), filter(nil), 
+      equal_conds([b.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([c.c3], [c.c4], [c.c5]), filter(nil), 
+      access([c.c3], [c.c4], [c.c5]), partitions(p0)
+  2 - output([b.c3], [b.c4], [b.c2], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+
+select * from t7 a natural right join t8 b natural join t9 c;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+1	2	0	NULL	3
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a inner join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a inner join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a inner join t8 b using (c2, c3)) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a inner join t8 b using (c2, c3)) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) inner join (t8 c natural join t9 d) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) inner join (t8 c inner join t9 d using (c3, c4)) using (c2, c3, c4);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) inner join (t8 c inner join t9 d using (c3, c4)) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a left join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a left join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a left join t8 b using (c2, c3)) left join (t8 c natural join t9 d) using (c2, c3, c4);
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |HASH OUTER JOIN |    |
+|1 | HASH OUTER JOIN|    |
+|2 |  TABLE SCAN    |a   |
+|3 |  TABLE SCAN    |b   |
+|4 | HASH JOIN      |    |
+|5 |  TABLE SCAN    |d   |
+|6 |  TABLE SCAN    |c   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([d.c5], [c.c2], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  6 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+
+select * from (t7 a left join t8 b using (c2, c3)) left join (t8 c natural join t9 d) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+8	9	NULL	7	NULL
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) left join (t8 c natural join t9 d) using (c2, c3, c4);
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |HASH OUTER JOIN|    |
+|1 | HASH JOIN     |    |
+|2 |  TABLE SCAN   |a   |
+|3 |  TABLE SCAN   |b   |
+|4 | HASH JOIN     |    |
+|5 |  TABLE SCAN   |c   |
+|6 |  TABLE SCAN   |d   |
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([d.c5], [c.c2], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) left join (t8 c natural join t9 d) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) left join (t8 c left join t9 d using (c3, c4)) using (c2, c3, c4);
+Query Plan
+================================
+|ID|OPERATOR              |NAME|
+--------------------------------
+|0 |HASH RIGHT OUTER JOIN |    |
+|1 | TABLE SCAN           |d   |
+|2 | HASH RIGHT OUTER JOIN|    |
+|3 |  TABLE SCAN          |c   |
+|4 |  HASH JOIN           |    |
+|5 |   TABLE SCAN         |a   |
+|6 |   TABLE SCAN         |b   |
+================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  2 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  3 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  4 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  5 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  6 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+
+select * from (t7 a natural join t8 b) left join (t8 c left join t9 d using (c3, c4)) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c left join t9 d using (c3, c4));
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |HASH OUTER JOIN|    |
+|1 | HASH JOIN     |    |
+|2 |  TABLE SCAN   |a   |
+|3 |  HASH JOIN    |    |
+|4 |   TABLE SCAN  |b   |
+|5 |   TABLE SCAN  |c   |
+|6 | TABLE SCAN    |d   |
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c left join t9 d using (c3, c4));
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a full join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+Query Plan
+===========================
+|ID|OPERATOR         |NAME|
+---------------------------
+|0 |HASH JOIN        |    |
+|1 | HASH JOIN       |    |
+|2 |  TABLE SCAN     |c   |
+|3 |  HASH OUTER JOIN|    |
+|4 |   TABLE SCAN    |b   |
+|5 |   TABLE SCAN    |a   |
+|6 | TABLE SCAN      |d   |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c2, b.c2)], [(a.c3, b.c3)], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([b.c4], [a.c1], [(a.c2, b.c2)], [(a.c3, b.c3)], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([(a.c2, b.c2) = c.c2], [(a.c3, b.c3) = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  2 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  3 - output([b.c4], [a.c1], [(a.c2, b.c2)], [(a.c3, b.c3)]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a full join t8 b using (c2, c3)) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a full join t8 b using (c2, c3)) full join (t8 c natural join t9 d) using (c2, c3, c4);
+Query Plan
+===============================
+|ID|OPERATOR             |NAME|
+-------------------------------
+|0 |HASH FULL OUTER JOIN |    |
+|1 | HASH FULL OUTER JOIN|    |
+|2 |  TABLE SCAN         |a   |
+|3 |  TABLE SCAN         |b   |
+|4 | HASH JOIN           |    |
+|5 |  TABLE SCAN         |c   |
+|6 |  TABLE SCAN         |d   |
+===============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([((a.c2, b.c2), c.c2)], [((a.c3, b.c3), c.c3)], [(b.c4, c.c4)], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([(a.c2, b.c2) = c.c2], [(a.c3, b.c3) = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([b.c4], [a.c1], [(a.c2, b.c2)], [(a.c3, b.c3)]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([c.c2], [c.c3], [c.c4], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a full join t8 b using (c2, c3)) full join (t8 c natural join t9 d) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+8	9	NULL	7	NULL
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) full join (t8 c natural join t9 d) using (c2, c3, c4);
+Query Plan
+==============================
+|ID|OPERATOR            |NAME|
+------------------------------
+|0 |HASH FULL OUTER JOIN|    |
+|1 | HASH JOIN          |    |
+|2 |  TABLE SCAN        |a   |
+|3 |  TABLE SCAN        |b   |
+|4 | HASH JOIN          |    |
+|5 |  TABLE SCAN        |c   |
+|6 |  TABLE SCAN        |d   |
+==============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c2, c.c2)], [(a.c3, c.c3)], [(b.c4, c.c4)], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([c.c2], [c.c3], [c.c4], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) full join (t8 c natural join t9 d) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) full join (t8 c full join t9 d using (c3, c4)) using (c2, c3, c4);
+Query Plan
+===============================
+|ID|OPERATOR             |NAME|
+-------------------------------
+|0 |HASH FULL OUTER JOIN |    |
+|1 | HASH JOIN           |    |
+|2 |  TABLE SCAN         |a   |
+|3 |  TABLE SCAN         |b   |
+|4 | HASH FULL OUTER JOIN|    |
+|5 |  TABLE SCAN         |c   |
+|6 |  TABLE SCAN         |d   |
+===============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c2, c.c2)], [(a.c3, (c.c3, d.c3))], [(b.c4, (c.c4, d.c4))], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = (c.c3, d.c3)], [b.c4 = (c.c4, d.c4)]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([c.c2], [d.c5], [(c.c3, d.c3)], [(c.c4, d.c4)]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) full join (t8 c full join t9 d using (c3, c4)) using (c2, c3, c4);
+c2	c3	c4	c1	c5
+NULL	0	1	NULL	2
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c full join t9 d using (c3, c4));
+Query Plan
+===========================
+|ID|OPERATOR         |NAME|
+---------------------------
+|0 |HASH JOIN        |    |
+|1 | HASH JOIN       |    |
+|2 |  TABLE SCAN     |a   |
+|3 |  HASH OUTER JOIN|    |
+|4 |   TABLE SCAN    |c   |
+|5 |   TABLE SCAN    |d   |
+|6 | TABLE SCAN      |b   |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([b.c4 = (c.c4, d.c4)], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [a.c1], [d.c5], [(c.c4, d.c4)]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = (c.c3, d.c3)]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([d.c5], [c.c4], [d.c4], [c.c2], [(c.c3, d.c3)]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  4 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  5 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  6 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c full join t9 d using (c3, c4));
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural inner join t8 b ) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural inner join t8 b ) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural inner join t8 b ) natural inner join (t8 c natural join t9 d) ;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural inner join t8 b ) natural inner join (t8 c natural join t9 d) ;
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural inner join (t8 c natural join t9 d) ;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural inner join (t8 c natural join t9 d) ;
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural inner join (t8 c natural inner join t9 d ) ;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural inner join (t8 c natural inner join t9 d ) ;
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural left join t8 b ) natural join (t8 c natural join t9 d);
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |a   |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|b   |
+|5 |   TABLE SCAN|c   |
+|6 | TABLE SCAN  |d   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural left join t8 b ) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural left join t8 b ) natural left join (t8 c natural join t9 d) ;
+Query Plan
+==========================
+|ID|OPERATOR        |NAME|
+--------------------------
+|0 |HASH OUTER JOIN |    |
+|1 | HASH OUTER JOIN|    |
+|2 |  TABLE SCAN    |a   |
+|3 |  TABLE SCAN    |b   |
+|4 | HASH JOIN      |    |
+|5 |  TABLE SCAN    |d   |
+|6 |  TABLE SCAN    |c   |
+==========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([d.c5], [c.c2], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  6 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+
+select * from (t7 a natural left join t8 b ) natural left join (t8 c natural join t9 d) ;
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+8	9	NULL	7	NULL
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural left join (t8 c natural join t9 d) ;
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |HASH OUTER JOIN|    |
+|1 | HASH JOIN     |    |
+|2 |  TABLE SCAN   |a   |
+|3 |  TABLE SCAN   |b   |
+|4 | HASH JOIN     |    |
+|5 |  TABLE SCAN   |c   |
+|6 |  TABLE SCAN   |d   |
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([d.c5], [c.c2], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural left join (t8 c natural join t9 d) ;
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural left join (t8 c natural left join t9 d ) ;
+Query Plan
+================================
+|ID|OPERATOR              |NAME|
+--------------------------------
+|0 |HASH RIGHT OUTER JOIN |    |
+|1 | TABLE SCAN           |d   |
+|2 | HASH RIGHT OUTER JOIN|    |
+|3 |  TABLE SCAN          |c   |
+|4 |  HASH JOIN           |    |
+|5 |   TABLE SCAN         |a   |
+|6 |   TABLE SCAN         |b   |
+================================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  2 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  3 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  4 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  5 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  6 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural left join (t8 c natural left join t9 d ) ;
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural left join t9 d );
+Query Plan
+=========================
+|ID|OPERATOR       |NAME|
+-------------------------
+|0 |HASH OUTER JOIN|    |
+|1 | HASH JOIN     |    |
+|2 |  TABLE SCAN   |a   |
+|3 |  HASH JOIN    |    |
+|4 |   TABLE SCAN  |b   |
+|5 |   TABLE SCAN  |c   |
+|6 | TABLE SCAN    |d   |
+=========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c4], [c.c3], [c.c4], [c.c2], [b.c2], [b.c3]), filter(nil), 
+      equal_conds([b.c4 = c.c4]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural left join t9 d );
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural full join t8 b ) natural join (t8 c natural join t9 d);
+Query Plan
+===========================
+|ID|OPERATOR         |NAME|
+---------------------------
+|0 |HASH JOIN        |    |
+|1 | HASH JOIN       |    |
+|2 |  TABLE SCAN     |c   |
+|3 |  HASH OUTER JOIN|    |
+|4 |   TABLE SCAN    |b   |
+|5 |   TABLE SCAN    |a   |
+|6 | TABLE SCAN      |d   |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c2, b.c2)], [(a.c3, b.c3)], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  1 - output([b.c4], [a.c1], [(a.c2, b.c2)], [(a.c3, b.c3)], [c.c3], [c.c4]), filter(nil), 
+      equal_conds([(a.c2, b.c2) = c.c2], [(a.c3, b.c3) = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  2 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  3 - output([b.c4], [a.c1], [(a.c2, b.c2)], [(a.c3, b.c3)]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  4 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  5 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural full join t8 b ) natural join (t8 c natural join t9 d);
+c2	c3	c4	c1	c5
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+explain basic select * from (t7 a natural full join t8 b ) natural full join (t8 c natural join t9 d) ;
+Query Plan
+===============================
+|ID|OPERATOR             |NAME|
+-------------------------------
+|0 |HASH FULL OUTER JOIN |    |
+|1 | HASH FULL OUTER JOIN|    |
+|2 |  TABLE SCAN         |a   |
+|3 |  TABLE SCAN         |b   |
+|4 | HASH JOIN           |    |
+|5 |  TABLE SCAN         |c   |
+|6 |  TABLE SCAN         |d   |
+===============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([((a.c2, b.c2), c.c2)], [((a.c3, b.c3), c.c3)], [(b.c4, c.c4)], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([(a.c2, b.c2) = c.c2], [(a.c3, b.c3) = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([b.c4], [a.c1], [(a.c2, b.c2)], [(a.c3, b.c3)]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([c.c2], [c.c3], [c.c4], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural full join t8 b ) natural full join (t8 c natural join t9 d) ;
+c2	c3	c4	c1	c5
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+8	9	NULL	7	NULL
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural full join (t8 c natural join t9 d) ;
+Query Plan
+==============================
+|ID|OPERATOR            |NAME|
+------------------------------
+|0 |HASH FULL OUTER JOIN|    |
+|1 | HASH JOIN          |    |
+|2 |  TABLE SCAN        |a   |
+|3 |  TABLE SCAN        |b   |
+|4 | HASH JOIN          |    |
+|5 |  TABLE SCAN        |c   |
+|6 |  TABLE SCAN        |d   |
+==============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c2, c.c2)], [(a.c3, c.c3)], [(b.c4, c.c4)], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = c.c3], [b.c4 = c.c4]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([c.c2], [c.c3], [c.c4], [d.c5]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural full join (t8 c natural join t9 d) ;
+c2	c3	c4	c1	c5
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural full join (t8 c natural full join t9 d ) ;
+Query Plan
+===============================
+|ID|OPERATOR             |NAME|
+-------------------------------
+|0 |HASH FULL OUTER JOIN |    |
+|1 | HASH JOIN           |    |
+|2 |  TABLE SCAN         |a   |
+|3 |  TABLE SCAN         |b   |
+|4 | HASH FULL OUTER JOIN|    |
+|5 |  TABLE SCAN         |c   |
+|6 |  TABLE SCAN         |d   |
+===============================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([(a.c2, c.c2)], [(a.c3, (c.c3, d.c3))], [(b.c4, (c.c4, d.c4))], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = (c.c3, d.c3)], [b.c4 = (c.c4, d.c4)]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [b.c4], [a.c1]), filter(nil), 
+      equal_conds([a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+  4 - output([c.c2], [d.c5], [(c.c3, d.c3)], [(c.c4, d.c4)]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  5 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  6 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural full join (t8 c natural full join t9 d ) ;
+c2	c3	c4	c1	c5
+NULL	0	1	NULL	2
+0	1	2	NULL	3
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+Query Plan
+===========================
+|ID|OPERATOR         |NAME|
+---------------------------
+|0 |HASH JOIN        |    |
+|1 | HASH JOIN       |    |
+|2 |  TABLE SCAN     |a   |
+|3 |  HASH OUTER JOIN|    |
+|4 |   TABLE SCAN    |c   |
+|5 |   TABLE SCAN    |d   |
+|6 | TABLE SCAN      |b   |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([b.c4 = (c.c4, d.c4)], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [a.c1], [d.c5], [(c.c4, d.c4)]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = (c.c3, d.c3)]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([d.c5], [c.c4], [d.c4], [c.c2], [(c.c3, d.c3)]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  4 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  5 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  6 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+Query Plan
+===========================
+|ID|OPERATOR         |NAME|
+---------------------------
+|0 |HASH JOIN        |    |
+|1 | HASH JOIN       |    |
+|2 |  TABLE SCAN     |a   |
+|3 |  HASH OUTER JOIN|    |
+|4 |   TABLE SCAN    |c   |
+|5 |   TABLE SCAN    |d   |
+|6 | TABLE SCAN      |b   |
+===========================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([a.c2], [a.c3], [b.c4], [a.c1], [d.c5]), filter(nil), 
+      equal_conds([b.c4 = (c.c4, d.c4)], [a.c2 = b.c2], [a.c3 = b.c3]), other_conds(nil)
+  1 - output([a.c2], [a.c3], [a.c1], [d.c5], [(c.c4, d.c4)]), filter(nil), 
+      equal_conds([a.c2 = c.c2], [a.c3 = (c.c3, d.c3)]), other_conds(nil)
+  2 - output([a.c2], [a.c3], [a.c1]), filter(nil), 
+      access([a.c2], [a.c3], [a.c1]), partitions(p0)
+  3 - output([d.c5], [c.c4], [d.c4], [c.c2], [(c.c3, d.c3)]), filter(nil), 
+      equal_conds([c.c3 = d.c3], [c.c4 = d.c4]), other_conds(nil)
+  4 - output([c.c3], [c.c4], [c.c2]), filter(nil), 
+      access([c.c3], [c.c4], [c.c2]), partitions(p0)
+  5 - output([d.c3], [d.c4], [d.c5]), filter(nil), 
+      access([d.c3], [d.c4], [d.c5]), partitions(p0)
+  6 - output([b.c2], [b.c3], [b.c4]), filter(nil), 
+      access([b.c2], [b.c3], [b.c4]), partitions(p0)
+
+select * from (t7 a natural join t8 b) natural join (t8 c natural full join t9 d );
+c2	c3	c4	c1	c5
+1	2	3	0	4
+2	3	4	1	5
+3	4	5	2	6
+5	6	7	4	8
+6	7	8	5	9
+7	8	9	6	NULL
+explain basic select * from t10 natural join t7 natural join t8 natural join t9;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |HASH JOIN    |    |
+|1 | HASH JOIN   |    |
+|2 |  TABLE SCAN |t8  |
+|3 |  HASH JOIN  |    |
+|4 |   TABLE SCAN|t9  |
+|5 |   TABLE SCAN|t10 |
+|6 | TABLE SCAN  |t7  |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t10.c3], [t8.c4], [t10.c2], [t10.c1], [t9.c5]), filter(nil), 
+      equal_conds([t10.c1 = t7.c1], [t10.c2 = t7.c2], [t10.c3 = t7.c3]), other_conds(nil)
+  1 - output([t10.c3], [t8.c4], [t10.c2], [t10.c1], [t9.c5]), filter(nil), 
+      equal_conds([t8.c4 = t9.c4], [t10.c2 = t8.c2], [t10.c3 = t8.c3]), other_conds(nil)
+  2 - output([t8.c2], [t8.c3], [t8.c4]), filter(nil), 
+      access([t8.c2], [t8.c3], [t8.c4]), partitions(p0)
+  3 - output([t10.c3], [t10.c2], [t10.c1], [t9.c5], [t9.c4]), filter(nil), 
+      equal_conds([t10.c3 = t9.c3]), other_conds(nil)
+  4 - output([t9.c3], [t9.c4], [t9.c5]), filter(nil), 
+      access([t9.c3], [t9.c4], [t9.c5]), partitions(p0)
+  5 - output([t10.c1], [t10.c2], [t10.c3]), filter(nil), 
+      access([t10.c1], [t10.c2], [t10.c3]), partitions(p0)
+  6 - output([t7.c1], [t7.c2], [t7.c3]), filter(nil), 
+      access([t7.c1], [t7.c2], [t7.c3]), partitions(p0)
+
+select * from t10 natural join t7 natural join t8 natural join t9;
+c3	c4	c2	c1	c5
+2	3	1	0	4
+3	4	2	1	5
+4	5	3	2	6
+6	7	5	4	8
+7	8	6	5	9
+select * from t1 a join t2 b natural join t3 c;
+ERROR 23000: Column 'c1' in from clause is ambiguous
+explain basic select * from (select c1 from t1) a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |MERGE JOIN   |    |
+|1 | SORT        |    |
+|2 |  HASH JOIN  |    |
+|3 |   TABLE SCAN|c   |
+|4 |   TABLE SCAN|t1  |
+|5 | SORT        |    |
+|6 |  TABLE SCAN |b   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.c1]), filter(nil), 
+      equal_conds([t1.c1 = b.c1]), other_conds(nil)
+  1 - output([t1.c1]), filter(nil), sort_keys([t1.c1, ASC])
+  2 - output([t1.c1]), filter(nil), 
+      equal_conds([t1.c1 = c.c1]), other_conds(nil)
+  3 - output([c.c1]), filter(nil), 
+      access([c.c1]), partitions(p0)
+  4 - output([t1.c1]), filter(nil), 
+      access([t1.c1]), partitions(p0)
+  5 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select * from (select c1 from t1) a natural join t2 b natural join t3 c order by a.c1, b.c1, c.c1;
+c1
+1
+3
+5
+7
+9
+explain basic select * from (select c1 from t1) a join t2 b using (c1) natural join t3 c order by a.c1, b.c1, c.c1;
+Query Plan
+=======================
+|ID|OPERATOR     |NAME|
+-----------------------
+|0 |MERGE JOIN   |    |
+|1 | SORT        |    |
+|2 |  HASH JOIN  |    |
+|3 |   TABLE SCAN|c   |
+|4 |   TABLE SCAN|t1  |
+|5 | SORT        |    |
+|6 |  TABLE SCAN |b   |
+=======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.c1]), filter(nil), 
+      equal_conds([t1.c1 = b.c1]), other_conds(nil)
+  1 - output([t1.c1]), filter(nil), sort_keys([t1.c1, ASC])
+  2 - output([t1.c1]), filter(nil), 
+      equal_conds([t1.c1 = c.c1]), other_conds(nil)
+  3 - output([c.c1]), filter(nil), 
+      access([c.c1]), partitions(p0)
+  4 - output([t1.c1]), filter(nil), 
+      access([t1.c1]), partitions(p0)
+  5 - output([b.c1]), filter(nil), sort_keys([b.c1, ASC])
+  6 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+
+select * from (select c1 from t1) a join t2 b using (c1) natural join t3 c order by a.c1, b.c1, c.c1;
+c1
+1
+3
+5
+7
+9
+select * from (select -1 as c1, * from t1) a natural join t2 b natural join t3 c;
+ERROR 42S21: Duplicate column name 'c1'
+create view v1 as select c1 from t1;
+explain basic select * from v1 a natural join t3 b order by a.c1, b.c1;
+Query Plan
+======================
+|ID|OPERATOR    |NAME|
+----------------------
+|0 |SORT        |    |
+|1 | HASH JOIN  |    |
+|2 |  TABLE SCAN|b   |
+|3 |  TABLE SCAN|t1  |
+======================
+
+Outputs & filters: 
+-------------------------------------
+  0 - output([t1.c1]), filter(nil), sort_keys([t1.c1, ASC])
+  1 - output([t1.c1]), filter(nil), 
+      equal_conds([t1.c1 = b.c1]), other_conds(nil)
+  2 - output([b.c1]), filter(nil), 
+      access([b.c1]), partitions(p0)
+  3 - output([t1.c1]), filter(nil), 
+      access([t1.c1]), partitions(p0)
+
+select * from v1 a natural join t3 b order by a.c1, b.c1;
+c1
+1
+3
+5
+7
+9
+drop view v1;
+Warnings:
+Note	1051	Unknown table 'test.v1'
+Warnings:
+Note	1051	Unknown table 'test.v1'

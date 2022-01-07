@@ -1,0 +1,16 @@
+# no overflow check for double aggregation.
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 double);
+insert into t1 (c1) values (1.5e+308);
+insert into t1 (c1) values (1.5e+308);
+
+--disable_abort_on_error
+--result_format 4
+select sum(c1), sum(c1) > 1, avg(c1), avg(c1) > 1, stddev(c1), stddev(1) > 1,  variance(c1), variance(c1) > 1 from t1;
+
+select sum(c1) + avg(c1) from t1;
+

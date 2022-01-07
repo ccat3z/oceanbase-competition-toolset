@@ -1,0 +1,1534 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+# description: 从mysql中迁移过来的基础subquery_sj*.test测试集
+#
+# Nested Loops semi-join subquery evaluation tests
+#
+
+# This portion of the file vas developed when subquery materialization
+# was rule-based; to preserve the intended test scenarios, we switch
+# off cost-based choice for them.
+#set @old_opt_switch=@@optimizer_switch;
+#set optimizer_switch='subquery_materialization_cost_based=off';
+
+--enable_sorted_result
+--disable_warnings
+drop table if exists t0, t1, t2, t3, t4, t10, t11, t12, t, v, it1, it2, it3, ot1, ot2, ot3;
+--enable_warnings
+
+#
+# IN subquery optimization test
+#
+create table t1 (a int not null, b int, primary key (a));
+create table t2 (a int not null, primary key (a));
+create table t3 (a int not null, b int, primary key (a));
+insert into t1 values (1,10), (2,20), (3,30),  (4,40);
+insert into t2 values (2), (3), (4), (5);
+insert into t3 values (10,3), (20,4), (30,5);
+select * from t2 where t2.a in (select a from t1);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+drop table t1, t2, t3;
+create table t1 (a int, b int, index a (a,b));
+create table t2 (a int, index a (a));
+create table t3 (a int, b int, index a (a));
+insert into t1 values (1,10), (2,20), (3,30), (4,40);
+# making table large enough
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+#insert into t1
+#select rand()*100000+200,rand()*100000 from t0 A, t0 B, t0 C, t0 D;
+
+insert into t2 values (2), (3), (4), (5);
+insert into t3 values (10,3), (20,4), (30,5);
+select * from t2 where t2.a in (select a from t1);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+select * from t2 where t2.a in (select t1.a from t1,t3 where t1.b=t3.a);
+insert into t1 values (3,31);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30);
+select * from t2 where t2.a in (select a from t1 where t1.b <> 30 and t1.b <> 31);
+drop table t0, t1, t2, t3;
+
+
+#
+# 1. Subqueries that are converted into semi-joins
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int, b int);
+insert into t1 values (0,0),(1,1),(2,2);
+create table t2 like t1;
+insert into t2 values (0,0),(1,1),(2,2);
+
+create table t11(a int, b int);
+
+create table t10 (pk int, a int, primary key(pk));
+insert into t10 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),(5, 5),(6, 6),(7, 7),(8, 8),(9, 9);
+create table t12 like t10;
+insert into t12 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),(5, 5),(6, 6),(7, 7),(8, 8),(9, 9);
+
+
+--echo Flattened because of dependency, t10=func(t1)
+select * from t1 where a in (select pk from t10);
+
+--echo A confluent case of dependency
+select * from t1 where a in (select a from t10 where pk=12);
+
+select * from t1 where a in (select a from t10 where pk=9);
+
+--echo An empty table inside
+select * from t1 where a in (select a from t11);
+
+select * from t1 where a in (select pk from t10) and b in (select pk from t10);
+
+--echo flattening a nested subquery
+select * from t1 where a in (select pk from t10 where t10.a in (select pk from t12));
+
+--echo flattening subquery w/ several tables
+
+#--echo subqueries within outer joins go into ON expr.
+# TODO: psergey: check if case conversions like those are ok (it broke on  windows)
+#--replace_result a A b B
+#EXPLAIN 
+#select * from t1 left join (t2 A, t2 B) on ( A.a= t1.a and B.a in (select pk from t10));
+
+# TODO: psergey: check if case conversions like those are ok (it broke on  windows)
+#--echo t2 should be wrapped into OJ-nest, so we have "t1 LJ (t2 J t10)"
+#--replace_result a A b B
+#EXPLAIN 
+#select * from t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t10));
+
+#bug blocking: https://k3.alibaba-inc.com/issue/7784177
+#--echo we shouldn't flatten if we're going to get a join of > MAX_TABLES.
+#EXPLAIN  select * from
+#  t1 s00, t1 s01,  t1 s02, t1 s03, t1 s04,t1 s05,t1 s06,t1 s07,t1 s08,t1 s09,
+#  t1 s10, t1 s11,  t1 s12, t1 s13, t1 s14,t1 s15,t1 s16,t1 s17,t1 s18,t1 s19,
+#  t1 s20, t1 s21,  t1 s22, t1 s23, t1 s24,t1 s25,t1 s26,t1 s27,t1 s28,t1 s29,
+#  t1 s30, t1 s31,  t1 s32, t1 s33, t1 s34,t1 s35,t1 s36,t1 s37,t1 s38,t1 s39,
+#  t1 s40, t1 s41,  t1 s42, t1 s43, t1 s44,t1 s45,t1 s46,t1 s47,t1 s48,t1 s49
+#where
+#  s00.a in (
+#  select m00.a from
+#    t1 m00, t1 m01,  t1 m02, t1 m03, t1 m04,t1 m05,t1 m06,t1 m07,t1 m08,t1 m09,
+#    t1 m10, t1 m11,  t1 m12, t1 m13, t1 m14,t1 m15,t1 m16,t1 m17,t1 m18,t1 m19
+#  );
+
+#select * from
+#  t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t10))
+#where t1.a < 5;
+
+#
+# Prepared statements
+
+# Try I2O orders
+#insert into t1 select (A.a + 10 * B.a),1 from t0 A, t0 B;
+#EXPLAIN  select * from t1 where a in (select pk from t10 where pk<3);
+
+drop table t0, t1, t2;
+drop table t10, t11, t12;
+
+--echo #
+--echo # Check that subqueries with outer joins or  work for
+--echo # different permutations of const and non-const tables.  (Ref. Bug#46692)
+--echo #
+CREATE TABLE t1 (i INTEGER);
+CREATE TABLE t2 (i INTEGER);
+CREATE TABLE t3 (i INTEGER);
+set @@ob_enable_plan_cache=false;
+let $i=3;
+while ($i)
+{
+   let $j=3;
+   while ($j)
+   {
+       let $k=3;
+       while ($k)
+       {
+         SELECT (SELECT COUNT(*) from t1) AS c1,
+                (SELECT COUNT(*) from t2) AS c2,
+                (SELECT COUNT(*) from t3) AS c3;
+
+         let $query=
+         SELECT * FROM t1 WHERE (t1.i) IN
+           (SELECT t3.i FROM t2 INNER JOIN t3 ON t2.i=t3.i);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+#         eval PREPARE stmt FROM "$query";
+#         EXECUTE stmt;
+#         EXECUTE stmt;
+#         DEALLOCATE PREPARE stmt;
+
+         let $query=
+         SELECT * FROM t1 WHERE (t1.i) IN
+           (SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+#         eval PREPARE stmt FROM "$query";
+#         EXECUTE stmt;
+#         EXECUTE stmt;
+#         DEALLOCATE PREPARE stmt;
+
+         let $query=
+         SELECT * FROM t1 WHERE (t1.i) IN
+           (SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+         let $query=
+         SELECT * FROM t1 WHERE (t1.i) IN
+           (SELECT t3.i FROM t2 JOIN t3);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+         let $query=
+         SELECT * FROM t1 WHERE (11) IN
+           (SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+         let $query=
+         SELECT * FROM t1 WHERE (11) IN
+           (SELECT t3.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i WHERE t1.i);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+         let $query=
+         SELECT * FROM t1 WHERE (11) IN
+           (SELECT t3.i FROM t2 RIGHT JOIN t3 ON t2.i=t3.i);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+         let $query=
+         SELECT * FROM t1 WHERE (11) IN
+           (SELECT t3.i FROM t2 JOIN t3);
+         #eval EXPLAIN  $query;
+         eval $query;
+
+	 dec $k;
+	 eval INSERT INTO t3 VALUES ($k);
+       }
+       DELETE FROM t3;
+       dec $j;
+       eval INSERT INTO t2 VALUES ($j);
+   }
+   DELETE FROM t2;
+   dec $i;
+   eval INSERT INTO t1 VALUES ($i);
+}
+set @@ob_enable_plan_cache=true;
+DROP TABLE t1, t2, t3;
+
+# Test various IN and EXISTS queries with NULL values and UNKNOWN
+
+create table x1(k int primary key, d1 int, d2 int);
+create table x2(k int primary key, d1 int, d2 int);
+
+insert into x1 values
+    (10,   10,   10),
+    (20,   20,   20),
+    (21,   20,   null),
+    (30,   null, 30),
+    (40,   40,   40);
+insert into x2 values
+    (10,   10,   10),
+    (20,   20,   20),
+    (21,   20,   null),
+    (30,   null, 30);
+
+# Q1 T=(10, 20) U=(21,30) F=(40)
+select *
+from x1
+where (d1, d2) in (select d1, d2
+                   from x2);
+select *
+from x1
+where (d1, d2) in (select d1, d2
+                   from x2) is true;
+select *
+from x1
+where (d1, d2) in (select d1, d2
+                   from x2) is false;
+select *
+from x1
+where (d1, d2) in (select d1, d2
+                   from x2) is unknown;
+
+# Q2 T=(10, 20) U=(30) F=(21, 40)
+select *
+from x1
+where d1 in (select d1
+             from x2
+             where x1.d2=x2.d2);
+select *
+from x1
+where d1 in (select d1
+             from x2
+             where x1.d2=x2.d2) is true;
+select *
+from x1
+where d1 in (select d1
+             from x2
+             where x1.d2=x2.d2) is false;
+select *
+from x1
+where d1 in (select d1
+             from x2
+             where x1.d2=x2.d2) is unknown;
+
+# Q3 T=(10, 20) U=() F=(21, 30, 40)
+select *
+from x1
+where 1 in (select 1
+            from x2
+            where x1.d1=x2.d1 and x1.d2=x2.d2);
+select *
+from x1
+where 1 in (select 1
+            from x2
+            where x1.d1=x2.d1 and x1.d2=x2.d2) is true;
+select *
+from x1
+where 1 in (select 1
+            from x2
+            where x1.d1=x2.d1 and x1.d2=x2.d2) is false;
+select *
+from x1
+where 1 in (select 1
+            from x2
+            where x1.d1=x2.d1 and x1.d2=x2.d2) is unknown;
+
+# Q4 T=(10, 20) F=(21, 30, 40)
+select *
+from x1
+where exists (select *
+              from x2
+              where x1.d1=x2.d1 and x1.d2=x2.d2);
+
+drop table x1;
+drop table x2;
+
+
+#
+# Test for the problem with using sj-materialization when subquery's select
+# list element SCOL is covered by equality propagation and has preceding equal
+# column PCOL which belongs to a table within the the semi-join nest: SJM-Scan
+# process should unpack column value not to SCOL but rather to PCOL, as
+# substitute_best_equal has made all conditions to refer to PCOL.
+#
+CREATE TABLE t1 (
+  a int(11) NOT NULL,
+  b int(11) NOT NULL,
+  c datetime default NULL,
+  PRIMARY KEY  (a),
+  KEY idx_bc (b,c)
+);
+
+INSERT INTO t1 VALUES
+(406989,67,'2006-02-23 17:08:46'), (150078,67,'2005-10-26 11:17:45'),
+(406993,67,'2006-02-27 11:20:57'), (245655,67,'2005-12-08 15:59:08'),
+(406994,67,'2006-02-27 11:26:46'), (256,67,NULL),
+(398341,67,'2006-02-20 04:48:44'), (254,67,NULL),(1120,67,NULL),
+(406988,67,'2006-02-23 17:07:22'), (255,67,NULL),
+(398340,67,'2006-02-20 04:38:53'),(406631,67,'2006-02-23 10:49:42'),
+(245653,67,'2005-12-08 15:59:07'),(406992,67,'2006-02-24 16:47:18'),
+(245654,67,'2005-12-08 15:59:08'),(406995,67,'2006-02-28 11:55:00'),
+(127261,67,'2005-10-13 12:17:58'),(406991,67,'2006-02-24 16:42:32'),
+(245652,67,'2005-12-08 15:58:27'),(398545,67,'2006-02-20 04:53:13'),
+(154504,67,'2005-10-28 11:53:01'),(9199,67,NULL),(1,67,'2006-02-23 15:01:35'),
+(223456,67,NULL),(4101,67,NULL),(1133,67,NULL),
+(406990,67,'2006-02-23 18:01:45'),(148815,67,'2005-10-25 15:34:17'),
+(148812,67,'2005-10-25 15:30:01'),(245651,67,'2005-12-08 15:58:27'),
+(154503,67,'2005-10-28 11:52:38');
+
+--disable_warnings
+drop table if exists t11, t12, t21, t22;
+--enable_warnings
+create table t11 like t1;
+create table t12 like t1;
+create table t21 like t1;
+create table t22 like t1;
+
+update t22 set c = '2005-12-08 15:58:27' where a = 255;
+select t21.* from t21,t22 where t21.a = t22.a and
+t22.a in (select t12.a from t11, t12 where t11.a in(255,256) and t11.a = t12.a and t11.c is null) and t22.c is null order by t21.a;
+
+drop table t1, t11, t12, t21, t22;
+
+#
+# Test sj-materialization re-execution. The test isn't meaningful (materialized
+# table stays the same across all executions) because it's hard to create a
+# dataset that would verify correct re-execution without hitting BUG#31480
+#
+create table t1(a int);
+insert into t1 values (0),(1);
+
+select (select max(Y.a) from t1 Y where a in (select a from t1 Z) and a < X.a) as subq from t1 X;
+
+drop table t1;
+
+#
+# Test confluent duplicate weedout
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 like t0;
+insert into t1 select * from t0;
+insert into t1 select a+10 from t0;
+insert into t0 values(2);
+sleep 1;
+select * from t1 where 2 in (select a from t0);
+
+#
+# FirstMatch referring to a derived table
+#
+let $query=select * from (select a from t0) x where a in (select a from t1);
+drop table t0, t1;
+
+#
+# LooseScan: Check if we can pick it together with range access
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (kp1 int, kp2 int, c int, filler char(100), key(kp1, kp2));
+insert into t1 select A.a+10*(B.a+10*C.a), 0, 0, 'filler' from t0 A, t0 B, t0 C;
+insert into t1 select * from t1 where kp1 < 20;
+
+create table t3 (a int);
+insert into t3 select A.a + 10*B.a from t0 A, t0 B;
+select * from t3 where a in (select kp1 from t1 where kp1<20);
+
+select * from t3 where a in (select kp1 from t1 where kp1<20) and a<20;
+
+create table t4 (pk int primary key);
+insert into t4 select a from t3;
+select * from t3 where a in
+  (select t1.kp1 from t1,t4 where kp1<20 and t4.pk=t1.c);
+
+drop table t1, t3, t4;
+
+#
+# Test if we handle duplicate elimination temptable overflowing to disk
+#
+create table t1 (a int);
+insert into t1 values (0),(0),(0),(1),(1),(1),(2),(2),(2),(3),(3),(3);
+
+#set @save_max_heap_table_size=@@max_heap_table_size;
+#set @@max_heap_table_size= 16384;
+
+--echo # Attempt to make one test that overflows the heap table when a
+--echo # non-duplicate row is inserted and one test that overflows the
+--echo # heap table when a duplicate record is inserted. Debugging showed
+--echo # that these situations occurred with max_heap_table_size=16384
+--echo # and optimizer_join_cache_level equals 1 and 0, respectively.
+--echo # Finally execute a test that does not overflow the heap table.
+select count(*) from t0 A, t0 B, t0 C
+where C.a in (select a from t1 D);
+show status like 'Created_tmp_disk_tables';
+
+#set @@max_heap_table_size= @save_max_heap_table_size;
+select count(*) from t0 A, t0 B, t0 C
+where C.a in (select a from t1 D);
+show status like 'Created_tmp_disk_tables';
+
+drop table t0, t1;
+#
+# Materialize + Scan + ref access to the subsequent table based on scanned
+# value
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 values (1),(2);
+create table t3 ( a int , filler char(100), key(a));
+insert into t3 select A.a + 10*B.a, 'filler' from t0 A, t0 B;
+select * from t3 where a in (select a from t2);
+
+drop table t0, t2, t3;
+
+#
+# DATETIME type checks
+#
+create table t1 (a date);
+insert into t1 values ('2008-01-01'),('2008-01-01'),('2008-02-01'),('2008-02-01');
+create table t2 (a int);
+insert into t2 values (1),(2);
+create table t3 (a char(10));
+insert into t3 select * from t1;
+insert into t3 values (1),(2);
+drop table t1, t2, t3;
+create table t1 (a decimal);
+insert into t1 values (1),(2);
+drop table t1;
+
+#
+# SJ-Materialization-scan for non-first table
+#
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 like t1;
+insert into t2 select * from t1;
+create table t3 (a int, b int, filler char(100), key(a));
+insert into t3 select A.a + 10*B.a, A.a + 10*B.a, 'filler' from t1 A, t1 B, t1 C;
+
+#
+# SJ-Materialization scan + first table being system const table
+#
+create table t0 (a int, b int);
+insert into t0 values(1,1);
+create table t4(x int, y int);
+insert into t4 select a as x, a as y from t1;
+sleep 1;
+drop table t0,t1,t2,t3,t4;
+
+#
+# LooseScan with ref access
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, filler char(100), key(a,b));
+insert into t1 select A.a, B.a, 'filler' from t0 A, t0 B;
+create table t2 like t1;
+insert into t2 select * from t1;
+
+drop table t1,t2;
+
+#
+# Multi-column sj-materialization with lookups
+#
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+create table t2 (a int, b int);
+insert into t2 select A.a + 10*B.a, A.a + 10*B.a from t0 A, t0 B;
+
+drop table t0, t1, t2;
+
+
+#
+# Primitive SJ-Materialization tests for DECIMAL and DATE
+#
+create table t0 (a decimal(4,2));
+insert into t0 values (10.24), (22.11);
+create table t1 like t0;
+insert into t1 select * from t0;
+insert into t1 select * from t0;
+select * from t0 where a in (select a from t1);
+drop table t0, t1;
+
+create table t0(a date);
+insert into t0 values ('2008-01-01'),('2008-02-02');
+create table t1 like t0;
+insert into t1 select * from t0;
+insert into t1 select * from t0;
+select * from t0 where a in (select a from t1);
+drop table t0, t1;
+
+#
+# Fix a trivial crash with SJ-Materialization lookup, multiple tables in the
+# subquery, and a condition on some of inner tables but not others
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int, b int, c int);
+insert into t1 select a as a, a as b, a as c from t0 where a < 3;
+create table t2(a int, b int);
+insert into t2 select a as a, a as b from t0 where a < 3;
+insert into t2 select * from t2;
+
+drop table t0,t1,t2;
+
+
+#
+# Test join buffering
+#
+#set @save_join_buffer_size = @@join_buffer_size;
+#set join_buffer_size= 8192;
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int, filler1 binary(200), filler2 binary(200));
+insert into t1 select a, 'filler123456', 'filler123456' from t0;
+insert into t1 select a+10, 'filler123456', 'filler123456' from t0;
+
+create table t2 like t1;
+insert into t2 select * from t1;
+insert into t1 select a+20, 'filler123456', 'filler123456' from t0;
+
+insert into t1 values (2, 'duplicate ok', 'duplicate ok');
+insert into t1 values (18, 'duplicate ok', 'duplicate ok');
+
+insert into t2 values (3, 'duplicate ok', 'duplicate ok');
+insert into t2 values (19, 'duplicate ok', 'duplicate ok');
+
+#EXPLAIN  select
+# a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z
+#from t1 ot where a in (select a from t2 it);
+#--sorted_result
+#select
+# a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z
+#from t1 ot where a in (select a from t2 it);
+#
+#EXPLAIN  select
+#  a, mid(filler1, 1,10), length(filler1)=length(filler2)
+#from t2 ot where a in (select a from t1 it);
+#--sorted_result
+#select
+#  a, mid(filler1, 1,10), length(filler1)=length(filler2)
+#from t2 ot where a in (select a from t1 it);
+#
+## Now let the buffer overfill:
+#insert into t1 select a+20, 'filler123456', 'filler123456' from t0;
+#insert into t1 select a+20, 'filler123456', 'filler123456' from t0;
+#
+#EXPLAIN  select
+# a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z
+#from t1 ot where a in (select a from t2 it);
+#--sorted_result
+#select
+# a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z
+#from t1 ot where a in (select a from t2 it);
+#
+#EXPLAIN  select
+#  a, mid(filler1, 1,10), length(filler1)=length(filler2)
+#from t2 ot where a in (select a from t1 it);
+#--sorted_result
+#select
+#  a, mid(filler1, 1,10), length(filler1)=length(filler2)
+#from t2 ot where a in (select a from t1 it);
+
+#set @@join_buffer_size = @save_join_buffer_size;
+drop table t1, t2;
+
+# Check ref access to tables inside the OJ nest inside the SJ nest
+create table t1 (a int, b int, key(a));
+create table t2 (a int, b int, key(a));
+create table t3 (a int, b int, key(a));
+
+insert into t1 select a,a from t0;
+insert into t2 select a,a from t0;
+insert into t3 select a,a from t0;
+sleep 1;
+
+--echo t2 and t3 must be use 'ref', not 'ALL':
+
+drop table t0, t1,t2,t3;
+
+
+--echo
+--echo Test that neither MaterializeLookup strategy for semijoin,
+--echo nor subquery materialization is used when BLOBs are involved
+--echo (except when arguments of some functions).
+--echo
+#set @prefix_len = 6;
+
+# BLOB == 16 (small blobs that could be stored in HEAP tables)
+#set @blob_len = 16;
+#set @suffix_len = @blob_len - @prefix_len;
+
+#create table t1_16 (a1 blob(16), a2 blob(16));
+#create table t2_16 (b1 blob(16), b2 blob(16));
+#create table t3_16 (c1 blob(16), c2 blob(16));
+#
+#insert into t1_16 values
+# (concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+#insert into t1_16 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t1_16 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#
+#insert into t2_16 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t2_16 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t2_16 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#
+#insert into t3_16 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t3_16 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t3_16 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#insert into t3_16 values
+# (concat('1 - 04', repeat('x', @suffix_len)), concat('2 - 04', repeat('x', @suffix_len)));
+#
+## single value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select b1 from t2_16 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select b1 from t2_16 where b1 > '0');
+#
+## row value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_16
+#where (a1,a2) in (select b1, b2 from t2_16 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_16
+#where (a1,a2) in (select b1, b2 from t2_16 where b1 > '0');
+#
+## string function with a blob argument, the return type may be != blob
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select substring(b1,1,16) from t2_16 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select substring(b1,1,16) from t2_16 where b1 > '0');
+#
+## group_concat with a blob argument - depends on
+## the variable group_concat_max_len, and
+## convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select group_concat(b1) from t2_16 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select group_concat(b1) from t2_16 group by b2);
+#
+##set @@group_concat_max_len = 256; # anything < (CONVERT_IF_BIGGER_TO_BLOB = 512)
+#
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select group_concat(b1) from t2_16 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_16
+#where a1 in (select group_concat(b1) from t2_16 group by b2);
+#
+## BLOB column at the second (intermediate) level of nesting
+#create table t1 (a1 char(8), a2 char(8));
+#create table t2 (b1 char(8), b2 char(8));
+#create table t3 (c1 char(8), c2 char(8));
+#insert into t1 values ('1 - 00', '2 - 00');
+#insert into t1 values ('1 - 01', '2 - 01');
+#insert into t1 values ('1 - 02', '2 - 02');
+#insert into t2 values ('1 - 01', '2 - 01');
+#insert into t2 values ('1 - 01', '2 - 01');
+#insert into t2 values ('1 - 02', '2 - 02');
+#insert into t2 values ('1 - 02', '2 - 02');
+#insert into t2 values ('1 - 03', '2 - 03');
+#insert into t3 values ('1 - 01', '2 - 01');
+#insert into t3 values ('1 - 02', '2 - 02');
+#insert into t3 values ('1 - 03', '2 - 03');
+#insert into t3 values ('1 - 04', '2 - 04');
+#
+#EXPLAIN 
+#select * from t1
+#where concat(a1,'x') IN
+#      (select left(a1,8) from t1_16
+#       where (a1, a2) IN
+#             (select t2_16.b1, t2_16.b2 from t2_16, t2
+#              where t2.b2 = substring(t2_16.b2,1,6) and
+#                    t2.b1 IN (select c1 from t3 where c2 > '0')));
+#
+#
+#drop table t1_16, t2_16, t3_16, t1, t2, t3;
+
+
+# BLOB == 512 (CONVERT_IF_BIGGER_TO_BLOB == 512)
+#set @blob_len = 512;
+#set @suffix_len = @blob_len - @prefix_len;
+
+#create table t1_512 (a1 blob(512), a2 blob(512));
+#create table t2_512 (b1 blob(512), b2 blob(512));
+#create table t3_512 (c1 blob(512), c2 blob(512));
+#
+#insert into t1_512 values
+# (concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+#insert into t1_512 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t1_512 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#
+#insert into t2_512 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t2_512 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t2_512 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#
+#insert into t3_512 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t3_512 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t3_512 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#insert into t3_512 values
+# (concat('1 - 04', repeat('x', @suffix_len)), concat('2 - 04', repeat('x', @suffix_len)));
+#
+## single value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select b1 from t2_512 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select b1 from t2_512 where b1 > '0');
+#
+## row value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_512
+#where (a1,a2) in (select b1, b2 from t2_512 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_512
+#where (a1,a2) in (select b1, b2 from t2_512 where b1 > '0');
+#
+## string function with a blob argument, the return type may be != blob
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select substring(b1,1,512) from t2_512 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select substring(b1,1,512) from t2_512 where b1 > '0');
+#
+## group_concat with a blob argument - depends on
+## the variable group_concat_max_len, and
+## convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select group_concat(b1) from t2_512 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select group_concat(b1) from t2_512 group by b2);
+#
+##set @@group_concat_max_len = 256; # anything < (CONVERT_IF_BIGGER_TO_BLOB = 512)
+#
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select group_concat(b1) from t2_512 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_512
+#where a1 in (select group_concat(b1) from t2_512 group by b2);
+#
+#drop table t1_512, t2_512, t3_512;
+#
+#
+## BLOB == 513 (CONVERT_IF_BIGGER_TO_BLOB < 513)
+##set @blob_len = 513;
+##set @suffix_len = @blob_len - @prefix_len;
+#
+#create table t1_513 (a1 blob(513), a2 blob(513));
+#create table t2_513 (b1 blob(513), b2 blob(513));
+#create table t3_513 (c1 blob(513), c2 blob(513));
+#
+#insert into t1_513 values
+# (concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+#insert into t1_513 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t1_513 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#
+#insert into t2_513 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t2_513 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t2_513 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#
+#insert into t3_513 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t3_513 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t3_513 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#insert into t3_513 values
+# (concat('1 - 04', repeat('x', @suffix_len)), concat('2 - 04', repeat('x', @suffix_len)));
+#
+## single value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_513
+#where a1 in (select b1 from t2_513 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_513
+#where a1 in (select b1 from t2_513 where b1 > '0');
+#
+## row value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_513
+#where (a1,a2) in (select b1, b2 from t2_513 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_513
+#where (a1,a2) in (select b1, b2 from t2_513 where b1 > '0');
+#
+## string function with a blob argument, the return type may be != blob
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_513
+#where a1 in (select substring(b1,1,513) from t2_513 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_513
+#where a1 in (select substring(b1,1,513) from t2_513 where b1 > '0');
+#
+## group_concat with a blob argument - depends on
+## the variable group_concat_max_len, and
+## convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_513
+#where a1 in (select group_concat(b1) from t2_513 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_513
+#where a1 in (select group_concat(b1) from t2_513 group by b2);
+#
+#drop table t1_513, t2_513, t3_513;
+#
+#
+## BLOB == 1024 (group_concat_max_len == 1024)
+##set @blob_len = 1024;
+##set @suffix_len = @blob_len - @prefix_len;
+#
+#create table t1_1024 (a1 blob(1024), a2 blob(1024));
+#create table t2_1024 (b1 blob(1024), b2 blob(1024));
+#create table t3_1024 (c1 blob(1024), c2 blob(1024));
+#
+#insert into t1_1024 values
+# (concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+#insert into t1_1024 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t1_1024 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#
+#insert into t2_1024 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t2_1024 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t2_1024 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#
+#insert into t3_1024 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t3_1024 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t3_1024 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#insert into t3_1024 values
+# (concat('1 - 04', repeat('x', @suffix_len)), concat('2 - 04', repeat('x', @suffix_len)));
+#
+## single value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select b1 from t2_1024 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select b1 from t2_1024 where b1 > '0');
+#
+## row value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1024
+#where (a1,a2) in (select b1, b2 from t2_1024 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_1024
+#where (a1,a2) in (select b1, b2 from t2_1024 where b1 > '0');
+#
+## string function with a blob argument, the return type may be != blob
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select substring(b1,1,1024) from t2_1024 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select substring(b1,1,1024) from t2_1024 where b1 > '0');
+#
+## group_concat with a blob argument - depends on
+## the variable group_concat_max_len, and
+## convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select group_concat(b1) from t2_1024 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select group_concat(b1) from t2_1024 group by b2);
+#
+##set @@group_concat_max_len = 256; # anything < (CONVERT_IF_BIGGER_TO_BLOB = 1024)
+#
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select group_concat(b1) from t2_1024 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_1024
+#where a1 in (select group_concat(b1) from t2_1024 group by b2);
+#
+#drop table t1_1024, t2_1024, t3_1024;
+#
+#
+## BLOB == 1025
+##set @blob_len = 1025;
+##set @suffix_len = @blob_len - @prefix_len;
+#
+#create table t1_1025 (a1 blob(1025), a2 blob(1025));
+#create table t2_1025 (b1 blob(1025), b2 blob(1025));
+#create table t3_1025 (c1 blob(1025), c2 blob(1025));
+#
+#insert into t1_1025 values
+# (concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+#insert into t1_1025 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t1_1025 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#
+#insert into t2_1025 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t2_1025 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t2_1025 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#
+#insert into t3_1025 values
+# (concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+#insert into t3_1025 values
+# (concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+#insert into t3_1025 values
+# (concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+#insert into t3_1025 values
+# (concat('1 - 04', repeat('x', @suffix_len)), concat('2 - 04', repeat('x', @suffix_len)));
+#
+## single value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select b1 from t2_1025 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select b1 from t2_1025 where b1 > '0');
+#
+## row value transformer
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1025
+#where (a1,a2) in (select b1, b2 from t2_1025 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_1025
+#where (a1,a2) in (select b1, b2 from t2_1025 where b1 > '0');
+#
+## string function with a blob argument, the return type may be != blob
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select substring(b1,1,1025) from t2_1025 where b1 > '0');
+#
+#select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select substring(b1,1,1025) from t2_1025 where b1 > '0');
+#
+## group_concat with a blob argument - depends on
+## the variable group_concat_max_len, and
+## convert_blob_length == max_len*collation->mbmaxlen > CONVERT_IF_BIGGER_TO_BLOB
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select group_concat(b1) from t2_1025 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select group_concat(b1) from t2_1025 group by b2);
+#
+##set @@group_concat_max_len = 256; # anything < (CONVERT_IF_BIGGER_TO_BLOB = 1025)
+#
+#EXPLAIN  select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select group_concat(b1) from t2_1025 group by b2);
+#
+#select left(a1,7), left(a2,7)
+#from t1_1025
+#where a1 in (select group_concat(b1) from t2_1025 group by b2);
+#
+#drop table t1_1025, t2_1025, t3_1025;
+
+--echo #
+--echo # WL#5561: Enable semi join transformation with outer join.
+--echo #
+
+CREATE TABLE ot1(a INT);
+CREATE TABLE ot2(a INT);
+CREATE TABLE ot3(a INT);
+CREATE TABLE it1(a INT);
+CREATE TABLE it2(a INT);
+CREATE TABLE it3(a INT);
+
+INSERT INTO ot1 VALUES(0),(1),(2),(3),(4),(5),(6),(7);
+INSERT INTO ot2 VALUES(0),(2),(4),(6);
+INSERT INTO ot3 VALUES(0),(3),(6);
+INSERT INTO it1 VALUES(0),(1),(2),(3),(4),(5),(6),(7);
+INSERT INTO it2 VALUES(0),(2),(4),(6);
+INSERT INTO it3 VALUES(0),(3),(6);
+
+--echo # Test cases, Subquery Pattern 1
+
+--echo # Example SQ1.1:
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE ot1.a IN (SELECT a FROM it3);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ1.2:
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ1.3:
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE (ot1.a,ot2.a) IN (SELECT a, a FROM it3);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # More test cases
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE ot1.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE ot1.a IN (SELECT a+0 FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a+0 FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+WHERE (ot1.a,ot2.a) IN (SELECT a, a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot1.a=ot3.a
+WHERE ot1.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot1.a=ot3.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot1.a=ot3.a
+WHERE COALESCE(ot3.a,0) IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot2.a=ot3.a
+WHERE ot1.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot2.a=ot3.a
+WHERE COALESCE(ot2.a,0) IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot2.a=ot3.a
+WHERE COALESCE(ot3.a,0) IN (SELECT a FROM it3);
+
+--echo # Test cases, Subquery Pattern 2
+
+--echo # Example SQ2.1:
+
+let $query=
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a FROM it3);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ2.2:
+
+let $query=
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a FROM it2)
+                                 AND ot2.a IN (SELECT a FROM it3);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # More test cases
+
+--sorted_result
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a+0 AND ot1.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a+0 FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a+0 AND ot2.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot2.a IN (SELECT a+0 FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a+0 FROM it2)
+                                 AND ot2.a IN (SELECT a+0 FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 JOIN ot2 ON ot1.a=ot2.a AND ot1.a IN (SELECT a FROM it3)
+         JOIN ot3 ON ot2.a=ot3.a AND ot3.a IN (SELECT a FROM it3);
+
+--echo # Test cases, Subquery Pattern 3
+
+--echo # Example SQ3.1:
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot1.a IN (SELECT a FROM it3);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ3.2:
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot2.a IN (SELECT a FROM it2);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ3.3
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot1.a IN (SELECT a FROM it1)
+                                      AND ot2.a IN (SELECT a FROM it2);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ3.4
+
+let $query=
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where
+                         (ot1.a, ot2.a) IN (SELECT it1.a, it2.a
+                                            FROM it1 JOIN it2 ON it1.a=it2.a);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # More test cases
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where ot1.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot1.a IN (SELECT a+0 FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where ot2.a IN (SELECT a FROM it2);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a where ot2.a IN (SELECT a+0 FROM it2);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where ot1.a IN (SELECT a+0 FROM it1)
+                                        AND ot2.a IN (SELECT a+0 FROM it2);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0 where
+                         (ot1.a, ot2.a) IN (SELECT it1.a+0, it2.a+0
+                                            FROM it1 JOIN it2 ON it1.a=it2.a);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a
+         LEFT JOIN ot3 ON ot2.a=ot3.a where ot1.a IN (SELECT a FROM it3) AND
+                          ot3.a IN (SELECT a FROM it3);
+
+--sorted_result
+SELECT *
+FROM ot1 LEFT JOIN ot2 ON ot1.a=ot2.a+0
+         LEFT JOIN ot3 ON ot2.a=ot3.a+0 WHERE ot1.a IN (SELECT a FROM it3)
+                          AND ot3.a IN (SELECT a FROM it3);
+
+--echo # Test cases, Subquery Pattern 4
+
+--echo # Example SQ4.1:
+
+let $query=
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ4.2:
+
+let $query=
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ4.3:
+
+let $query=
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # Example SQ4.4:
+
+let $query=
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+#eval EXPLAIN  $query;
+--sorted_result
+eval $query;
+
+--echo # More test cases
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a+0)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a+0)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a+0)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a+0)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a+0 WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a+0 FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a)
+     ON ot1.a=ot2.a
+     LEFT JOIN
+       ot1 AS ot4
+     ON ot2.a=ot4.a WHERE ot1.a IN (SELECT a FROM it1);
+
+--sorted_result
+SELECT *
+FROM   ot1
+     LEFT JOIN
+       (ot2 LEFT JOIN ot3 ON ot2.a=ot3.a
+            LEFT JOIN ot1 AS ot4 ON ot3.a=ot4.a)
+     ON ot1.a=ot2.a WHERE ot1.a IN (SELECT a FROM it1);
+
+DROP TABLE ot1,ot2,ot3,it1,it2,it3;
+
+CREATE TABLE t (
+  a INTEGER DEFAULT NULL
+) ;
+INSERT INTO t VALUES (1);
+
+CREATE TABLE t2 (
+  a INTEGER DEFAULT NULL
+) ;
+INSERT INTO t2 VALUES (1),(1);
+
+CREATE TABLE t4 (
+  a INTEGER DEFAULT NULL
+) ;
+INSERT INTO t4 VALUES (1),(1);
+
+CREATE TABLE v (
+  a INTEGER DEFAULT NULL
+) ;
+INSERT INTO v VALUES (1),(1);
+
+#let $query=
+#SELECT *
+#FROM t AS t1
+#     LEFT JOIN
+#      (t2
+#       LEFT JOIN t AS t3
+#       ON t3.a IN (SELECT a FROM t AS it)
+#       JOIN t4
+#       ON t4.a=100
+#      )
+#     ON TRUE
+#WHERE t1.a IN (SELECT * FROM v AS it2);
+#eval EXPLAIN  $query;
+#eval $query;
+
+DROP TABLE t,t2,t4,v;
+
+--echo # End of WL#5561
+
+--echo #
+--echo # Bug#48868: Left outer join in subquery causes segmentation fault in
+--echo #            make_join_select.
+--echo #
+CREATE TABLE t1 (i INTEGER);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+CREATE TABLE t2 (i INTEGER);
+INSERT INTO t2 VALUES(1);
+CREATE TABLE t3 (i INTEGER);
+INSERT INTO t3 VALUES (1);
+INSERT INTO t3 VALUES (2);
+
+SELECT * FROM t1 WHERE (t1.i) IN
+  (SELECT t2.i FROM t2 LEFT JOIN t3 ON t2.i=t3.i);
+
+DROP TABLE t1, t2, t3;
+
+--echo
+--echo Bug#37899: Wrongly checked optimization prerequisite caused failed
+--echo            assertion.
+--echo
+CREATE TABLE t1 (
+  `pk` int(11),
+  `varchar_nokey` varchar(5)
+);
+
+INSERT INTO t1 VALUES
+(1,'qk'),(2,'j'),(3,'aew');
+
+SELECT *
+FROM t1
+WHERE varchar_nokey IN (
+ SELECT
+ varchar_nokey
+ FROM
+ t1
+);
+drop table t1;
+

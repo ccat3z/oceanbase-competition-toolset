@@ -1,0 +1,238 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# description: foobar
+# tags: dml
+#
+# test of batch stmt update optimization
+#
+
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+--enable_info
+--result_format 4
+
+--disable_query_log
+--disable_result_log
+connect (obsys,$OBMYSQL_MS0,admin,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection obsys;
+let $old_primary_zone=query_get_value(select primary_zone from oceanbase.__all_tenant where tenant_name='mysql',primary_zone,1);
+alter tenant mysql set primary_zone='RANDOM';
+connection default;
+--enable_result_log
+--enable_query_log
+
+set autocommit = false;
+alter system set ob_enable_batched_multi_statement=true;
+create table t1(a int, b int, c int, primary key(a,b)) partition by hash(a) partitions 4;
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+delimiter //;
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+delimiter ;//
+commit;
+select * from t1 order by a, b;
+drop table t1;
+
+create table t1(a int primary key, b int) partition by hash(a) partitions 2;
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+set autocommit = false;
+alter system set ob_enable_batched_multi_statement=true;
+delimiter //;
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+delimiter ;//
+commit;
+select * from t1 order by a;
+drop table t1;
+
+create table t1(a int, b int, c int, primary key(a,b)) partition by hash(a) partitions 4;
+create index gkey on t1(b);
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+delimiter //;
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+delimiter ;//
+commit;
+select * from t1 order by a, b;
+drop table t1;
+
+create table t1(a int primary key, b int) partition by hash(a) partitions 2;
+create index gkey on t1(b);
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+delimiter //;
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+delimiter ;//
+commit;
+select * from t1 order by a;
+drop table t1;
+
+--disable_warnings
+drop table if exists sbtest_hash1;
+--enable_warnings
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+commit;
+delimiter //;
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+delimiter ;//
+commit;
+select * from sbtest_hash1 order by id;
+drop table sbtest_hash1;
+
+--disable_warnings
+drop table if exists sbtest_hash1;
+--enable_warnings
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+CREATE INDEX gkey ON sbtest_hash1(c1);
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+commit;
+delimiter //;
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+delimiter ;//
+commit;
+select * from sbtest_hash1 order by id;
+drop table sbtest_hash1;
+
+create table t1(a int, b int, c int, primary key(a,b));
+create index gkey on t1(b) partition by hash(b) partitions 2;
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+delimiter //;
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+delimiter ;//
+commit;
+select * from t1 order by a, b;
+drop table t1;
+
+#test single partition batch stmt update
+create table t1(a int, b int, c int, primary key(a,b));
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+delimiter //;
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+delimiter ;//
+commit;
+select * from t1 order by a, b;
+drop table t1;
+
+create table t1(a int primary key, b int);
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+set autocommit = false;
+alter system set ob_enable_batched_multi_statement=true;
+delimiter //;
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+delimiter ;//
+commit;
+select * from t1 order by a;
+drop table t1;
+
+create table t1(a int, b int, c int, primary key(a,b));
+create index gkey on t1(b);
+insert into t1 values(1, 1, 1), (2, 2, 2), (3, 3, 3);
+delimiter //;
+update t1 set b = 2 where a = 1 and b = 1;update t1 set b = 1 where a = 2 and b = 2;//
+delimiter ;//
+commit;
+select * from t1 order by a, b;
+drop table t1;
+
+create table t1(a int primary key, b int);
+create index gkey on t1(b);
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+delimiter //;
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+delimiter ;//
+commit;
+select * from t1 order by a;
+drop table t1;
+
+##Test scenarios where the number of partitions on the server is different
+create table t1(a int primary key, b int) partition by hash(a) partitions 4;
+insert into t1 values(1, 1), (2, 2), (3, 3), (4, 4);
+delimiter //;
+update t1 set b=2 where a=1;update t1 set b=3 where a=2;update t1 set b=4 where a=3;update t1 set b=5 where a=4;//
+delimiter ;//
+commit;
+select * from t1 order by a;
+drop table t1;
+
+--disable_warnings
+drop table if exists sbtest_hash1;
+--enable_warnings
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+commit;
+delimiter //;
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+delimiter ;//
+commit;
+select * from sbtest_hash1 order by id;
+drop table sbtest_hash1;
+
+--disable_warnings
+drop table if exists sbtest_hash1;
+--enable_warnings
+CREATE TABLE `sbtest_hash1` (
+  `id` varchar(20) NOT NULL,
+  `k` int(11) DEFAULT NULL,
+  `c1` varchar(8) DEFAULT '',
+  `c2` varchar(8) DEFAULT '',
+  `c3` varchar(8) DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+) partition by key(id) partitions 3;
+CREATE INDEX gkey ON sbtest_hash1(c1);
+
+insert into sbtest_hash1 values('0190000653580000', 1, 'c1', 'c2', 'c3', 'pad'), ('0190000653580003', 2, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580004', 3, 'c1', 'c2', 'c3', 'pad'), ('0190000653580007', 4, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('0190000653580009', 5, 'c1', 'c2', 'c3', 'pad'), ('0190000653580008', 6, 'c1', 'c2', 'c3', 'pad');
+insert into sbtest_hash1 values('1', 7, 'c1', 'c2', 'c3', 'pad'), ('0190000653580010', 8, 'c1', 'c2', 'c3', 'pad');
+commit;
+delimiter //;
+UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580000';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580001';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580002';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580003';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580004';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580005';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580006';UPDATE sbtest_hash1 SET c1='30181417' WHERE id='0190000653580007';//
+delimiter ;//
+commit;
+select * from sbtest_hash1 order by id;
+alter system set ob_enable_batched_multi_statement=false;
+drop table sbtest_hash1;
+
+--disable_query_log
+--disable_result_log
+connection obsys;
+eval alter tenant mysql set primary_zone='$old_primary_zone';
+connection default;
+--enable_result_log
+--enable_query_log

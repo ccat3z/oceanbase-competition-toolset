@@ -1,0 +1,5 @@
+drop table if exists sbtest;
+CREATE TABLE sbtest (id INTEGER  NOT NULL , k integer  DEFAULT '0' NOT NULL, c char(120) DEFAULT '' NOT NULL, pad char(60) DEFAULT '' NOT NULL, PRIMARY KEY  (id) ) ;
+alter system major freeze;
+SELECT j1.* from sbtest as j1,sbtest as j2 where j1.id=j2.id and j1.id=0 and j2.id=0;
+id	k	c	pad

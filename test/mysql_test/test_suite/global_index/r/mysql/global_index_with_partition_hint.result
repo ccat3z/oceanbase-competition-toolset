@@ -1,0 +1,32 @@
+result_format: 4
+drop database if exists muhangtest;
+affected rows: 0
+create database muhangtest;
+affected rows: 1
+use muhangtest;
+affected rows: 0
+set ob_enable_plan_cache = off;
+affected rows: 0
+set ob_enable_transformation = false;
+affected rows: 0
+
+create table t1(auto int, companynr int, fld3 int, index(companynr, fld3), primary key(auto)) partition by key(auto) partitions 10;
+affected rows: 0
+select count(*) FROM t1 partition(p2) group by companynr;
++----------+
+| count(*) |
++----------+
+|        2 |
++----------+
+affected rows: 1
+
+create table t1_gkey(auto int, companynr int, fld3 int, primary key(auto)) partition by key(auto) partitions 10;
+affected rows: 0
+select /*+index(t1_gkey gkey)*/ count(*) FROM t1_gkey partition(p2) group by companynr;
++----------+
+| count(*) |
++----------+
+|        2 |
++----------+
+affected rows: 1
+

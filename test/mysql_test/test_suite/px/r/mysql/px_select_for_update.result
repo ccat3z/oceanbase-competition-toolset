@@ -1,0 +1,97 @@
+result_format: 4
+drop table if exists t1, t2, t3;
+create table t1 (c1 int, c2 int) partition by hash(c1) partitions 4;
+create table t2 (c1 int, c2 float) partition by hash(c1) partitions 4;
+create table t3 (c1 float);
+
+insert into t1 values(0,0);
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+insert into t1 values(3,3);
+
+insert into t2 values(0,0);
+insert into t2 values(2,2);
+insert into t2 values(4,4);
+insert into t2 values(6,6);
+
+insert into t3 values(0);
+insert into t3 values(3);
+insert into t3 values(6);
+insert into t3 values(9);
+
+select * from t3 for update;
++------+
+| c1   |
++------+
+|    0 |
+|    3 |
+|    6 |
+|    9 |
++------+
+
+select /*+parallel(1000)*/ * from t3 for update;
++------+
+| c1   |
++------+
+|    0 |
+|    3 |
+|    6 |
+|    9 |
++------+
+
+select * from t1 for update;
++------+------+
+| c1   | c2   |
++------+------+
+|    0 |    0 |
+|    1 |    1 |
+|    2 |    2 |
+|    3 |    3 |
++------+------+
+
+select * from t1 where t1.c1>0 for update;
++------+------+
+| c1   | c2   |
++------+------+
+|    1 |    1 |
+|    2 |    2 |
+|    3 |    3 |
++------+------+
+
+select * from t1 where t1.c1=0 and t1.c1=1 for update;
++------+------+
+| c1   | c2   |
++------+------+
++------+------+
+
+select /*+parallel(1000)*/ * from t1 where t1.c1=0 and t1.c1=1 for update;
++------+------+
+| c1   | c2   |
++------+------+
++------+------+
+
+select * from t1 join t3 on t1.c1=t3.c1 for update;
++------+------+------+
+| c1   | c2   | c1   |
++------+------+------+
+|    0 |    0 |    0 |
+|    3 |    3 |    3 |
++------+------+------+
+
+select * from t1 join t2 on t1.c1=t2.c1 for update;
++------+------+------+------+
+| c1   | c2   | c1   | c2   |
++------+------+------+------+
+|    0 |    0 |    0 |    0 |
+|    2 |    2 |    2 |    2 |
++------+------+------+------+
+
+select * from t1 join t2 on t1.c1=t2.c2 for update;
++------+------+------+------+
+| c1   | c2   | c1   | c2   |
++------+------+------+------+
+|    0 |    0 |    0 |    0 |
+|    2 |    2 |    2 |    2 |
++------+------+------+------+
+
+drop table if exists t1, t2, t3;

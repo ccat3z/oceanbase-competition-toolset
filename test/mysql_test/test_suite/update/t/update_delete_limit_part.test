@@ -1,0 +1,21 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+#####test:update ,delete part unique index
+--disable_query_log
+--disable_result_log
+--source mysql_test/include/index_quick_major.inc
+--enable_query_log
+--enable_result_log
+
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+create table test(pk1 int primary key, c1 int, c2 int);
+create unique index i1 on test(c1,c2);
+--source mysql_test/include/check_all_idx_ok.inc
+update test set c1=0 where pk1=0 limit 1;
+select * from test;
+update test set c1=0 where pk1=0  order by c2 asc limit 1;
+select * from test;

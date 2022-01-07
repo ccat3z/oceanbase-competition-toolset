@@ -1,0 +1,89 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# owner: yuchen.wyc
+# owner group: SQL1
+# description:
+# tags: global_index
+####
+--disable_query_log
+--source mysql_test/include/index_quick_major.inc
+--real_sleep 1
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+--enable_query_log
+
+####CASE: single rowkey and single index col
+create table t1(c1 int primary key, c2 varchar(1024), c3 int, index i11(c2) storing(c1), index i12(c2) storing(c3), index i13(c1) storing(c2,c3), index i14(c1) storing(c1,c2,c3), index i15(c2)) partition by hash(c1) partitions 2;
+
+--source mysql_test/include/check_all_idx_ok.inc
+
+replace into t1 values(1,'a',1),(2,'b',2);
+--sorted_result
+select * from t1;
+select /*+index(t1 i11)*/* from t1;
+select /*+index(t1 i12)*/* from t1;
+select /*+index(t1 i13)*/* from t1;
+select /*+index(t1 i14)*/* from t1;
+select /*+index(t1 i15)*/* from t1;
+
+####CASE:multi rowkey and multi index cols
+create table t2(c1 int , c2 varchar(1024), c3 int, c4 varchar(1024), c5  timestamp(6) default "2012-01-01 12:00:00", c6 int, primary key(c1, c2), index i21(c3,c4) storing(c5,c6), index i22(c1,c2) storing(c3,c4,c5,c6), index i23(c3) storing(c3,c4), index i24(c5), index i25(c1,c2,c3) storing(c4), index i26(c2,c3) storing(c4,c5,c6)) partition by hash(c1) partitions 2;
+insert into t2 values(1,'a',1,'a','2013-12-03 00:00:00',1), (2,'b',2,'b','2013-12-03 00:00:00',2);
+
+--source mysql_test/include/check_all_idx_ok.inc
+
+insert into t1 values(3,'c',3),(4,'d',4);
+insert into t1 values(5,'c',3),(6,'d',4);
+replace into t2 values(3,'c',3,'c','2013-12-03 00:00:00',3), (4,'d',4,'d','2013-12-03 00:00:00',4);
+replace into t2 values(5,'c',3,'c','2013-12-03 00:00:00',3), (6,'d',4,'d','2013-12-03 00:00:00',4);
+
+--sorted_result
+select * from t1;
+select /*+index(t1 i11)*/* from t1;
+select /*+index(t1 i12)*/* from t1;
+select /*+index(t1 i13)*/* from t1;
+select /*+index(t1 i14)*/* from t1;
+select /*+index(t1 i15)*/* from t1;
+
+--sorted_result
+select * from t2;
+select /*+index(t2 i21)*/* from t2;
+select /*+index(t2 i22)*/* from t2;
+select /*+index(t2 i23)*/* from t2;
+select /*+index(t2 i24)*/* from t2;
+select /*+index(t2 i25)*/* from t2;
+select /*+index(t2 i26)*/* from t2;
+
+####CASE: create index special situation
+create table t3(c1 int , c2 varchar(1024), c3 int, c4 varchar(1024), c5  timestamp(6) default "2012-01-01 12:00:00", c6 int, primary key(c1, c2)) partition by key(c2) partitions 2;
+create index i31 on t3(c3,c4) storing(c5,c6);
+####create index on non_exist data table;
+--error 1146
+create index test1 on testtable(c4);
+####create index with same columns as i31
+create index test2 on t3(c3,c4) storing(c5,c6);
+####create index with duplicate colunms
+--error 1060 
+create index test3 on t3(c1, c1) storing(c2, c2);
+#desc __idx_3042_test3;
+####create index with non-exist index column
+--error 1072
+create index test4 on t3(testcol);
+####create index without index column
+--error 1064 
+create index test5 on t3 storing (c1);
+--source mysql_test/include/check_all_idx_ok.inc
+show index from t3;
+
+####
+drop index i11 on t1;
+drop index i12 on t1;
+drop index i13 on t1;
+drop index i14 on t1;
+drop index i15 on t1;
+drop table t1;
+drop index i21 on t2;
+drop table t2;
+drop table t3;

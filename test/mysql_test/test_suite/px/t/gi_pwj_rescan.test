@@ -1,0 +1,31 @@
+# tags: optimizer
+
+
+## partition wise join gi rescan
+--disable_warnings
+drop database if exists test_gi_rescan;
+--enable_warnings
+
+create database test_gi_rescan;
+use test_gi_rescan;
+
+create table t1(v1 int, v2 int) partition by hash(v1) partitions 4;
+create table t2(v1 int) partition by hash(v1) partitions 3;
+create table t3(v1 int) partition by hash(v1) partitions 3;
+
+insert into t1 values(1,2), (3,4), (5,6), (7,8);
+insert into t2 values(1),(2), (3),(4), (5),(6), (7),(8);
+insert into t3 values(1),(2), (3),(4), (5),(6), (7),(8);
+--disable_result_log
+select count(*) from t1;
+select count(*) from t2;
+select count(*) from t3;
+--enable_result_log
+
+--result_format 4
+--enable_sorted_result
+select * from t1, t2 , t3 where t3.v1 = t2.v1 and t1.v2 = t2.v1;
+
+
+select /*+ PQ_DISTRIBUTE(@"SEL$1" ("test_gi_rescan.t2"@"SEL$1" "test_gi_rescan.t3"@"SEL$1" ) BROADCAST NONE) NO_USE_NL_MATERIALIZATION(@"SEL$1" ("TEST_GI_RESCAN.T2"@"SEL$1" "TEST_GI_RESCAN.T3"@"SEL$1" )) parallel(2) USE_NL(@"SEL$1" ("TEST_GI_RESCAN.T2"@"SEL$1" "TEST_GI_RESCAN.T3"@"SEL$1" )) leading(t1 (t2 t3))*/* from t1, t2 , t3 where t3.v1 = t2.v1 and t1.v2 = t2.v1;
+

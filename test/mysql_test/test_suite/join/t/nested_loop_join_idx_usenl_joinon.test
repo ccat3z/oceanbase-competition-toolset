@@ -1,0 +1,151 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: optimizer
+
+connect (conn1,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection conn1;
+--disable_query_log
+--source mysql_test/include/index_quick_major.inc
+--real_sleep 1
+--enable_query_log
+--echo merge happens
+##test index for nested loop join
+--disable_warnings
+drop table if exists tbl1,tbl2;
+--enable_warnings
+create table tbl1 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i3));
+create table tbl2 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i3));
+create index idx1 on tbl1(i1);
+create index idx2 on tbl2(i1); 
+--source mysql_test/include/check_all_idx_ok.inc
+insert into tbl1 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl1 values(2,'now','haha2',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl1 values(3,'now','haha3',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl2 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl2 values(2,'now1','haha2',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl2 values(3,'now2','haha3',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl2 values(1,'now3','haha4',1.6256,'2014-05-04 12:00:00',1.677);
+select /*+ USE_NL(tbl1) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+select /*+ USE_NL(tbl1) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 ;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 ;
+select /*+ USE_NL(tbl2) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl2) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+select /*+ USE_NL(tbl2) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 ;
+explain basic select /*+ USE_NL(tbl2) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 ;
+select /*+ USE_NL(tbl3) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 ;
+explain basic select /*+ USE_NL(tbl3) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 ;
+select /*+ USE_NL(tbl3) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2 ;
+explain basic select /*+ USE_NL(tbl3) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2 ;
+ select /*+ USE_NL(tbl3) */  * from tbl2,tbl1 where tbl2.v2=tbl1.v2 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl3) */  * from tbl2,tbl1 where tbl2.v2=tbl1.v2 and tbl1.i1>2;
+--echo  test alias 
+select /*+ USE_NL(tbl1) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+explain basic select  /*+ USE_NL(tbl1) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2; 
+select /*+ USE_NL(a) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+explain basic select /*+ USE_NL(a) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2; 
+select  /*+ USE_NL(tbl1) */  tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 ,tbl2 b where tbl1.i1=b.i1 and tbl1.i1>2;
+explain basic select  /*+ USE_NL(tbl1) */   a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2; 
+select /*+ USE_NL(tbl1) */ tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 ,tbl2 b where tbl1.i1=b.i1 and tbl1.i1>2;
+explain basic select  /*+ USE_NL(tbl1) */   tbl1.i1,tbl1.v2,b.i1,b.v2 from tbl1 ,tbl2 b where tbl1.i1=b.i1 and tbl1.i1>2;
+--echo  test join with self 
+select /*+ USE_NL(tbl1) */  * from tbl1 as i00 join tbl1  on  tbl1.i1=i00.i1 and tbl1.i1>2;
+explain basic select  /*+ USE_NL(tbl1) */  * from tbl1 as i00 join tbl1  on  tbl1.i1=i00.i1 and tbl1.i1>2;
+select /*+ USE_NL(tbl1) */  * from tbl1 as i00 join tbl1 on  tbl1.v2=i00.v2 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */   * from tbl1 as i00 join tbl1  on tbl1.v2=i00.v2 and tbl1.i1>2;
+--echo  test null in  join condition 
+insert into tbl1 values(null,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl2 values(null,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1 is null and tbl1.i1>2;
+select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1 is null and tbl1.i1>2;
+ explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+--echo  test index condition in where order 
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain basic select  /*+ USE_NL(tbl1) */  count(*) from tbl1 join tbl2 on tbl1.v2='now' and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on (tbl1.v2=tbl2.v2 and tbl1.i1=2 and tbl1.v2='now') and  (tbl1.i1=tbl2.i1) and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.v2=tbl2.v2 and (tbl1.i1=2 and tbl1.v2='now' and  tbl1.i1=tbl2.i1) and tbl1.i1>2;
+--echo  use column alias 
+#select /*+ USE_NL(tbl1) */  tbl1.i1 as col1 from tbl1 join tbl2 on col1=tbl2.i1 and tbl1.i1>2;
+#explain basic select /*+ USE_NL(tbl1) */  tbl1.i1 as col1 from tbl1 join tbl2 on col1=tbl2.i1 and tbl1.i1>2;
+--echo  test join in ps'
+#prepare st from select /*+ USE_NL(tbl1) */   * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1=? and tbl1.i1>2;
+#set @a=1;
+#execute st using @a;
+--echo  test union,except,... 
+select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+explain basic select /*+ USE_NL(tbl1) */  * from tbl1 join tbl2 on tbl1.i1=tbl2.i1 and tbl1.i1>2;
+--echo  test hint,condition use primary 
+select /*+ INDEX(t1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl1) *, *+ INDEX(tb1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl1) *,  *+ INDEX(tb2 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl1) *,  *+ INDEX(tb1 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl1) *,  *+ INDEX(tb2 idx2) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+--echo  test hint,use not exist index 
+select /*+ USE_NL(tbl1) *,  *+ INDEX(t1 idx3) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+explain basic select /*+ USE_NL(tbl1) *,  *+ INDEX(t1 idx3) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.v2=b.v2 and a.i1>2;
+explain basic select /*+ USE_NL(tbl1) *,  *+ INDEX(t1 idx3) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1 and a.i1>2;
+--echo test when index is invalid 
+--disable_warnings
+drop table if exists tbl10,tbl20;
+--enable_warnings
+create table tbl10 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i3));
+create table tbl20 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i3));
+create index idx10 on tbl10(i1);
+create index idx20 on tbl20(i1);
+insert into tbl10 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl10 values(2,'now','haha2',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl10 values(3,'now','haha3',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl20 values(1,'now','haha1',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl20 values(2,'now','haha2',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl20 values(3,'now2','haha3',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl20 values(1,'now3','haha4',1.6256,'2014-05-04 12:00:00',1.677);
+select  /*+ USE_NL(tbl10) */ * from tbl10,tbl20 where tbl10.i1=tbl20.i1 and tbl10.i1>2;
+explain basic select /*+ USE_NL(tbl10) */  * from tbl10,tbl20 where tbl10.i1=tbl20.i1 and tbl10.i1>2;
+select /*+ USE_NL(tbl10) */ a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1 and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1 and a.i1>2;
+select /*+ USE_NL(tbl10) */  tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 ,tbl20 b where tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select /*+ USE_NL(tbl10) */  tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 ,tbl20 b where tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select /*+ USE_NL(tbl10) *, *+ INDEX(tb1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) *,*+ INDEX(tb2 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) *,*+ INDEX(tb1 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) *,*+ INDEX(tb2 idx2) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1  and a.i1>2;
+--source mysql_test/include/check_all_idx_ok.inc
+
+select  /*+ USE_NL(tbl10) */  * from tbl10,tbl20 where tbl10.i1=tbl20.i1 and tbl10.i1>2;
+explain basic select   /*+ USE_NL(tbl10) */  * from tbl10,tbl20 where tbl10.i1=tbl20.i1 and tbl10.i1>2;
+select  /*+ USE_NL(tbl10) */ a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1 and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1 and a.i1>2;
+select /*+ USE_NL(tbl10) */  tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 ,tbl20 b where tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select /*+ USE_NL(tbl10) */ tbl10.i1,tbl10.v2,b.i1,b.v2 from tbl10 ,tbl20 b where tbl10.i1=b.i1 and tbl10.i1>2;
+explain basic select /*+ USE_NL(tbl10) *, *+ INDEX(tb1 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl10 a,tbl20 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) *, *+ INDEX(tb2 primary) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) *, *+ INDEX(tb1 idx1) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+explain basic select /*+ USE_NL(tbl10) *, *+ INDEX(tb2 idx2) */  a.i1,a.v2,b.i1,b.v2 from tbl1 a,tbl2 b where a.i1=b.i1  and a.i1>2;
+--echo  test muti columns index 
+--disable_warnings
+drop table if exists tbl3,tbl4;
+--enable_warnings
+create table tbl3 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6),i5 decimal(5,3), primary key(i1,i3));
+create table tbl4 (i1 int, v2 varchar(80), i3 char(20),i4 float, d4 datetime(6), i5 decimal(5,3), primary key(i1,i3));
+create index idx1 on tbl3(i1,v2,i3,d4);
+create index idx2 on tbl4(i1,v2,i3,d4);
+--source mysql_test/include/check_all_idx_ok.inc
+insert into tbl3 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',-10.235);
+insert into tbl3 values(2,'now','haha',-1.6256,'2014-05-04 12:00:00',1.243);
+insert into tbl3 values(3,'now','haha',1.656,'2014-05-04 12:00:00',-1.45);
+insert into tbl4 values(1,'now','haha',1.6256,'2014-05-04 12:00:00',3.45);
+insert into tbl4 values(2,'now','haha',1.6256,'2014-05-04 12:00:00',-0.25);
+insert into tbl4 values(3,'now2','haha',1.6256,'2014-05-04 12:00:00',0.253);
+insert into tbl4 values(4,'now3','haha',1.6256,'2014-05-04 12:00:00',-1.45);
+--echo  where condition hava first column of index,not have all index columns 
+select  /*+ USE_NL(tbl3) */ * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select  /*+ USE_NL(tbl3) */ * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and tbl3.i1>2 and tbl3.i4>1.25;
+select   /*+ USE_NL(tbl3) */  * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select  /*+ USE_NL(tbl3) */  * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and tbl3.i1>2 and tbl3.i4>1.25;
+select  /*+ USE_NL(tbl3,tbl4) */  * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select  /*+ USE_NL(tbl3,tbl4) */  * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i3>2 and tbl3.i4>1.25;
+select  /*+ USE_NL(tbl3 tbl4) */  * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i1>2 and tbl3.i4>1.25;
+explain basic select  /*+ USE_NL(tbl3 tbl4) */  * from tbl3,tbl4 where tbl3.i1=tbl4.i1 and  tbl3.v2=tbl4.v2 and  tbl3.i4=tbl4.i4 and tbl3.i3>2 and tbl3.i4>1.25;

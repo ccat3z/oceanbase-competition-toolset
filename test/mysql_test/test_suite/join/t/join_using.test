@@ -1,0 +1,123 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+# tags: join
+# description:
+# Test different join syntax with USING
+#
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT);
+CREATE TABLE t2 (c1 INT PRIMARY KEY, c2 INT);
+INSERT INTO t1(c1) VALUES (1);
+INSERT INTO t2(c1) VALUES (2);
+--sorted_result
+SELECT * FROM t1 INNER JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 FULL JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 CROSS JOIN t2 USING (c1);
+--disable_warnings
+DROP TABLE if exists t1,t2,t3;
+--enable_warnings
+
+# Test USING column list
+CREATE TABLE t1 (
+c1 INT PRIMARY KEY,
+c2 DOUBLE,
+c3 VARCHAR(50));
+
+CREATE TABLE t2 (
+c1 INT PRIMARY KEY,
+c2 DOUBLE,
+c3 VARCHAR(50));
+
+CREATE TABLE t3 (
+c1 INT PRIMARY KEY,
+c2 DOUBLE,
+c3 VARCHAR(50));
+
+INSERT INTO t1 VALUES
+(1, 1.0, 'ABC'),
+(2, 1.0, 'ABC'),
+(3, 1.0, 'ABC'),
+(4, 1.0, 'ABC');
+
+INSERT INTO t2 VALUES
+(1, 1.0, 'DEF'),
+(3, 1.0, 'DEF');
+
+INSERT INTO t3 VALUES
+(2, 1.0, 'GHI'),
+(3, 1.0, 'GHI');
+
+--error 1064
+SELECT * FROM t1 LEFT JOIN t2 USING ();
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c2);
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1,c3);
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1,c1);
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1,c3,c1);
+
+# Test RIGHT JOIN
+# Right table is placed before left table
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN t2 USING (c1,c3);
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN t2 USING (c1,c1);
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN t2 USING (c1,c3,c1);
+
+# Test SELECT *
+# Columns are coalesced and reordered as tests above
+--sorted_result
+SELECT * FROM t1 INNER JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 FULL JOIN t2 USING (c1);
+--sorted_result
+SELECT t1.c1,t2.c3 FROM t1 INNER JOIN t2 USING (c1);
+--sorted_result
+SELECT t1.c1,t2.c3 FROM t1 JOIN t2 USING (c1);
+--error 5619
+SELECT t1.c1,t2.c3 FROM t1 FULL JOIN t2 USING (c1);
+
+# Test multi JOIN
+# We support two equivalent forms as below
+--error 1052
+SELECT * FROM t1 JOIN t2 USING (c1) JOIN t3 USING (c2);
+--error 1064
+SELECT * FROM t1 JOIN t2 JOIN t3 USING (c1) USING (c2);
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1), t3 WHERE t1.c1 = t3.c1;
+--sorted_result
+SELECT * FROM t1 LEFT JOIN t2 USING (c1) , t2 z JOIN t3 USING (c1) WHERE t1.c1=z.c1;
+
+# Test alias
+--sorted_result
+SELECT * FROM t1 m JOIN t2 USING (c1);
+--sorted_result
+SELECT * FROM t1 m JOIN t2 n USING (c1);
+--sorted_result
+SELECT m.c1 x, n.c3 y FROM t1 m JOIN t2 n USING (c1);
+
+
+
+
+
+DROP TABLE t1,t2,t3;

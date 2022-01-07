@@ -1,0 +1,57 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+#owner: yuchen.wyc
+#owner group: sql3
+# tags: optimizer, global_index
+--result_format 4
+#--explain_protocol 2
+--enable_info
+
+--disable_warnings
+drop database if exists muhangtest;
+create database muhangtest;
+use muhangtest;
+--enable_warnings
+
+set ob_enable_plan_cache = off;
+set ob_enable_transformation = false;
+
+create table t1(auto int, companynr int, fld3 int, index(companynr, fld3), primary key(auto)) partition by key(auto) partitions 10;
+--disable_query_log
+--disable_result_log
+insert into t1 values(1,2,2);
+insert into t1 values(2,2,2);
+insert into t1 values(3,2,2);
+insert into t1 values(4,2,2);
+insert into t1 values(5,2,2);
+insert into t1 values(6,2,2);
+insert into t1 values(7,2,2);
+insert into t1 values(8,2,2);
+--enable_query_log
+--enable_result_log
+
+#explain select count(*) FROM t1 partition(p2) group by companynr;
+
+select count(*) FROM t1 partition(p2) group by companynr;
+
+create table t1_gkey(auto int, companynr int, fld3 int, primary key(auto)) partition by key(auto) partitions 10;
+--disable_query_log
+--disable_result_log
+insert into t1_gkey values(1,2,2);
+insert into t1_gkey values(2,2,2);
+insert into t1_gkey values(3,2,2);
+insert into t1_gkey values(4,2,2);
+insert into t1_gkey values(5,2,2);
+insert into t1_gkey values(6,2,2);
+insert into t1_gkey values(7,2,2);
+insert into t1_gkey values(8,2,2);
+create index gkey on t1_gkey(auto, companynr, fld3) global partition by key(companynr, fld3) partitions 1;
+--source mysql_test/include/check_all_idx_ok.inc
+--enable_query_log
+--enable_result_log
+
+#explain select /*+index(t1_gkey gkey)*/ count(*) FROM t1_gkey partition(p2) group by companynr;
+
+select /*+index(t1_gkey gkey)*/ count(*) FROM t1_gkey partition(p2) group by companynr;
+

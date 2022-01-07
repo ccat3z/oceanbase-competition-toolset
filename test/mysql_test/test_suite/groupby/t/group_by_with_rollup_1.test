@@ -1,0 +1,29 @@
+--disable_query_log
+set @@session.explicit_defaults_for_timestamp=off;
+--enable_query_log
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1(c1 int primary key, c2 int, c3 int, c4 int) partition by hash(c1) partitions 2;
+insert into t1 values (1,1,1,1);
+insert into t1 values (2,1,1,2);
+insert into t1 values (3,1,1,1);
+insert into t1 values (4,1,2,1);
+insert into t1 values (5,1,2,2);
+insert into t1 values (6,2,3,1);
+insert into t1 values (7,2,3,4);
+insert into t1 values (8,2,3,3);
+insert into t1 values (9,2,3,4);
+##测试分区列和group by列一致情况下的rollup
+select c1, sum(c2) from t1 group by c1 with rollup;
+select c1, sum(distinct c2) from t1 group by c1 with rollup;
+select c1, sum(distinct c2), count(distinct c2) from t1 group by c1 with rollup;
+##测试分区列和group by列不一致情况下的rollup
+select c2, c3, sum(c1) from t1 group by c2, c3 with rollup;
+select c2, c3, sum(distinct c4) from t1 group by c2, c3 with rollup;
+select c2, c3, sum(c1), avg(c1), sum(distinct c4) from t1 group by c2, c3 with rollup;
+##测试出现group_concat函数下的rollup
+select c1, group_concat(distinct c4), group_concat(c4 order by c4) from t1 group by c1 with rollup;
+select c2, c3, group_concat(distinct c4), group_concat(c4 order by c4) from t1 group by c2, c3 with rollup;
+drop table t1;

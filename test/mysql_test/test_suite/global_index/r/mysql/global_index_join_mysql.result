@@ -1,0 +1,86 @@
+drop table if exists t1, t2;
+create table t1(a int primary key, b int, c int, d int) partition by hash(a) partitions 4;
+create index idx_b on t1(b);
+create index idx_c on t1(c) partition by hash(c) partitions 4;
+create table t2(a int primary key, b int, c int, d int) partition by hash(a) partitions 4;
+insert into t1 values (1,1,1,1),(2,2,2,2),(3,3,3,3),(4,4,4,4),(5,5,5,5);
+insert into t2 values (1,1,1,1),(2,2,2,2),(3,3,3,3),(4,4,4,4),(5,5,5,5);
+select * from t1;
+a	b	c	d
+4	4	4	4
+1	1	1	1
+5	5	5	5
+2	2	2	2
+3	3	3	3
+select * from t2;
+a	b	c	d
+4	4	4	4
+1	1	1	1
+5	5	5	5
+2	2	2	2
+3	3	3	3
+result_format: 4
+explain_protocol: 0
+## test global index has one partition
+select /*+leading(t2 t1), use_index(t1 idx_b), use_nl(t1)*/ t1.b from t1, t2 where t1.b = t2.a;
++------+
+| b    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
++------+
+select /*+leading(t2 t1), use_index(t1 idx_b), use_merge(t1)*/ t1.b from t1, t2 where t1.b = t2.a;
++------+
+| b    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
++------+
+select /*+leading(t2 t1), use_index(t1 idx_b), use_hash(t1)*/ t1.b from t1, t2 where t1.b = t2.a;
++------+
+| b    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
++------+
+
+## test global index has multiple partitions
+select /*+leading(t2 t1), use_index(t1 idx_c), use_nl(t1)*/ t1.c from t1, t2 where t1.c = t2.a;
++------+
+| c    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
++------+
+select /*+leading(t2 t1), use_index(t1 idx_c), use_merge(t1)*/ t1.c from t1, t2 where t1.c = t2.a;
++------+
+| c    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
++------+
+select /*+leading(t2 t1), use_index(t1 idx_c), use_hash(t1)*/ t1.c from t1, t2 where t1.c = t2.a;
++------+
+| c    |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
++------+

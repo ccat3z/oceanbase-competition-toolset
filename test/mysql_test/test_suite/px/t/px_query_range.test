@@ -1,0 +1,20 @@
+#tags: px
+
+--result_format 4
+
+--disable_warnings
+drop table if exists t1;
+drop table if exists t2;
+--enable_warnings
+
+create table t1(c0 int primary key)partition by hash(c0) partitions 5;
+create table t2(c0 int primary key)partition by hash(c0) partitions 6;
+
+insert into t1 values(0);
+insert into t2 values(0);
+insert into t2 values(1);
+
+select * from t1,t2 where t2.c0 in (1,t1.c0);
+
+drop table t1;
+drop table t2;

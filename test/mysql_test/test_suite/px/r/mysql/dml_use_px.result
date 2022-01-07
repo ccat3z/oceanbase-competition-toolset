@@ -1,0 +1,471 @@
+result_format: 4
+drop table if exists s,p,p4,no_p,temp_s,temp_p,temp_p4,temp_p5;
+
+create table s(c1 int primary key, c2 int ,c3 int);
+create table p(c1 int primary key, c2 int ,c3 int) partition by hash(c1)  partitions 4;
+create table p4(c1 int primary key, c2 int ,c3 int) partition by hash(c1)  partitions 4;
+create table no_p(c1 int, c2 int ,c3 int) partition by hash(c1)  partitions 4;
+create table temp_s(c1 int, c2 int, c3 int);
+create table temp_p(c1 int, c2 int ,c3 int) partition by hash(c1)  partitions 4;
+create table temp_p4(c1 int, c2 int ,c3 int) partition by hash(c1)  partitions 4;
+create table temp_p5(c1 int, c2 int ,c3 int) partition by hash(c1)  partitions 5;
+
+## delete测试
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px*/ from s;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10)*/ from s;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px,parallel(10)*/ from p;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px,parallel(10)*/ from p where c1 >= 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
++----+------+------+
+delete from p;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px,parallel(10)*/ from p where c1 = 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into p4(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10)*/ p from p,p4 where p.c1 = p4.c1 and p.c1 >= 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
++----+------+------+
+delete from p;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10)*/ p from p,p4 where p.c1 = p4.c2 and p.c1 >= 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
++----+------+------+
+delete from p;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px,parallel(10)*/ s,p from s,p;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10),leading(s,p),pq_distribute(p,none,broadcast)*/ s from s,p where p.c1 = s.c1;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10)*/ s from s,p where p.c1 = s.c1;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
++----+------+------+
+
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10)*/ p from s,p where p.c1 = s.c1 and p.c1 = 1;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+delete from s;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(1)*/ p from p4,p where p.c1 = p4.c2 and p4.c2 = 4;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+delete /*+use_px, parallel(10)*/ p from p4,p where p.c1 = p4.c2 and p4.c2 = 4;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+delete from p4;
+
+## update测试
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+update /*+use_px, parallel(10)*/ s set s.c2 = 20 where s.c1 >=5;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |   20 | NULL |
+|  6 |   20 | NULL |
+|  7 |   20 | NULL |
+|  8 |   20 | NULL |
+|  9 |   20 | NULL |
+| 10 |   20 | NULL |
++----+------+------+
+delete from s;
+
+insert into s(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+update /*+use_px, parallel(10)*/ s set s.c1 = 20 where s.c2 = 5;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
+| 20 |    5 | NULL |
++----+------+------+
+delete from s;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+update /*+use_px, parallel(10)*/ p set p.c3 = 20 where p.c1 >= 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |    5 |   20 |
+|  6 |    6 |   20 |
+|  7 |    7 |   20 |
+|  8 |    8 |   20 |
+|  9 |    9 |   20 |
+| 10 |   10 |   20 |
++----+------+------+
+delete from p;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+update /*+use_px, parallel(10)*/ p set p.c1 = 20 where p.c1 = 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
+| 20 |    5 | NULL |
++----+------+------+
+delete from p;
+
+insert into p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+update /*+use_px, parallel(10)*/ p as pp set pp.c3 = 20 where pp.c1 >= 5;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |    5 |   20 |
+|  6 |    6 |   20 |
+|  7 |    7 |   20 |
+|  8 |    8 |   20 |
+|  9 |    9 |   20 |
+| 10 |   10 |   20 |
++----+------+------+
+delete from p;
+
+insert into no_p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+update /*+use_px, parallel(10)*/ no_p set no_p.c1 = 20 where no_p.c1 >= 5;
+select * from no_p order by c2;
++------+------+------+
+| c1   | c2   | c3   |
++------+------+------+
+|    1 |    1 | NULL |
+|    2 |    2 | NULL |
+|    3 |    3 | NULL |
+|    4 |    4 | NULL |
+|   20 |    5 | NULL |
+|   20 |    6 | NULL |
+|   20 |    7 | NULL |
+|   20 |    8 | NULL |
+|   20 |    9 | NULL |
+|   20 |   10 | NULL |
++------+------+------+
+delete from no_p;
+
+## insert测试：insert插入的表是local的非分区表/单分区的计划是非multi part，其他都是multi part计划
+## insert不会出现GI算子在insert算子头上的计划
+insert into temp_p(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into temp_s(c1,c3) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into temp_p4(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into temp_p5(c1,c2) values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+
+insert /*+use_px*/ into s select * from temp_s;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 | NULL |    1 |
+|  2 | NULL |    2 |
+|  3 | NULL |    3 |
+|  4 | NULL |    4 |
+|  5 | NULL |    5 |
+|  6 | NULL |    6 |
+|  7 | NULL |    7 |
+|  8 | NULL |    8 |
+|  9 | NULL |    9 |
+| 10 | NULL |   10 |
++----+------+------+
+delete from s;
+
+insert /*+use_px,parallel(10)*/ into s select * from temp_s;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 | NULL |    1 |
+|  2 | NULL |    2 |
+|  3 | NULL |    3 |
+|  4 | NULL |    4 |
+|  5 | NULL |    5 |
+|  6 | NULL |    6 |
+|  7 | NULL |    7 |
+|  8 | NULL |    8 |
+|  9 | NULL |    9 |
+| 10 | NULL |   10 |
++----+------+------+
+delete from s;
+
+insert /*+use_px,parallel(10)*/ into s select * from temp_p where temp_p.c2 >= 5;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from s;
+
+insert /*+use_px,parallel(10)*/ into s select temp_p.c1,temp_p.c2,temp_s.c3 from temp_p,temp_s where temp_p.c1 = temp_s.c1;
+select * from s order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 |    1 |
+|  2 |    2 |    2 |
+|  3 |    3 |    3 |
+|  4 |    4 |    4 |
+|  5 |    5 |    5 |
+|  6 |    6 |    6 |
+|  7 |    7 |    7 |
+|  8 |    8 |    8 |
+|  9 |    9 |    9 |
+| 10 |   10 |   10 |
++----+------+------+
+delete from s;
+
+insert /*+use_px,parallel(10)*/ into p select * from temp_s;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 | NULL |    1 |
+|  2 | NULL |    2 |
+|  3 | NULL |    3 |
+|  4 | NULL |    4 |
+|  5 | NULL |    5 |
+|  6 | NULL |    6 |
+|  7 | NULL |    7 |
+|  8 | NULL |    8 |
+|  9 | NULL |    9 |
+| 10 | NULL |   10 |
++----+------+------+
+delete from p;
+
+insert /*+use_px,parallel(10)*/ into p select * from temp_p;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+
+insert /*+use_px, parallel(10)*/ into p select temp_p.c1,temp_p.c2,temp_p.c3 from temp_p,temp_p5 where temp_p.c1 = temp_p5.c1;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+
+insert /*+use_px, parallel(10)*/ into p select temp_p.c1,temp_p.c2,temp_p.c3 from temp_p,temp_p5 where temp_p.c1 = temp_p5.c1 and temp_p.c1 = 3;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  3 |    3 | NULL |
++----+------+------+
+delete from p;
+
+insert /*+use_px, parallel(10)*/ into p select  temp_p.c1, temp_p.c2, temp_p.c3 from temp_p, temp_p4 where temp_p.c1 = temp_p4.c1;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 | NULL |
+|  2 |    2 | NULL |
+|  3 |    3 | NULL |
+|  4 |    4 | NULL |
+|  5 |    5 | NULL |
+|  6 |    6 | NULL |
+|  7 |    7 | NULL |
+|  8 |    8 | NULL |
+|  9 |    9 | NULL |
+| 10 |   10 | NULL |
++----+------+------+
+delete from p;
+
+insert /*+use_px,parallel(10)*/ into p select temp_p.c1,temp_p.c2,temp_s.c3 from temp_p,temp_s where temp_p.c1 = temp_s.c1;
+select * from p order by c1;
++----+------+------+
+| c1 | c2   | c3   |
++----+------+------+
+|  1 |    1 |    1 |
+|  2 |    2 |    2 |
+|  3 |    3 |    3 |
+|  4 |    4 |    4 |
+|  5 |    5 |    5 |
+|  6 |    6 |    6 |
+|  7 |    7 |    7 |
+|  8 |    8 |    8 |
+|  9 |    9 |    9 |
+| 10 |   10 |   10 |
++----+------+------+
+delete from p;
+
+## replace / insert on duplicate 计划
+## 目前replace / insert on duplicate计划是不支持PX
+drop table if exists s,p,p4,no_p,temp_s,temp_p,temp_p4,temp_p5;

@@ -1,0 +1,10 @@
+drop table if exists t1;
+create table t1 (c1 int, c2 int, c3 int);
+select group_concat(c1 order by (c2, c3)) from t1;
+ERROR 21000: Operand should contain 1 column(s)
+select count((c1, c2)) from t1;
+ERROR 21000: Operand should contain 1 column(s)
+select avg(c1) over (partition by (c2, c3)) from t1;
+ERROR 21000: Operand should contain 1 column(s)
+select avg(c1) over (partition by c2 order by (c3, c2)) from t1;
+ERROR 21000: Operand should contain 1 column(s)

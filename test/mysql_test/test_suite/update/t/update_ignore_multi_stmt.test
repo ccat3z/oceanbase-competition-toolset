@@ -1,0 +1,59 @@
+# description: 本case是为了测试多语句下update ignore的表现；
+# tags: dml,dml_ignore
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+
+--delimiter |
+create table test (c1 int primary key, c2 time, c3 char(3))|
+--error 1406
+insert into test values(5, 0, 'ni');insert into test values(6, 0, 'nihoaaw');update test set c1 = 2 where c3 = 'ni';|
+select * from test|
+delete from test|
+--error 1062
+insert into test values(1, 0, 'ni');insert ignore into test values(2, 0, 'nihoaaw');update test set c1 = 2 where c3 = 'ni'; update ignore test set c3 = 'nihaoels';|
+select * from test|
+delete from test|
+--error 1062 
+insert into test values(1, 0, 'ni');insert ignore into test values(2, 0, 'nihoaaw');insert into test values(3,0, 'hes');update test set c1 = 2 where c3 = 'ni'; update ignore test set c3 = 'eehaoels';|
+select * from test|
+delete from test|
+insert into test values(1, 0, 'ni');insert ignore into test values(2, 0, 'nihoaaw');insert into test values(3,0, 'hes');update ignore test set c1 = 2 where c3 = 'ni'; update ignore test set c3 = 'nihaoels';|
+select * from test|
+##update 发生主键冲突；
+delete from test|
+insert into test values(1,0,'ni');insert into test values(3,2,'3');update ignore test set c1=3; insert into test values(4,32,'ef');|
+select * from test|
+##update 发生数据类型转换
+delete from test|
+insert into test values(1,0,'ni');insert into test values(3,2,'3'); update ignore test set c3 = 'aaaaaaa'; select * from test;update ignore test set c3 = 'sssss';|
+select * from test|
+--delimiter ;
+drop table test;
+
+connect (conn1,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection conn1;
+--disable_warnings
+drop table if exists test;
+--enable_warnings
+create table test(c1 int primary key, c2 int, c3 char(3));
+insert into test values(1,1,1),(2,2,2);
+
+start transaction;
+update test set c2 = 5 where c1 = 1;
+insert into test values(3,3,3);
+connect (conn2,$OBMYSQL_MS0,$OBMYSQL_USR,$OBMYSQL_PWD,test,$OBMYSQL_PORT);
+connection conn2;
+--delimiter |
+#insert ignore into test values(3,3,3);insert ignore into test values(1,2,1); insert into test values(4,4,4)|
+--error 1205
+update test set c2= 5; select * from test; update ignore test set c1 = 1;select * from test;|
+--delimiter ;
+connection conn1;
+commit;
+select * from test;
+##replace报语法错误
+#--error 1064 
+#replace ignore into test values(4,4,4);
+drop table test;
+

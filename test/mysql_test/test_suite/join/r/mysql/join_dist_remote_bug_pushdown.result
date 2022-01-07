@@ -1,0 +1,56 @@
+drop table if exists t1, t2;
+create table t1 (pk int primary key);
+create table t2 (pk1 int, pk2 int, primary key(pk1, pk2)) partition by hash(pk1) partitions 2;
+insert into t1 values (1), (2), (3), (4);
+insert into t2 values  (2,2),  (2, 4),  (2, 6),  (2, 8);
+insert into t2 values (1,1),  (1,3),  (1, 5),  (1, 7) ;
+select * from t1, t2 where t1.pk = t2.pk1 and t1.pk > 0 and t1.pk < 5;
+pk	pk1	pk2
+1	1	1
+1	1	3
+1	1	5
+1	1	7
+2	2	2
+2	2	4
+2	2	6
+2	2	8
+drop table if exists t1, t2;
+create table t1 (pk1 int, pk2 int, primary key(pk1, pk2));
+create table t2 (pk1 int, pk2 int, primary key(pk1, pk2));
+insert into t1 values (1,1), (2,2), (1,3), (2, 4), (1, 5), (2, 6), (1, 7), (2, 8);
+insert into t2 values (1,1), (2,2), (1,3), (2, 4), (1, 5), (2, 6), (1, 7), (2, 8);
+select * from t1, t2 where t1.pk1 = t2.pk1 and t1.pk1 > 0 and t1.pk1 < 5;
+pk1	pk2	pk1	pk2
+1	1	1	1
+1	1	1	3
+1	1	1	5
+1	1	1	7
+1	3	1	1
+1	3	1	3
+1	3	1	5
+1	3	1	7
+1	5	1	1
+1	5	1	3
+1	5	1	5
+1	5	1	7
+1	7	1	1
+1	7	1	3
+1	7	1	5
+1	7	1	7
+2	2	2	2
+2	2	2	4
+2	2	2	6
+2	2	2	8
+2	4	2	2
+2	4	2	4
+2	4	2	6
+2	4	2	8
+2	6	2	2
+2	6	2	4
+2	6	2	6
+2	6	2	8
+2	8	2	2
+2	8	2	4
+2	8	2	6
+2	8	2	8
+drop table if exists t1, t2;
