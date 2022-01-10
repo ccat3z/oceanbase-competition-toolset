@@ -1,7 +1,7 @@
 #! /bin/sh
 
 set -e
-. "$(dirname "$0")/.env"
+. "$(dirname "$0")/init.sh"
 
 run_in_server
 

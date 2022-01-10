@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-. "$(dirname "$0")/.env"
+. "$(dirname "$0")/init.sh"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   echo "$0 [test case...]" >&2

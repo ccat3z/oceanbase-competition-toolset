@@ -1,7 +1,7 @@
 #! /bin/sh
 
 set -e
-. "$(dirname "$0")/.env"
+. "$(dirname "$0")/init.sh"
 
 benchmark() {
     HOST="$TEST_SERVER_HOST"
