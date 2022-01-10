@@ -1,13 +1,14 @@
 #! /bin/sh
 
-TEST_SERVER_HOST=test-server.comp.oceanbase.com
-TEST_SERVER=root@$TEST_SERVER_HOST
-TEST_CLIENT=test@test-client.comp.oceanbase.com
-
 TOOL_PATH="$(realpath "$0")"
 TOOL_ARGS="$*"
 TOOL_DIR="$(dirname "$TOOL_PATH")"
-REPO_DIR="$(realpath "${TOOL_PATH%tools/competition/*}")"
+
+[ ! -f "${TOOL_DIR}/.env" ] || . "${TOOL_DIR}/.env"
+
+TEST_SERVER_HOST=test-server.comp.oceanbase.com
+TEST_SERVER=root@$TEST_SERVER_HOST
+TEST_CLIENT=test@test-client.comp.oceanbase.com
 
 OB_CLUSTER_NAME="ob-benchmark"
 OB_CLUSTER_SERVER_BINARY_PATH="/var/lib/ob-benchmark/bin/observer"
@@ -47,8 +48,13 @@ ensure_git_repo() {
     fi
 }
 
+if [ -z "$REPO_DIR" ]; then
+    log_e "\$REPO_DIR is not set"
+    exit 1
+fi
+
 if [ -d "$REPO_DIR/.git" ]; then
-    BRANCH_NAME=$(git symbolic-ref --short HEAD)
+    BRANCH_NAME=$(cd $REPO_DIR && git symbolic-ref --short HEAD)
     test -n "$BRANCH_NAME" || exit 1
 
     REPO_IN_TEST_SERVER="/root/oceanbase"
