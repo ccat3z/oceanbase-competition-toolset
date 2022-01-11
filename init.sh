@@ -25,17 +25,12 @@ log_e() {
 
 run_in_server() {
     if [ "$__IN_REMOTE" != "y" ]; then
-        TOOL_SHA="$(sha256sum < "$TOOL_PATH")"
-        TOOL_IN_TEST_SERVER=${REPO_IN_TEST_SERVER}/tools/competition/${TOOL_PATH##*tools/competition/}
+        sync_tools
+        TOOL_IN_TEST_SERVER=${TOOL_REPO_IN_TEST_SERVER}/"$(basename "$TOOL_PATH")"
         # shellcheck disable=2087
         exec ssh -T "$TEST_SERVER" << EOF
-TOOL_SHA_IN_TEST_SERVER=\$(sha256sum < $TOOL_IN_TEST_SERVER)
-if [ "$TOOL_SHA" != "\$TOOL_SHA_IN_TEST_SERVER" ]; then
-    echo "Tool on test server is outdated, please sync manually." >&2
-    exit 1
-fi
-
 export __IN_REMOTE=y
+export REPO_DIR="${REPO_IN_TEST_SERVER}"
 "${TOOL_IN_TEST_SERVER}" $TOOL_ARGS
 EOF
     fi
@@ -46,6 +41,16 @@ ensure_git_repo() {
         log_e "$REPO_DIR should not be a sync source because it is not a git repo. Maybe you should skip the sync step on the server."
         exit 1
     fi
+}
+
+sync_tools() {
+    (
+        cd "${TOOL_DIR}" || exit 1
+        rsync -a --delete --progress \
+            --include='**.gitignore' \
+            --exclude='/.git' '--filter=:- .gitignore' \
+            "./" "$TEST_SERVER:$TOOL_REPO_IN_TEST_SERVER" < /dev/null
+    ) >&2
 }
 
 if [ -z "$REPO_DIR" ]; then
@@ -64,3 +69,5 @@ if [ -d "$REPO_DIR/.git" ]; then
 else # run on test server
     REPO_IN_TEST_SERVER="$REPO_DIR"
 fi
+
+TOOL_REPO_IN_TEST_SERVER="/root/ob-comp-tools"
