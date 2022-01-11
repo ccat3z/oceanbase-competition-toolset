@@ -27,7 +27,7 @@ ssh -t "$TEST_SERVER" sh -e << EOF
     cd "$REPO_IN_TEST_SERVER" || exit 1
 
     [ "$NEED_INIT" = "y" ] && ./build.sh release --init
-    ./build.sh release --make
+    ./build.sh release -DOB_USE_CCACHE=ON --make
 
     if [ "$NEED_SETUP" = "y" ]; then
         echo "Setup..."
