@@ -12,4 +12,4 @@ run_in_server
 export PATH="/u01/obclient/bin:$PATH"
 cd "$TOOL_DIR/test"
 mkdir -p tmp var/log
-./mysql_test/mysql-test.sh
+OBMYSQL_PORT="${OB_PORT}" ./mysql_test/mysql-test.sh
