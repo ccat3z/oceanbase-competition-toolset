@@ -10,6 +10,15 @@ oceanbase-ce:
     rpc_port: 2189
     zone: zone1
     cluster_id: 1
-    memory_limit: 8G
-    datafile_size: 20G
+    datafile_size: 10G
     # datafile_disk_percentage: 20
+  test:
+    #devname: eth0
+    devname: lo
+    syslog_level: INFO
+    enable_syslog_recycle: true
+    enable_syslog_wf: true
+    max_syslog_file_count: 4
+    memory_limit: 12G
+    system_memory: 6G
+    cpu_count: 16
