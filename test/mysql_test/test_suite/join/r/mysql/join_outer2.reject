@@ -1,0 +1,423 @@
+drop table if exists t1,t2;
+create table t1 (a int PRIMARY KEY, b int);
+create table t2 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (1,1), (2,1), (3,1), (4,2);
+INSERT INTO t2 VALUES (1,2), (2,2);
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+a	b	a	b
+1	1	1	2
+2	1	2	2
+3	1	NULL	NULL
+4	2	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t1.b=1;
+a	b	a	b
+1	1	1	2
+2	1	2	2
+3	1	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t1.b=1 OR (nvl(t2.a,0) AND t2.b=1);
+a	b	a	b
+1	1	1	2
+2	1	2	2
+3	1	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE not((t1.a=30 and t2.b=1));
+a	b	a	b
+1	1	1	2
+2	1	2	2
+3	1	NULL	NULL
+4	2	NULL	NULL
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE not((t1.a=30 and t2.b=1));
+DROP TABLE t1,t2;
+create table t1 (a int primary key, b varchar(20));
+create table t2 (a int primary key, c varchar(20));
+insert into t1 values (1,'aaaaaaaaaa'),(3,'bbbbbbbbbb');
+insert into t2 values (1,'cccccccccc'),(2,'dddddddddd');
+select concat(t1.b,t2.c) from t1 left join t2 on t1.a=t2.a group by t1.a;
+concat(t1.b,t2.c)
+NULL
+aaaaaaaaaacccccccccc
+select concat(t1.b,t2.c) from t1 inner join t2 on t1.a=t2.a group by t1.a;
+concat(t1.b,t2.c)
+aaaaaaaaaacccccccccc
+select concat(t1.b,t2.c) d from t1 left join t2 on t1.a=t2.a  group by d;
+d
+NULL
+aaaaaaaaaacccccccccc
+select concat(t1.b,t2.c) from t1 inner join t2 on t1.a=t2.a group by t1.a;
+concat(t1.b,t2.c)
+aaaaaaaaaacccccccccc
+drop table t1, t2;
+drop table if exists t1,t2,t3;
+create table t1 (gid smallint not null, x int not null, y int not null, art int not null, primary key  (gid,x,y));
+insert into t1 values (1, -5, -8, 2), (1, 2, 2, 1), (1, 1, 1, 1);
+create table t2 (gid smallint not null, x int not null, y int not null, id int not null, primary key  (gid,id,x,y));
+insert into t2 values (1, -5, -8, 1), (1, 1, 1, 1), (1, 2, 2, 1);
+create table t3 ( set_id smallint not null, id tinyint not null, name char(12) not null, primary key  (id,set_id));
+insert into t3 values (0, 1, 'a'), (1, 1, 'b'), (0, 2, 'c'), (1, 2, 'd'), (1, 3, 'e'), (1, 4, 'f'), (1, 5, 'g'), (1, 6, 'h');
+EXPLAIN BASIC select name from t1 left join t2 on t1.x = t2.x and t1.y = t2.y
+left join t3 on t1.art = t3.id where t2.id =1 and t2.x = -5 and t2.y =-8
+and t1.gid =1 and t2.gid =1 and t3.set_id =1;
+select name from t1 left join t2 on t1.x = t2.x and t1.y = t2.y left join t3 on t1.art = t3.id where t2.id =1 and t2.x = -5 and t2.y =-8 and t1.gid =1 and t2.gid =1 and t3.set_id =1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+drop table t1,t2,t3;
+ERROR 42S02: Unknown table 'test.t1,test.t2'
+create table t1 (c11 int primary key);
+create table t2 (c21 int primary key);
+INSERT INTO t1 VALUES (30), (40), (50);
+INSERT INTO t2 VALUES (300), (400), (500);
+SELECT * FROM t1 LEFT JOIN t2 ON (c11=c21 AND c21=30) WHERE c11=40;
+c11	c21
+40	NULL
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON (c11=c21 AND c21=30) WHERE c11=40;
+DROP TABLE t1, t2;
+create table t1 (a int PRIMARY KEY, b int);
+create table t2 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (1,2), (2,1), (3,2), (4,3), (5,6), (6,5), (7,8), (8,7), (9,10);
+INSERT INTO t2 VALUES (3,0), (4,1), (6,4), (7,5);
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t2.b <= t1.a AND t1.a <= t1.b;
+a	b	a	b
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a BETWEEN t2.b AND t1.b;
+a	b	a	b
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t1.a NOT BETWEEN t2.b AND t1.b);
+a	b	a	b
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t2.b > t1.a OR t1.a > t1.b;
+a	b	a	b
+2	1	NULL	NULL
+3	2	3	0
+4	3	4	1
+6	5	6	4
+8	7	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a NOT BETWEEN t2.b AND t1.b;
+a	b	a	b
+2	1	NULL	NULL
+3	2	3	0
+4	3	4	1
+6	5	6	4
+8	7	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t1.a BETWEEN t2.b AND t1.b);
+a	b	a	b
+2	1	NULL	NULL
+3	2	3	0
+4	3	4	1
+6	5	6	4
+8	7	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a = t2.a OR t2.b > t1.a OR t1.a > t1.b;
+a	b	a	b
+2	1	NULL	NULL
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+8	7	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t1.a != t2.a AND t1.a BETWEEN t2.b AND t1.b);
+a	b	a	b
+2	1	NULL	NULL
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+8	7	NULL	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a = t2.a AND (t2.b > t1.a OR t1.a > t1.b);
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t1.a != t2.a OR t1.a BETWEEN t2.b AND t1.b);
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a = t2.a OR t1.a = t2.b;
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a IN(t2.a, t2.b);
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t1.a NOT IN(t2.a, t2.b));
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a != t1.b AND t1.a != t2.b;
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a NOT IN(t1.b, t2.b);
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t1.a IN(t1.b, t2.b));
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t2.a != t2.b OR (t1.a != t2.a AND t1.a != t2.b);
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t2.a = t2.b AND t1.a IN(t2.a, t2.b));
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t2.a != t2.b AND t1.a != t1.b AND t1.a != t2.b;
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE NOT(t2.a = t2.b OR t1.a IN(t1.b, t2.b));
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a = t2.a OR t1.a = t2.b;
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a = t2.a OR t1.a = t2.b;
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a IN(t2.a, t2.b);
+a	b	a	b
+3	2	3	0
+4	3	4	1
+6	5	6	4
+7	8	7	5
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a IN(t2.a, t2.b);
+DROP TABLE t1,t2;
+drop table if exists t1,t2;
+create table t1 (a int primary key);
+create table t2 (b int primary key);
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+INSERT INTO t2 VALUES (2), (3);
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1=1);
+a	b
+1	NULL
+2	2
+3	3
+4	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1=0);
+a	b
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1=0);
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1 OR 1);
+a	b
+1	NULL
+2	2
+3	3
+4	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (0 OR 1);
+a	b
+1	NULL
+2	2
+3	3
+4	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1=1 OR 2=2);
+a	b
+1	NULL
+2	2
+3	3
+4	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1=1 OR 1=0);
+a	b
+1	NULL
+2	2
+3	3
+4	NULL
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.b WHERE (1=1 and 1=0);
+a	b
+DROP TABLE t1,t2;
+create table t1 (
+f1 varchar(16)  PRIMARY KEY,
+f2 varchar(16)
+);
+create table t2 (
+f1 varchar(16)  PRIMARY KEY,
+f3 varchar(16)
+);
+INSERT INTO t1 VALUES ('bla','blah');
+INSERT INTO t2 VALUES ('bla','sheep');
+SELECT * FROM t1 JOIN t2 on t1.f1=t2.f1 WHERE t1.f1='Bla';
+f1	f2	f1	f3
+bla	blah	bla	sheep
+SELECT * FROM t1 LEFT JOIN t2 on t1.f1=t2.f1 WHERE t1.f1='bla';
+f1	f2	f1	f3
+bla	blah	bla	sheep
+SELECT * FROM t1 LEFT JOIN t2 on t1.f1=t2.f1 WHERE t1.f1='Bla';
+f1	f2	f1	f3
+bla	blah	bla	sheep
+DROP TABLE t1,t2;
+create table t1 (id int PRIMARY KEY, a varchar(8));
+create table t2 (id int NOT NULL, b int NOT NULL, primary key(id,b));
+INSERT INTO t1 VALUES
+(1,'aaaaaaa'), (5,'eeeeeee'), (4,'ddddddd'), (2,'bbbbbbb'), (3,'ccccccc');
+ERROR 42S02: Table 'test.t1' doesn't exist
+INSERT INTO t2 VALUES
+(3,10), (2,20), (5,30), (3,20), (5,10), (3,40), (3,30), (2,10), (2,40);
+EXPLAIN BASIC
+SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS NULL;
+SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS NULL;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS not NULL;
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP TABLE t1,t2;
+create table t1 (c int  PRIMARY KEY, e int NOT NULL);
+INSERT INTO t1 VALUES (1,0), (2,1);
+create table t2 (d int PRIMARY KEY);
+ERROR 42S01: Table 't2' already exists
+INSERT INTO t2 VALUES (1), (2), (3);
+ERROR 21S01: Column count doesn't match value count at row 1
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON e<>0 and  t1.c=t2.d WHERE c=1 AND d IS NULL;
+SELECT * FROM t1 LEFT JOIN t2 ON e<>0 and t1.c=t2.d WHERE c=1 AND d IS NULL;
+ERROR 42S22: Unknown column 't2.d' in 'on clause'
+SELECT * FROM t1 LEFT JOIN t2 ON e<>0 and t1.c=t2.d WHERE c=1 AND d IS not NULL;
+ERROR 42S22: Unknown column 't2.d' in 'on clause'
+SELECT * FROM t1 LEFT JOIN t2 ON e<>0 and t1.c=t2.d WHERE c=1 AND d<=>NULL;
+ERROR 42S22: Unknown column 't2.d' in 'on clause'
+DROP TABLE t1,t2;
+#
+# Inconsistent behaviour with a COALESCE statement inside an IN comparison
+#
+create table t1(f1 INT, f2 INT primary key, f3 INT);
+INSERT INTO t1 VALUES (1, NULL, 3);
+ERROR 23000: Column 'f2' cannot be null
+create table t2(f1 INT, f2 INT primary key);
+INSERT INTO t2 VALUES (2, 1);
+EXPLAIN BASIC  SELECT * FROM t1 LEFT JOIN t2 ON t1.f2 = t2.f2
+WHERE (COALESCE(t1.f1, t2.f1), f3) IN ((1, 3), (2, 2));
+SELECT * FROM t1 LEFT JOIN t2 ON t1.f2 = t2.f2
+WHERE (COALESCE(t1.f1, t2.f1), f3) IN ((1, 3), (2, 2));
+f1	f2	f3	f1	f2
+DROP TABLE t1, t2;
+create table t1 (f1 INT NOT NULL, PRIMARY KEY (f1));
+create table t2 (f1 INT NOT NULL, f2 INT NOT NULL, PRIMARY KEY (f1, f2));
+INSERT INTO t1 VALUES (4);
+INSERT INTO t2 VALUES (3, 3);
+INSERT INTO t2 VALUES (7, 7);
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
+WHERE t1.f1 = 4
+GROUP BY t2.f1, t2.f2;
+SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
+WHERE t1.f1 = 4
+GROUP BY t2.f1, t2.f2;
+f1	f1	f2
+4	NULL	NULL
+EXPLAIN BASIC SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
+WHERE t1.f1 = 4 AND t2.f1 IS NOT NULL AND t2.f2 IS NOT NULL
+GROUP BY t2.f1, t2.f2;
+SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
+WHERE t1.f1 = 4 AND t2.f1 IS NOT NULL AND t2.f2 IS NOT NULL
+GROUP BY t2.f1, t2.f2;
+f1	f1	f2
+DROP TABLE t1,t2;
+ERROR 42S02: Unknown table 'test.t1,test.t2'
+drop table if exists BB;
+create table BB (
+pk int NOT NULL AUTO_INCREMENT,
+time_key datetime DEFAULT NULL,
+varchar_key varchar(1) DEFAULT NULL,
+varchar_nokey varchar(1) DEFAULT NULL,
+PRIMARY KEY (pk)
+)  ;
+INSERT INTO BB VALUES (10,'2014-08-19 18:27:58',NULL,NULL);
+SELECT table1.time_key AS field1, table2.pk
+FROM BB table1  LEFT JOIN BB table2
+ON table2.varchar_nokey = table1.varchar_key;
+field1	pk
+2014-08-19 18:27:58	NULL
+#
+# Incorrect result in multi level OUTER JOIN
+# in combination with IS NULL
+#
+drop table if exists t1,t2,t3,t4;
+create table t1 (i INT NOT NULL primary key);
+ERROR 42S01: Table 't1' already exists
+INSERT INTO t1 VALUES (0),    (2),(3),(4);
+ERROR 21S01: Column count doesn't match value count at row 1
+create table t2 (i INT NOT NULL primary key);
+INSERT INTO t2 VALUES (0),(1),    (3),(4);
+create table t3 (i INT NOT NULL primary key);
+INSERT INTO t3 VALUES (0),(1),(2),    (4);
+create table t4 (i INT NOT NULL primary key);
+INSERT INTO t4 VALUES (0),(1),(2),(3)   ;
+SELECT * FROM t1 LEFT JOIN t2 ON t2.i = t1.i  LEFT JOIN t3  ON t3.i = t2.i  LEFT JOIN t4 ON t4.i = t3.i order by t1.i;
+ERROR 42S22: Unknown column 't1.i' in 'on clause'
+drop table if exists h,m,k;
+create table h (pk INT NOT NULL primary key, col_int_key INT);
+INSERT INTO h VALUES (1,NULL),(4,2),(5,2),(3,4),(2,8);
+create table m (pk INT NOT NULL primary key, col_int_key INT);
+INSERT INTO m VALUES (1,2),(2,7),(3,5),(4,7),(5,5),(6,NULL),(7,NULL),(8,9);
+create table k (pk INT NOT NULL primary key, col_int_key INT);
+INSERT INTO k VALUES (1,9),(2,2),(3,5),(4,2),(5,7),(6,0),(7,5);
+SELECT TABLE1.pk FROM k TABLE1
+RIGHT JOIN h TABLE2 ON TABLE1.col_int_key=TABLE2.col_int_key
+RIGHT JOIN m TABLE4 ON TABLE2.col_int_key=TABLE4.col_int_key order by TABLE1.pk;
+pk
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+2
+2
+4
+4
+select * from m left join k on m.pk = k.pk left join h on m.pk = k.pk order by m.col_int_key;
+pk	col_int_key	pk	col_int_key	pk	col_int_key
+6	NULL	6	0	1	NULL
+6	NULL	6	0	2	8
+6	NULL	6	0	3	4
+7	NULL	7	5	5	2
+7	NULL	7	5	4	2
+7	NULL	7	5	3	4
+7	NULL	7	5	2	8
+7	NULL	7	5	1	NULL
+6	NULL	6	0	4	2
+6	NULL	6	0	5	2
+1	2	1	9	2	8
+1	2	1	9	1	NULL
+1	2	1	9	5	2
+1	2	1	9	4	2
+1	2	1	9	3	4
+3	5	3	5	3	4
+3	5	3	5	4	2
+3	5	3	5	5	2
+3	5	3	5	2	8
+3	5	3	5	1	NULL
+5	5	5	7	1	NULL
+5	5	5	7	2	8
+5	5	5	7	3	4
+5	5	5	7	4	2
+5	5	5	7	5	2
+4	7	4	2	4	2
+4	7	4	2	5	2
+4	7	4	2	3	4
+4	7	4	2	2	8
+4	7	4	2	1	NULL
+2	7	2	2	5	2
+2	7	2	2	4	2
+2	7	2	2	3	4
+2	7	2	2	2	8
+2	7	2	2	1	NULL
+8	9	NULL	NULL	NULL	NULL
+End of 5.1 tests

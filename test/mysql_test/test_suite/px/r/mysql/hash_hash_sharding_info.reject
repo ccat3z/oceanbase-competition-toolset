@@ -1,4 +1,5 @@
 result_format: 4
+
 use opt_tpch_part;
 
 SELECT  /*+  PQ_DISTRIBUTE(LINEITEM HASH HASH) TPCH_Q09 parallel(1) USE_PX  leading(PARTSUPP (SUPPLIER (PART LINEITEM)))*/

@@ -1,0 +1,15 @@
+drop table if exists t1;
+create table t1 (c1 double);
+insert into t1 (c1) values (1.5e+308);
+insert into t1 (c1) values (1.5e+308);
+result_format: 4
+select sum(c1), sum(c1) > 1, avg(c1), avg(c1) > 1, stddev(c1), stddev(1) > 1,  variance(c1), variance(c1) > 1 from t1;
++---------+-------------+---------+-------------+------------+---------------+--------------+------------------+
+| sum(c1) | sum(c1) > 1 | avg(c1) | avg(c1) > 1 | stddev(c1) | stddev(1) > 1 | variance(c1) | variance(c1) > 1 |
++---------+-------------+---------+-------------+------------+---------------+--------------+------------------+
+|       0 |           1 |       0 |           1 |          0 |             0 |            0 |                0 |
++---------+-------------+---------+-------------+------------+---------------+--------------+------------------+
+
+select sum(c1) + avg(c1) from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+
