@@ -62,7 +62,7 @@ if [ -d "$REPO_DIR/.git" ]; then
     BRANCH_NAME=$(cd $REPO_DIR && git symbolic-ref --short HEAD)
     test -n "$BRANCH_NAME" || exit 1
 
-    REPO_IN_TEST_SERVER="/root/oceanbase"
+    REPO_IN_TEST_SERVER="/workspace/oceanbase"
     if [ "$BRANCH_NAME" != "master" ]; then
         REPO_IN_TEST_SERVER="${REPO_IN_TEST_SERVER}_${BRANCH_NAME}"
     fi
