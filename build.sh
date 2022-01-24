@@ -26,6 +26,7 @@ done
 ssh -t "$TEST_SERVER" sh -e << EOF
     cd "$REPO_IN_TEST_SERVER" || exit 1
 
+    umask 000 # Inherit directory mode (for public ccache)
     [ "$NEED_INIT" = "y" ] && ./build.sh release --init
     ./build.sh release -DOB_USE_CCACHE=ON --make
 
